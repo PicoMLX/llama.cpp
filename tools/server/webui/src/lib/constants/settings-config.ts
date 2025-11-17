@@ -5,7 +5,7 @@ export const SETTING_CONFIG_DEFAULT: Record<string, string | number | boolean> =
 	systemMessage: '',
 	theme: 'system',
 	showTokensPerSecond: false,
-	showThoughtInProgress: false,
+	showThoughtInProgress: true,
 	showToolCalls: false,
 	disableReasoningFormat: false,
 	keepStatsVisible: false,
