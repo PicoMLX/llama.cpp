@@ -5,7 +5,7 @@
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { TOOLTIP_DELAY_DURATION } from '$lib/constants/tooltip-config';
 	import { FileTypeCategory } from '$lib/enums/files';
-	import { supportsAudio, supportsVision } from '$lib/stores/server.svelte';
+	import { supportsAudio, supportsVision } from '$lib/utils/model-capabilities';
 
 	interface Props {
 		class?: string;

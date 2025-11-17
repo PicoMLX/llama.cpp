@@ -9,7 +9,6 @@
 		EmptyFileAlertDialog,
 		ChatErrorDialog,
 		ServerErrorSplash,
-		ServerInfo,
 		ServerLoadingSplash,
 		ConfirmationDialog
 	} from '$lib/components/app';
@@ -29,13 +28,8 @@
 		sendMessage,
 		stopGeneration
 	} from '$lib/stores/chat.svelte';
-	import {
-		supportsVision,
-		supportsAudio,
-		serverLoading,
-		serverWarning,
-		serverStore
-	} from '$lib/stores/server.svelte';
+	import { serverLoading, serverWarning, serverStore } from '$lib/stores/server.svelte';
+	import { supportsVision, supportsAudio } from '$lib/utils/model-capabilities';
 	import { parseFilesToMessageExtras } from '$lib/utils/convert-files-to-extra';
 	import { isFileTypeSupported } from '$lib/utils/file-type';
 	import { filterFilesByModalities } from '$lib/utils/modality-file-validation';

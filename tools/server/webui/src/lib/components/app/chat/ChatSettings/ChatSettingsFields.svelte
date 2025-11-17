@@ -6,7 +6,7 @@
 	import * as Select from '$lib/components/ui/select';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { SETTING_CONFIG_DEFAULT, SETTING_CONFIG_INFO } from '$lib/constants/settings-config';
-	import { supportsVision } from '$lib/stores/server.svelte';
+	import { supportsVision } from '$lib/utils/model-capabilities';
 	import { getParameterInfo, resetParameterToServerDefault } from '$lib/stores/settings.svelte';
 	import { ParameterSyncService } from '$lib/services/parameter-sync';
 	import ParameterSourceIndicator from './ParameterSourceIndicator.svelte';

@@ -104,6 +104,21 @@
 		}
 	});
 
+	// Handle modelSelectorEnabled toggle - sync with props model when disabled
+	$effect(() => {
+		const currentConfig = config();
+		const serverProps = serverStore.serverProps;
+
+		// When selector is disabled and server props are loaded, sync with props model
+		if (!currentConfig.modelSelectorEnabled && serverProps) {
+			import('$lib/stores/models.svelte').then(({ syncWithPropsModel }) => {
+				syncWithPropsModel().catch((err) => {
+					console.error('Failed to sync with props model:', err);
+				});
+			});
+		}
+	});
+
 	// Monitor API key changes and redirect to error page if removed or changed when required
 	$effect(() => {
 		const apiKey = config().apiKey;

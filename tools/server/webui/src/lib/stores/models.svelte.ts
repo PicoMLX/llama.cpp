@@ -2,6 +2,7 @@ import { ModelsService } from '$lib/services/models';
 import { persisted } from '$lib/stores/persisted.svelte';
 import { SELECTED_MODEL_LOCALSTORAGE_KEY } from '$lib/constants/localstorage-keys';
 import type { ModelOption } from '$lib/types/models';
+import { serverStore } from '$lib/stores/server.svelte';
 
 type PersistedModelSelection = {
 	id: string;
@@ -132,6 +133,45 @@ class ModelsStore {
 		}
 	}
 
+		/**
+	 * Syncs selection with the server's props model
+	 * Called when modelSelectorEnabled is toggled or when falling back
+	 */
+	async syncWithPropsModel(): Promise<void> {
+		const propsModelName = serverStore.modelName;
+		if (!propsModelName) {
+			console.warn('No props model available to sync with');
+			return;
+		}
+
+		// Ensure models are loaded
+		if (this._models.length === 0) {
+			await this.fetch();
+		}
+
+		// Try to find props model in the models list by matching name
+		const propsModel = this._models.find((m) => m.name === propsModelName);
+
+		if (propsModel) {
+			// Found exact match - use it
+			this._selectedModelId = propsModel.id;
+			this._selectedModelName = propsModel.model;
+			this._persistedSelection.value = {
+				id: propsModel.id,
+				model: propsModel.model
+			};
+		} else {
+			// Not found in list - save props model name as-is
+			// This handles cases where props model isn't in /v1/models
+			this._selectedModelId = propsModelName;
+			this._selectedModelName = propsModelName;
+			this._persistedSelection.value = {
+				id: propsModelName,
+				model: propsModelName
+			};
+		}
+	}
+
 	private toDisplayName(id: string): string {
 		const segments = id.split(/\\|\//);
 		const candidate = segments.pop();
@@ -141,7 +181,7 @@ class ModelsStore {
 
 	/**
 	 * Determines which model should be selected after fetching the models list.
-	 * Priority: current selection > persisted selection > first available model > none
+	 * Priority: current selection > persisted selection > props model > first available model > none
 	 */
 	private determineInitialSelection(models: ModelOption[]): {
 		id: string | null;
@@ -157,14 +197,33 @@ class ModelsStore {
 			if (match) {
 				nextSelectionId = match.id;
 				nextSelectionName = match.model;
-			} else if (models[0]) {
-				nextSelectionId = models[0].id;
-				nextSelectionName = models[0].model;
 			} else {
-				nextSelectionId = null;
-				nextSelectionName = null;
+				// Model not found - fall back to props model
+				const propsModelName = serverStore.modelName;
+				if (propsModelName) {
+					const propsMatch = models.find((m) => m.name === propsModelName);
+					if (propsMatch) {
+						nextSelectionId = propsMatch.id;
+						nextSelectionName = propsMatch.model;
+					} else if (models[0]) {
+						// Props model also not found - use first available
+						nextSelectionId = models[0].id;
+						nextSelectionName = models[0].model;
+					} else {
+						nextSelectionId = null;
+						nextSelectionName = null;
+					}
+				} else if (models[0]) {
+					// No props model - use first available
+					nextSelectionId = models[0].id;
+					nextSelectionName = models[0].model;
+				} else {
+					nextSelectionId = null;
+					nextSelectionName = null;
+				}
 			}
 		} else if (models[0]) {
+			// No selection - default to first model
 			nextSelectionId = models[0].id;
 			nextSelectionName = models[0].model;
 		}
@@ -185,3 +244,4 @@ export const selectedModelOption = () => modelsStore.selectedModel;
 
 export const fetchModels = modelsStore.fetch.bind(modelsStore);
 export const selectModel = modelsStore.select.bind(modelsStore);
+export const syncWithPropsModel = modelsStore.syncWithPropsModel.bind(modelsStore);
