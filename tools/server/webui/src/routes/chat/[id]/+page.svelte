@@ -50,7 +50,7 @@
 </script>
 
 <svelte:head>
-	<title>{activeConversation()?.name || 'Chat'} - llama.cpp</title>
+	<title>{activeConversation()?.name || 'Chat'} - Pico AI Server</title>
 </svelte:head>
 
 <ChatScreen />
