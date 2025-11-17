@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { ChatScreen } from '$lib/components/app';
 	import { chatStore, isInitialized } from '$lib/stores/chat.svelte';
+	import { serverName } from '$lib/stores/server.svelte';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 
@@ -21,7 +22,7 @@
 </script>
 
 <svelte:head>
-	<title>Pico AI Server - AI Chat Interface</title>
+	<title>{serverName()} - AI Chat Interface</title>
 </svelte:head>
 
 <ChatScreen showCenteredEmpty={true} />

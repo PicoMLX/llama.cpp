@@ -28,7 +28,7 @@
 		sendMessage,
 		stopGeneration
 	} from '$lib/stores/chat.svelte';
-	import { serverLoading, serverWarning, serverStore } from '$lib/stores/server.svelte';
+	import { serverLoading, serverName, serverWarning, serverStore } from '$lib/stores/server.svelte';
 	import { supportsVision, supportsAudio } from '$lib/utils/model-capabilities';
 	import { parseFilesToMessageExtras } from '$lib/utils/convert-files-to-extra';
 	import { isFileTypeSupported } from '$lib/utils/file-type';
@@ -329,7 +329,7 @@
 	>
 		<div class="w-full max-w-[48rem] px-4">
 			<div class="mb-8 text-center" in:fade={{ duration: 300 }}>
-				<h1 class="mb-2 text-3xl font-semibold tracking-tight">Pico AI Server</h1>
+				<h1 class="mb-2 text-3xl font-semibold tracking-tight">{serverName()}</h1>
 
 				<p class="text-lg text-muted-foreground">How can I help you today?</p>
 			</div>

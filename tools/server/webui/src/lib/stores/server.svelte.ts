@@ -135,6 +135,10 @@ class ServerStore {
 		return this._serverProps?.default_generation_settings?.params || null;
 	}
 
+	get serverName(): string {
+		return this._serverProps?.server_name || 'Pico AI Server';
+	}
+
 	/**
 	 * Check if slots endpoint is available based on server properties and endpoint support
 	 */
@@ -329,3 +333,4 @@ export const supportsVision = () => serverStore.supportsVision;
 export const supportsAudio = () => serverStore.supportsAudio;
 export const slotsEndpointAvailable = () => serverStore.slotsEndpointAvailable;
 export const serverDefaultParams = () => serverStore.serverDefaultParams;
+export const serverName = () => serverStore.serverName;

@@ -8,6 +8,7 @@
 		isLoading,
 		stopGeneration
 	} from '$lib/stores/chat.svelte';
+	import { serverName } from '$lib/stores/server.svelte';
 
 	let chatId = $derived(page.params.id);
 	let currentChatId: string | undefined = undefined;
@@ -50,7 +51,7 @@
 </script>
 
 <svelte:head>
-	<title>{activeConversation()?.name || 'Chat'} - Pico AI Server</title>
+	<title>{activeConversation()?.name || 'Chat'} - {serverName()}</title>
 </svelte:head>
 
 <ChatScreen />
