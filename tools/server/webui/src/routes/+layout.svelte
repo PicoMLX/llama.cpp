@@ -2,11 +2,7 @@
 	import '../app.css';
 	import { page } from '$app/state';
 	import { ChatSidebar, ConversationTitleUpdateDialog } from '$lib/components/app';
-	import {
-		activeMessages,
-		isLoading,
-		setTitleUpdateConfirmationCallback
-	} from '$lib/stores/chat.svelte';
+	import { setTitleUpdateConfirmationCallback } from '$lib/stores/chat.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { serverStore } from '$lib/stores/server.svelte';
 	import { config, settingsStore } from '$lib/stores/settings.svelte';
@@ -16,10 +12,6 @@
 
 	let { children } = $props();
 
-	let isChatRoute = $derived(page.route.id === '/chat/[id]');
-	let isHomeRoute = $derived(page.route.id === '/');
-	let isNewChatMode = $derived(page.url.searchParams.get('new_chat') === 'true');
-	let showSidebarByDefault = $derived(activeMessages().length > 0 || isLoading());
 	let sidebarOpen = $state(false);
 	let innerHeight = $state<number | undefined>();
 	let chatSidebar:
@@ -73,22 +65,6 @@
 			titleUpdateResolve = null;
 		}
 	}
-
-	$effect(() => {
-		if (isHomeRoute && !isNewChatMode) {
-			// Auto-collapse sidebar when navigating to home route (but not in new chat mode)
-			sidebarOpen = false;
-		} else if (isHomeRoute && isNewChatMode) {
-			// Keep sidebar open in new chat mode
-			sidebarOpen = true;
-		} else if (isChatRoute) {
-			// On chat routes, show sidebar by default
-			sidebarOpen = true;
-		} else {
-			// Other routes follow default behavior
-			sidebarOpen = showSidebarByDefault;
-		}
-	});
 
 	// Initialize server properties on app load
 	$effect(() => {
