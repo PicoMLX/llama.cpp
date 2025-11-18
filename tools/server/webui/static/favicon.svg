@@ -17,7 +17,7 @@
                             <g transform="matrix(-1,0,0,0.999942,1024,0.0739829)">
                                 <rect x="0" y="0" width="1024" height="1024" style="fill:rgb(81,106,226);"/>
                             </g>
-                            <g id="Rainbow-" serif:id="Rainbow+" transform="matrix(1.80189,0,0,1.80178,-4474.04,-890.456)">
+                            <g id="Rainbow-" serif:id="Rainbow+" transform="matrix(1.80189,0,0,1.80178,-4614.04,-890.456)">
                                 <g transform="matrix(0.131958,0.0517484,-0.738251,1.88253,3286.24,-2246.73)">
                                     <rect x="2063.64" y="450.813" width="941.246" height="2230.95" style="fill:rgb(86,105,218);"/>
                                 </g>
@@ -34,7 +34,7 @@
                                     <rect x="2063.64" y="450.813" width="941.246" height="2230.95" style="fill:rgb(235,121,121);"/>
                                 </g>
                             </g>
-                            <g id="Pico-Vector" serif:id="Pico Vector" transform="matrix(1.70838,0,0,1.70828,-489.176,-399.689)">
+                            <g id="Pico-Vector" serif:id="Pico Vector" transform="matrix(1.70838,0,0,1.70828,-499.176,-399.689)">
                                 <g transform="matrix(0.930479,0.366346,-0.366346,0.930479,582.415,-1112.11)">
                                     <clipPath id="_clip3">
                                         <path d="M828.601,1391.97L737.295,1160.07L160.947,1386.98L387.947,1963.54L964.296,1736.62L892.403,1554.02L763.555,1604.75L699.752,1442.7L828.601,1391.97Z"/>
