@@ -10,6 +10,7 @@
 		ChatErrorDialog,
 		ServerErrorSplash,
 		ServerLoadingSplash,
+		ServerInfo,
 		ConfirmationDialog
 	} from '$lib/components/app';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
