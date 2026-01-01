@@ -1,7 +1,15 @@
 <script lang="ts">
 	import { Edit, Copy, RefreshCw, Trash2, ArrowRight } from '@lucide/svelte';
+<<<<<<< HEAD
 	import { ActionButton, ConfirmationDialog } from '$lib/components/app';
 	import ChatMessageBranchingControls from './ChatMessageBranchingControls.svelte';
+=======
+	import {
+		ActionButton,
+		ChatMessageBranchingControls,
+		DialogConfirmation
+	} from '$lib/components/app';
+>>>>>>> master
 
 	interface Props {
 		role: 'user' | 'assistant';
@@ -68,7 +76,11 @@
 			{/if}
 
 			{#if role === 'assistant' && onRegenerate}
-				<ActionButton icon={RefreshCw} tooltip="Regenerate" onclick={onRegenerate} />
+				<ActionButton icon={RefreshCw} tooltip="Regenerate" onclick={() => onRegenerate()} />
+			{/if}
+
+			{#if role === 'assistant' && onContinue}
+				<ActionButton icon={ArrowRight} tooltip="Continue" onclick={onContinue} />
 			{/if}
 
 			{#if role === 'assistant' && onContinue}
@@ -80,7 +92,7 @@
 	</div>
 </div>
 
-<ConfirmationDialog
+<DialogConfirmation
 	bind:open={showDeleteDialog}
 	title="Delete Message"
 	description={deletionInfo && deletionInfo.totalCount > 1

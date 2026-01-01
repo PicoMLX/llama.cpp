@@ -1,18 +1,22 @@
 <script lang="ts">
+<<<<<<< HEAD
 	import { Check, X, Send } from '@lucide/svelte';
+=======
+>>>>>>> master
 	import { Card } from '$lib/components/ui/card';
-	import { Button } from '$lib/components/ui/button';
 	import { ChatAttachmentsList, MarkdownContent } from '$lib/components/app';
-	import { INPUT_CLASSES } from '$lib/constants/input-classes';
 	import { config } from '$lib/stores/settings.svelte';
 	import autoResizeTextarea from '$lib/utils/autoresize-textarea';
 	import ChatMessageActions from './ChatMessageActions.svelte';
+	import ChatMessageEditForm from './ChatMessageEditForm.svelte';
 
 	interface Props {
 		class?: string;
 		message: DatabaseMessage;
 		isEditing: boolean;
 		editedContent: string;
+		editedExtras?: DatabaseMessageExtra[];
+		editedUploadedFiles?: ChatUploadedFile[];
 		siblingInfo?: ChatMessageSiblingInfo | null;
 		showDeleteDialog: boolean;
 		deletionInfo: {
@@ -26,6 +30,8 @@
 		onSaveEditOnly?: () => void;
 		onEditKeydown: (event: KeyboardEvent) => void;
 		onEditedContentChange: (content: string) => void;
+		onEditedExtrasChange?: (extras: DatabaseMessageExtra[]) => void;
+		onEditedUploadedFilesChange?: (files: ChatUploadedFile[]) => void;
 		onCopy: () => void;
 		onEdit: () => void;
 		onDelete: () => void;
@@ -40,6 +46,8 @@
 		message,
 		isEditing,
 		editedContent,
+		editedExtras = [],
+		editedUploadedFiles = [],
 		siblingInfo = null,
 		showDeleteDialog,
 		deletionInfo,
@@ -48,6 +56,8 @@
 		onSaveEditOnly,
 		onEditKeydown,
 		onEditedContentChange,
+		onEditedExtrasChange,
+		onEditedUploadedFilesChange,
 		onCopy,
 		onEdit,
 		onDelete,
@@ -98,6 +108,7 @@
 	role="group"
 >
 	{#if isEditing}
+<<<<<<< HEAD
 		<div class="w-full max-w-[80%]">
 			<textarea
 				bind:this={textareaElement}
@@ -136,6 +147,25 @@
 				</Button>
 			</div>
 		</div>
+=======
+		<ChatMessageEditForm
+			bind:textareaElement
+			messageId={message.id}
+			{editedContent}
+			{editedExtras}
+			{editedUploadedFiles}
+			originalContent={message.content}
+			originalExtras={message.extra}
+			showSaveOnlyOption={!!onSaveEditOnly}
+			{onCancelEdit}
+			{onSaveEdit}
+			{onSaveEditOnly}
+			{onEditKeydown}
+			{onEditedContentChange}
+			{onEditedExtrasChange}
+			{onEditedUploadedFilesChange}
+		/>
+>>>>>>> master
 	{:else}
 		{#if message.extra && message.extra.length > 0}
 			<div class="mb-2 max-w-[80%]">
@@ -145,7 +175,7 @@
 
 		{#if message.content.trim()}
 			<Card
-				class="max-w-[80%] rounded-[1.125rem] bg-primary px-3.75 py-1.5 text-primary-foreground data-[multiline]:py-2.5"
+				class="max-w-[80%] rounded-[1.125rem] border-none bg-primary px-3.75 py-1.5 text-primary-foreground data-[multiline]:py-2.5"
 				data-multiline={isMultiline ? '' : undefined}
 			>
 				{#if currentConfig.renderUserContentAsMarkdown}

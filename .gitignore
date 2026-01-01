@@ -54,6 +54,10 @@
 /out/
 /tmp/
 /autogen-*.md
+<<<<<<< HEAD
+=======
+/common/build-info.cpp
+>>>>>>> master
 
 # Deprecated
 
@@ -134,3 +138,8 @@ poetry.toml
 # IDE
 /*.code-workspace
 /.windsurf/
+<<<<<<< HEAD
+=======
+# emscripten
+a.out.*
+>>>>>>> master

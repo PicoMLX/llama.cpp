@@ -52,6 +52,11 @@ add_library(${TARGET} STATIC
     chat-parser.h
     chat-parser-xml-toolcall.h
     chat-parser-xml-toolcall.cpp
+<<<<<<< HEAD
+=======
+    chat-peg-parser.cpp
+    chat-peg-parser.h
+>>>>>>> master
     chat.cpp
     chat.h
     common.cpp
@@ -69,13 +74,22 @@ add_library(${TARGET} STATIC
     log.h
     ngram-cache.cpp
     ngram-cache.h
+    peg-parser.cpp
+    peg-parser.h
+    preset.cpp
+    preset.h
     regex-partial.cpp
     regex-partial.h
     sampling.cpp
     sampling.h
     speculative.cpp
     speculative.h
+    unicode.cpp
+    unicode.h
     )
+
+target_include_directories(${TARGET} PUBLIC . ../vendor)
+target_compile_features   (${TARGET} PUBLIC cxx_std_17)
 
 if (BUILD_SHARED_LIBS)
     set_target_properties(${TARGET} PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -143,9 +157,7 @@ if (LLAMA_LLGUIDANCE)
     set(LLAMA_COMMON_EXTRA_LIBS ${LLAMA_COMMON_EXTRA_LIBS} llguidance ${LLGUIDANCE_PLATFORM_LIBS})
 endif ()
 
-target_include_directories(${TARGET} PUBLIC . ../vendor)
-target_compile_features   (${TARGET} PUBLIC cxx_std_17)
-target_link_libraries     (${TARGET} PRIVATE ${LLAMA_COMMON_EXTRA_LIBS} PUBLIC llama Threads::Threads)
+target_link_libraries(${TARGET} PRIVATE ${LLAMA_COMMON_EXTRA_LIBS} PUBLIC llama Threads::Threads)
 
 
 #

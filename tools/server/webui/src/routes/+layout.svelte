@@ -1,17 +1,40 @@
 <script lang="ts">
 	import '../app.css';
+	import { base } from '$app/paths';
 	import { page } from '$app/state';
+<<<<<<< HEAD
 	import { ChatSidebar, ConversationTitleUpdateDialog } from '$lib/components/app';
 	import { setTitleUpdateConfirmationCallback } from '$lib/stores/chat.svelte';
+=======
+	import { untrack } from 'svelte';
+	import { ChatSidebar, DialogConversationTitleUpdate } from '$lib/components/app';
+	import { isLoading } from '$lib/stores/chat.svelte';
+	import { conversationsStore, activeMessages } from '$lib/stores/conversations.svelte';
+>>>>>>> master
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
-	import { serverStore } from '$lib/stores/server.svelte';
+	import * as Tooltip from '$lib/components/ui/tooltip';
+	import { isRouterMode, serverStore } from '$lib/stores/server.svelte';
 	import { config, settingsStore } from '$lib/stores/settings.svelte';
 	import { ModeWatcher } from 'mode-watcher';
 	import { Toaster } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
+	import { modelsStore } from '$lib/stores/models.svelte';
+	import { TOOLTIP_DELAY_DURATION } from '$lib/constants/tooltip-config';
+	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 
 	let { children } = $props();
 
+<<<<<<< HEAD
+=======
+	let isChatRoute = $derived(page.route.id === '/chat/[id]');
+	let isHomeRoute = $derived(page.route.id === '/');
+	let isNewChatMode = $derived(page.url.searchParams.get('new_chat') === 'true');
+	let showSidebarByDefault = $derived(activeMessages().length > 0 || isLoading());
+	let alwaysShowSidebarOnDesktop = $derived(config().alwaysShowSidebarOnDesktop);
+	let autoShowSidebarOnNewChat = $derived(config().autoShowSidebarOnNewChat);
+	let isMobile = new IsMobile();
+	let isDesktop = $derived(!isMobile.current);
+>>>>>>> master
 	let sidebarOpen = $state(false);
 	let innerHeight = $state<number | undefined>();
 	let chatSidebar:
@@ -66,20 +89,54 @@
 		}
 	}
 
+<<<<<<< HEAD
 	// Initialize server properties on app load
+=======
 	$effect(() => {
-		serverStore.fetchServerProps();
+		if (alwaysShowSidebarOnDesktop && isDesktop) {
+			sidebarOpen = true;
+			return;
+		}
+
+		if (isHomeRoute && !isNewChatMode) {
+			// Auto-collapse sidebar when navigating to home route (but not in new chat mode)
+			sidebarOpen = false;
+		} else if (isHomeRoute && isNewChatMode) {
+			// Keep sidebar open in new chat mode
+			sidebarOpen = true;
+		} else if (isChatRoute) {
+			// On chat routes, only auto-show sidebar if setting is enabled
+			if (autoShowSidebarOnNewChat) {
+				sidebarOpen = true;
+			}
+			// If setting is disabled, don't change sidebar state - let user control it manually
+		} else {
+			// Other routes follow default behavior
+			sidebarOpen = showSidebarByDefault;
+		}
+	});
+
+	// Initialize server properties on app load (run once)
+>>>>>>> master
+	$effect(() => {
+		// Only fetch if we don't already have props
+		if (!serverStore.props) {
+			untrack(() => {
+				serverStore.fetch();
+			});
+		}
 	});
 
 	// Sync settings when server props are loaded
 	$effect(() => {
-		const serverProps = serverStore.serverProps;
+		const serverProps = serverStore.props;
 
-		if (serverProps?.default_generation_settings?.params) {
+		if (serverProps) {
 			settingsStore.syncWithServerDefaults();
 		}
 	});
 
+<<<<<<< HEAD
 	// Handle modelSelectorEnabled toggle - sync with props model when disabled
 	$effect(() => {
 		const currentConfig = config();
@@ -91,6 +148,21 @@
 				syncWithPropsModel().catch((err) => {
 					console.error('Failed to sync with props model:', err);
 				});
+=======
+	// Fetch router models when in router mode (for status and modalities)
+	// Wait for models to be loaded first, run only once
+	let routerModelsFetched = false;
+
+	$effect(() => {
+		const isRouter = isRouterMode();
+		const modelsCount = modelsStore.models.length;
+
+		// Only fetch router models once when we have models loaded and in router mode
+		if (isRouter && modelsCount > 0 && !routerModelsFetched) {
+			routerModelsFetched = true;
+			untrack(() => {
+				modelsStore.fetchRouterModels();
+>>>>>>> master
 			});
 		}
 	});
@@ -112,7 +184,7 @@
 				headers.Authorization = `Bearer ${apiKey.trim()}`;
 			}
 
-			fetch(`./props`, { headers })
+			fetch(`${base}/props`, { headers })
 				.then((response) => {
 					if (response.status === 401 || response.status === 403) {
 						window.location.reload();
@@ -126,46 +198,52 @@
 
 	// Set up title update confirmation callback
 	$effect(() => {
-		setTitleUpdateConfirmationCallback(async (currentTitle: string, newTitle: string) => {
-			return new Promise<boolean>((resolve) => {
-				titleUpdateCurrentTitle = currentTitle;
-				titleUpdateNewTitle = newTitle;
-				titleUpdateResolve = resolve;
-				titleUpdateDialogOpen = true;
-			});
-		});
+		conversationsStore.setTitleUpdateConfirmationCallback(
+			async (currentTitle: string, newTitle: string) => {
+				return new Promise<boolean>((resolve) => {
+					titleUpdateCurrentTitle = currentTitle;
+					titleUpdateNewTitle = newTitle;
+					titleUpdateResolve = resolve;
+					titleUpdateDialogOpen = true;
+				});
+			}
+		);
 	});
 </script>
 
-<ModeWatcher />
+<Tooltip.Provider delayDuration={TOOLTIP_DELAY_DURATION}>
+	<ModeWatcher />
 
-<Toaster richColors />
+	<Toaster richColors />
 
-<ConversationTitleUpdateDialog
-	bind:open={titleUpdateDialogOpen}
-	currentTitle={titleUpdateCurrentTitle}
-	newTitle={titleUpdateNewTitle}
-	onConfirm={handleTitleUpdateConfirm}
-	onCancel={handleTitleUpdateCancel}
-/>
+	<DialogConversationTitleUpdate
+		bind:open={titleUpdateDialogOpen}
+		currentTitle={titleUpdateCurrentTitle}
+		newTitle={titleUpdateNewTitle}
+		onConfirm={handleTitleUpdateConfirm}
+		onCancel={handleTitleUpdateCancel}
+	/>
 
-<Sidebar.Provider bind:open={sidebarOpen}>
-	<div class="flex h-screen w-full" style:height="{innerHeight}px">
-		<Sidebar.Root class="h-full">
-			<ChatSidebar bind:this={chatSidebar} />
-		</Sidebar.Root>
+	<Sidebar.Provider bind:open={sidebarOpen}>
+		<div class="flex h-screen w-full" style:height="{innerHeight}px">
+			<Sidebar.Root class="h-full">
+				<ChatSidebar bind:this={chatSidebar} />
+			</Sidebar.Root>
 
-		<Sidebar.Trigger
-			class="transition-left absolute left-0 z-[900] h-8 w-8 duration-200 ease-linear {sidebarOpen
-				? 'md:left-[var(--sidebar-width)]'
-				: ''}"
-			style="translate: 1rem 1rem;"
-		/>
+			{#if !(alwaysShowSidebarOnDesktop && isDesktop)}
+				<Sidebar.Trigger
+					class="transition-left absolute left-0 z-[900] h-8 w-8 duration-200 ease-linear {sidebarOpen
+						? 'md:left-[var(--sidebar-width)]'
+						: ''}"
+					style="translate: 1rem 1rem;"
+				/>
+			{/if}
 
-		<Sidebar.Inset class="flex flex-1 flex-col overflow-hidden">
-			{@render children?.()}
-		</Sidebar.Inset>
-	</div>
-</Sidebar.Provider>
+			<Sidebar.Inset class="flex flex-1 flex-col overflow-hidden">
+				{@render children?.()}
+			</Sidebar.Inset>
+		</div>
+	</Sidebar.Provider>
+</Tooltip.Provider>
 
 <svelte:window onkeydown={handleKeydown} bind:innerHeight />

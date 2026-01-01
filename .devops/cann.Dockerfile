@@ -4,7 +4,11 @@
 
 # Define the CANN base image for easier version updates later
 ARG CHIP_TYPE=910b
+<<<<<<< HEAD
 ARG CANN_BASE_IMAGE=quay.io/ascend/cann:8.3.rc1.alpha001-${CHIP_TYPE}-openeuler22.03-py3.11
+=======
+ARG CANN_BASE_IMAGE=quay.io/ascend/cann:8.3.rc2-${CHIP_TYPE}-openeuler24.03-py3.11
+>>>>>>> master
 
 # ==============================================================================
 # BUILD STAGE
@@ -107,11 +111,11 @@ ENTRYPOINT ["/app/tools.sh"]
 # ENTRYPOINT ["/app/llama-server"]
 
 ### Target: light
-# Lightweight image containing only llama-cli
+# Lightweight image containing only llama-cli and llama-completion
 # ==============================================================================
 FROM base AS light
 
-COPY --from=build /app/full/llama-cli /app
+COPY --from=build /app/full/llama-cli /app/full/llama-completion /app
 
 ENTRYPOINT [ "/app/llama-cli" ]
 

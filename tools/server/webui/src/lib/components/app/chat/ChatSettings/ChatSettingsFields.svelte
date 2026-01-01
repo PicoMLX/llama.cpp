@@ -6,10 +6,15 @@
 	import * as Select from '$lib/components/ui/select';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { SETTING_CONFIG_DEFAULT, SETTING_CONFIG_INFO } from '$lib/constants/settings-config';
+<<<<<<< HEAD
 	import { supportsVision } from '$lib/utils/model-capabilities';
 	import { getParameterInfo, resetParameterToServerDefault } from '$lib/stores/settings.svelte';
 	import { ParameterSyncService } from '$lib/services/parameter-sync';
 	import ParameterSourceIndicator from './ParameterSourceIndicator.svelte';
+=======
+	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { ChatSettingsParameterSourceIndicator } from '$lib/components/app';
+>>>>>>> master
 	import type { Component } from 'svelte';
 
 	interface Props {
@@ -23,11 +28,11 @@
 
 	// Helper function to get parameter source info for syncable parameters
 	function getParameterSourceInfo(key: string) {
-		if (!ParameterSyncService.canSyncParameter(key)) {
+		if (!settingsStore.canSyncParameter(key)) {
 			return null;
 		}
 
-		return getParameterInfo(key);
+		return settingsStore.getParameterInfo(key);
 	}
 </script>
 
@@ -63,7 +68,7 @@
 					{/if}
 				</Label>
 				{#if isCustomRealTime}
-					<ParameterSourceIndicator />
+					<ChatSettingsParameterSourceIndicator />
 				{/if}
 			</div>
 
@@ -82,7 +87,7 @@
 					<button
 						type="button"
 						onclick={() => {
-							resetParameterToServerDefault(field.key);
+							settingsStore.resetParameterToServerDefault(field.key);
 							// Trigger UI update by calling onConfigChange with the default value
 							const defaultValue = propsDefault ?? SETTING_CONFIG_DEFAULT[field.key];
 							onConfigChange(field.key, String(defaultValue));
@@ -97,7 +102,7 @@
 			</div>
 			{#if field.help || SETTING_CONFIG_INFO[field.key]}
 				<p class="mt-1 text-xs text-muted-foreground">
-					{field.help || SETTING_CONFIG_INFO[field.key]}
+					{@html field.help || SETTING_CONFIG_INFO[field.key]}
 				</p>
 			{/if}
 		{:else if field.type === 'textarea'}
@@ -114,12 +119,27 @@
 				value={String(localConfig[field.key] ?? '')}
 				onchange={(e) => onConfigChange(field.key, e.currentTarget.value)}
 				placeholder={`Default: ${SETTING_CONFIG_DEFAULT[field.key] ?? 'none'}`}
-				class="min-h-[100px] w-full md:max-w-2xl"
+				class="min-h-[10rem] w-full md:max-w-2xl"
 			/>
+
 			{#if field.help || SETTING_CONFIG_INFO[field.key]}
 				<p class="mt-1 text-xs text-muted-foreground">
 					{field.help || SETTING_CONFIG_INFO[field.key]}
 				</p>
+			{/if}
+
+			{#if field.key === 'systemMessage'}
+				<div class="mt-3 flex items-center gap-2">
+					<Checkbox
+						id="showSystemMessage"
+						checked={Boolean(localConfig.showSystemMessage ?? true)}
+						onCheckedChange={(checked) => onConfigChange('showSystemMessage', Boolean(checked))}
+					/>
+
+					<Label for="showSystemMessage" class="cursor-pointer text-sm font-normal">
+						Show system message in conversations
+					</Label>
+				</div>
 			{/if}
 		{:else if field.type === 'select'}
 			{@const selectedOption = field.options?.find(
@@ -145,7 +165,7 @@
 					{/if}
 				</Label>
 				{#if isCustomRealTime}
-					<ParameterSourceIndicator />
+					<ChatSettingsParameterSourceIndicator />
 				{/if}
 			</div>
 
@@ -175,7 +195,7 @@
 						<button
 							type="button"
 							onclick={() => {
-								resetParameterToServerDefault(field.key);
+								settingsStore.resetParameterToServerDefault(field.key);
 								// Trigger UI update by calling onConfigChange with the default value
 								const defaultValue = propsDefault ?? SETTING_CONFIG_DEFAULT[field.key];
 								onConfigChange(field.key, String(defaultValue));
@@ -210,13 +230,10 @@
 				</p>
 			{/if}
 		{:else if field.type === 'checkbox'}
-			{@const isDisabled = field.key === 'pdfAsImage' && !supportsVision()}
-
 			<div class="flex items-start space-x-3">
 				<Checkbox
 					id={field.key}
 					checked={Boolean(localConfig[field.key])}
-					disabled={isDisabled}
 					onCheckedChange={(checked) => onConfigChange(field.key, checked)}
 					class="mt-1"
 				/>
@@ -224,9 +241,13 @@
 				<div class="space-y-1">
 					<label
 						for={field.key}
+<<<<<<< HEAD
 						class="cursor-pointer text-sm leading-none font-medium {isDisabled
 							? 'text-muted-foreground'
 							: ''} flex items-center gap-1.5"
+=======
+						class="flex cursor-pointer items-center gap-1.5 pt-1 pb-0.5 text-sm leading-none font-medium"
+>>>>>>> master
 					>
 						{field.label}
 
@@ -238,11 +259,6 @@
 					{#if field.help || SETTING_CONFIG_INFO[field.key]}
 						<p class="text-xs text-muted-foreground">
 							{field.help || SETTING_CONFIG_INFO[field.key]}
-						</p>
-					{:else if field.key === 'pdfAsImage' && !supportsVision()}
-						<p class="text-xs text-muted-foreground">
-							PDF-to-image processing requires a vision-capable model. PDFs will be processed as
-							text.
 						</p>
 					{/if}
 				</div>
