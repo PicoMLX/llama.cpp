@@ -14,8 +14,8 @@ const config = {
 		},
 		router: { type: 'hash' },
 		adapter: adapter({
-			pages: '../public',
-			assets: '../public',
+			pages: '../../../../PicoServer/PicoServer/HTTP Server/HTML',
+			assets: '../../../../PicoServer/PicoServer/HTTP Server/HTML',
 			fallback: 'index.html',
 			precompress: false,
 			strict: true
