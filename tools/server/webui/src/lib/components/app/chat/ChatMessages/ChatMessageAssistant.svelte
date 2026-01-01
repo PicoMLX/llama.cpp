@@ -1,12 +1,4 @@
 <script lang="ts">
-<<<<<<< HEAD
-	import { ChatMessageThinkingBlock, MarkdownContent } from '$lib/components/app';
-	import { useProcessingState } from '$lib/hooks/use-processing-state.svelte';
-	import { isLoading } from '$lib/stores/chat.svelte';
-	import autoResizeTextarea from '$lib/utils/autoresize-textarea';
-	import { fade } from 'svelte/transition';
-=======
->>>>>>> master
 	import {
 		ModelBadge,
 		ChatMessageActions,
@@ -125,15 +117,12 @@
 		}
 	});
 
-<<<<<<< HEAD
-=======
 	$effect(() => {
 		if (isLoading() && !message?.content?.trim()) {
 			processingState.startMonitoring();
 		}
 	});
 
->>>>>>> master
 	function formatToolCallBadge(toolCall: ApiChatCompletionToolCall, index: number) {
 		const callNumber = index + 1;
 		const functionName = toolCall.function?.name?.trim();

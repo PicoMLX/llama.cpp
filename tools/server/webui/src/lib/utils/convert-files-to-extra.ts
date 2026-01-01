@@ -3,13 +3,8 @@ import { isSvgMimeType, svgBase64UrlToPngDataURL } from './svg-to-png';
 import { isWebpMimeType, webpBase64UrlToPngDataURL } from './webp-to-png';
 import { FileTypeCategory, AttachmentType } from '$lib/enums';
 import { config, settingsStore } from '$lib/stores/settings.svelte';
-<<<<<<< HEAD
-import { supportsVision } from '$lib/utils/model-capabilities';
-import { getFileTypeCategory } from '$lib/utils/file-type';
-=======
 import { modelsStore } from '$lib/stores/models.svelte';
 import { getFileTypeCategory } from '$lib/utils';
->>>>>>> master
 import { readFileAsText, isLikelyTextFile } from './text-files';
 import { toast } from 'svelte-sonner';
 

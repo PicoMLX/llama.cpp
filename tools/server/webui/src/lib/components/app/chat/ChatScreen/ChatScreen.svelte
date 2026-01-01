@@ -4,21 +4,11 @@
 		ChatForm,
 		ChatScreenHeader,
 		ChatMessages,
-<<<<<<< HEAD
-		ChatProcessingInfo,
-		EmptyFileAlertDialog,
-		ChatErrorDialog,
-		ServerErrorSplash,
-		ServerLoadingSplash,
-		ServerInfo,
-		ConfirmationDialog
-=======
 		ChatScreenProcessingInfo,
 		DialogEmptyFileAlert,
 		DialogChatError,
 		ServerLoadingSplash,
 		DialogConfirmation
->>>>>>> master
 	} from '$lib/components/app';
 	import * as Alert from '$lib/components/ui/alert';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
@@ -34,14 +24,6 @@
 		isEditing,
 		getAddFilesHandler
 	} from '$lib/stores/chat.svelte';
-<<<<<<< HEAD
-	import { serverLoading, serverName, serverWarning, serverStore } from '$lib/stores/server.svelte';
-	import { supportsVision, supportsAudio } from '$lib/utils/model-capabilities';
-	import { parseFilesToMessageExtras } from '$lib/utils/convert-files-to-extra';
-	import { isFileTypeSupported } from '$lib/utils/file-type';
-	import { filterFilesByModalities } from '$lib/utils/modality-file-validation';
-	import { processFilesToChatUploaded } from '$lib/utils/process-uploaded-files';
-=======
 	import {
 		conversationsStore,
 		activeMessages,
@@ -52,7 +34,6 @@
 	import { modelsStore, modelOptions, selectedModelId } from '$lib/stores/models.svelte';
 	import { isFileTypeSupported, filterFilesByModalities } from '$lib/utils';
 	import { parseFilesToMessageExtras, processFilesToChatUploaded } from '$lib/utils/browser-only';
->>>>>>> master
 	import { onMount } from 'svelte';
 	import { fade, fly, slide } from 'svelte/transition';
 	import { Trash2, AlertTriangle, RefreshCw } from '@lucide/svelte';
@@ -472,13 +453,8 @@
 		role="main"
 	>
 		<div class="w-full max-w-[48rem] px-4">
-<<<<<<< HEAD
-			<div class="mb-8 text-center" in:fade={{ duration: 300 }}>
-				<h1 class="mb-2 text-3xl font-semibold tracking-tight">{serverName()}</h1>
-=======
 			<div class="mb-10 text-center" in:fade={{ duration: 300 }}>
 				<h1 class="mb-4 text-3xl font-semibold tracking-tight">llama.cpp</h1>
->>>>>>> master
 
 				<p class="text-lg text-muted-foreground">
 					{serverStore.props?.modalities?.audio

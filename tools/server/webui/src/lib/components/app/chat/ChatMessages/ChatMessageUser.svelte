@@ -1,12 +1,7 @@
 <script lang="ts">
-<<<<<<< HEAD
-	import { Check, X, Send } from '@lucide/svelte';
-=======
->>>>>>> master
 	import { Card } from '$lib/components/ui/card';
 	import { ChatAttachmentsList, MarkdownContent } from '$lib/components/app';
 	import { config } from '$lib/stores/settings.svelte';
-	import autoResizeTextarea from '$lib/utils/autoresize-textarea';
 	import ChatMessageActions from './ChatMessageActions.svelte';
 	import ChatMessageEditForm from './ChatMessageEditForm.svelte';
 
@@ -72,12 +67,6 @@
 	const currentConfig = config();
 
 	$effect(() => {
-		if (isEditing && textareaElement) {
-			autoResizeTextarea(textareaElement);
-		}
-	});
-
-	$effect(() => {
 		if (!messageElement || !message.content.trim()) return;
 
 		if (message.content.includes('\n')) {
@@ -108,46 +97,6 @@
 	role="group"
 >
 	{#if isEditing}
-<<<<<<< HEAD
-		<div class="w-full max-w-[80%]">
-			<textarea
-				bind:this={textareaElement}
-				bind:value={editedContent}
-				class="min-h-[60px] w-full resize-none rounded-2xl px-3 py-2 text-sm {INPUT_CLASSES}"
-				onkeydown={onEditKeydown}
-				oninput={(e) => {
-					autoResizeTextarea(e.currentTarget);
-					onEditedContentChange(e.currentTarget.value);
-				}}
-				placeholder="Edit your message..."
-			></textarea>
-
-			<div class="mt-2 flex justify-end gap-2">
-				<Button class="h-8 px-3" onclick={onCancelEdit} size="sm" variant="ghost">
-					<X class="mr-1 h-3 w-3" />
-					Cancel
-				</Button>
-
-				{#if onSaveEditOnly}
-					<Button
-						class="h-8 px-3"
-						onclick={onSaveEditOnly}
-						disabled={!editedContent.trim()}
-						size="sm"
-						variant="outline"
-					>
-						<Check class="mr-1 h-3 w-3" />
-						Save
-					</Button>
-				{/if}
-
-				<Button class="h-8 px-3" onclick={onSaveEdit} disabled={!editedContent.trim()} size="sm">
-					<Send class="mr-1 h-3 w-3" />
-					Send
-				</Button>
-			</div>
-		</div>
-=======
 		<ChatMessageEditForm
 			bind:textareaElement
 			messageId={message.id}
@@ -165,7 +114,6 @@
 			{onEditedExtrasChange}
 			{onEditedUploadedFilesChange}
 		/>
->>>>>>> master
 	{:else}
 		{#if message.extra && message.extra.length > 0}
 			<div class="mb-2 max-w-[80%]">

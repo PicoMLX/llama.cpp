@@ -7,18 +7,9 @@
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import Input from '$lib/components/ui/input/input.svelte';
-<<<<<<< HEAD
-	import {
-		conversations,
-		deleteConversation,
-		updateConversationName
-	} from '$lib/stores/chat.svelte';
-	import { serverName } from '$lib/stores/server.svelte';
-=======
 	import { conversationsStore, conversations } from '$lib/stores/conversations.svelte';
 	import { chatStore } from '$lib/stores/chat.svelte';
 	import { getPreviewText } from '$lib/utils/text';
->>>>>>> master
 	import ChatSidebarActions from './ChatSidebarActions.svelte';
 
 	const sidebar = Sidebar.useSidebar();
@@ -121,7 +112,7 @@
 <ScrollArea class="h-[100vh]">
 	<Sidebar.Header class=" top-0 z-10 gap-6 bg-sidebar/50 px-4 py-4 pb-2 backdrop-blur-lg md:sticky">
 		<a href="#/" onclick={handleMobileSidebarItemClick}>
-			<h1 class="inline-flex items-center gap-1 px-2 text-xl font-semibold">{serverName()}</h1>
+			<h1 class="inline-flex items-center gap-1 px-2 text-xl font-semibold">llama.cpp</h1>
 		</a>
 
 		<ChatSidebarActions {handleMobileSidebarItemClick} bind:isSearchModeActive bind:searchQuery />

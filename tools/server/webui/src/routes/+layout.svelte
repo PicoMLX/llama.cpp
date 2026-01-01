@@ -2,15 +2,10 @@
 	import '../app.css';
 	import { base } from '$app/paths';
 	import { page } from '$app/state';
-<<<<<<< HEAD
-	import { ChatSidebar, ConversationTitleUpdateDialog } from '$lib/components/app';
-	import { setTitleUpdateConfirmationCallback } from '$lib/stores/chat.svelte';
-=======
 	import { untrack } from 'svelte';
 	import { ChatSidebar, DialogConversationTitleUpdate } from '$lib/components/app';
 	import { isLoading } from '$lib/stores/chat.svelte';
 	import { conversationsStore, activeMessages } from '$lib/stores/conversations.svelte';
->>>>>>> master
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { isRouterMode, serverStore } from '$lib/stores/server.svelte';
@@ -24,8 +19,6 @@
 
 	let { children } = $props();
 
-<<<<<<< HEAD
-=======
 	let isChatRoute = $derived(page.route.id === '/chat/[id]');
 	let isHomeRoute = $derived(page.route.id === '/');
 	let isNewChatMode = $derived(page.url.searchParams.get('new_chat') === 'true');
@@ -34,7 +27,6 @@
 	let autoShowSidebarOnNewChat = $derived(config().autoShowSidebarOnNewChat);
 	let isMobile = new IsMobile();
 	let isDesktop = $derived(!isMobile.current);
->>>>>>> master
 	let sidebarOpen = $state(false);
 	let innerHeight = $state<number | undefined>();
 	let chatSidebar:
@@ -89,12 +81,9 @@
 		}
 	}
 
-<<<<<<< HEAD
-	// Initialize server properties on app load
-=======
 	$effect(() => {
 		if (alwaysShowSidebarOnDesktop && isDesktop) {
-			sidebarOpen = true;
+			sidebarOpen = true; // TODO: set to false??
 			return;
 		}
 
@@ -117,7 +106,6 @@
 	});
 
 	// Initialize server properties on app load (run once)
->>>>>>> master
 	$effect(() => {
 		// Only fetch if we don't already have props
 		if (!serverStore.props) {
@@ -136,19 +124,21 @@
 		}
 	});
 
-<<<<<<< HEAD
 	// Handle modelSelectorEnabled toggle - sync with props model when disabled
 	$effect(() => {
 		const currentConfig = config();
 		const serverProps = serverStore.serverProps;
-
+	
 		// When selector is disabled and server props are loaded, sync with props model
 		if (!currentConfig.modelSelectorEnabled && serverProps) {
 			import('$lib/stores/models.svelte').then(({ syncWithPropsModel }) => {
 				syncWithPropsModel().catch((err) => {
 					console.error('Failed to sync with props model:', err);
 				});
-=======
+			});
+		}
+	});
+	
 	// Fetch router models when in router mode (for status and modalities)
 	// Wait for models to be loaded first, run only once
 	let routerModelsFetched = false;
@@ -162,7 +152,6 @@
 			routerModelsFetched = true;
 			untrack(() => {
 				modelsStore.fetchRouterModels();
->>>>>>> master
 			});
 		}
 	});

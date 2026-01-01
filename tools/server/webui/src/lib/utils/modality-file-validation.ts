@@ -3,12 +3,7 @@
  * Ensures only compatible file types are processed based on model capabilities
  */
 
-<<<<<<< HEAD
-import { getFileTypeCategory } from '$lib/utils/file-type';
-import { supportsVision, supportsAudio } from '$lib/utils/model-capabilities';
-=======
 import { getFileTypeCategory } from '$lib/utils';
->>>>>>> master
 import {
 	FileExtensionAudio,
 	FileExtensionImage,

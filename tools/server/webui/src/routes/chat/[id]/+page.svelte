@@ -7,16 +7,9 @@
 	import {
 		conversationsStore,
 		activeConversation,
-<<<<<<< HEAD
-		isLoading,
-		stopGeneration
-	} from '$lib/stores/chat.svelte';
-	import { serverName } from '$lib/stores/server.svelte';
-=======
 		activeMessages
 	} from '$lib/stores/conversations.svelte';
 	import { modelsStore, modelOptions, selectedModelId } from '$lib/stores/models.svelte';
->>>>>>> master
 
 	let chatId = $derived(page.params.id);
 	let currentChatId: string | undefined = undefined;

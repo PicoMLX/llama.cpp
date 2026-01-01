@@ -1,14 +1,9 @@
 <script lang="ts">
-<<<<<<< HEAD
-	import { ChatScreen } from '$lib/components/app';
-	import { chatStore, isInitialized } from '$lib/stores/chat.svelte';
-	import { serverName } from '$lib/stores/server.svelte';
-=======
 	import { ChatScreen, DialogModelNotAvailable } from '$lib/components/app';
 	import { chatStore } from '$lib/stores/chat.svelte';
 	import { conversationsStore, isConversationsInitialized } from '$lib/stores/conversations.svelte';
 	import { modelsStore, modelOptions } from '$lib/stores/models.svelte';
->>>>>>> master
+	import { serverName } from '$lib/stores/server.svelte';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { replaceState } from '$app/navigation';

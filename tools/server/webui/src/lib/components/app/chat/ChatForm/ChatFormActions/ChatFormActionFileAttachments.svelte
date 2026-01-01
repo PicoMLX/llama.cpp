@@ -3,14 +3,8 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import * as Tooltip from '$lib/components/ui/tooltip';
-<<<<<<< HEAD:tools/server/webui/src/lib/components/app/chat/ChatForm/ChatFormActionFileAttachments.svelte
-	import { TOOLTIP_DELAY_DURATION } from '$lib/constants/tooltip-config';
-	import { FileTypeCategory } from '$lib/enums/files';
-	import { supportsAudio, supportsVision } from '$lib/utils/model-capabilities';
-=======
 	import { FILE_TYPE_ICONS } from '$lib/constants/icons';
 	import { FileTypeCategory } from '$lib/enums';
->>>>>>> master:tools/server/webui/src/lib/components/app/chat/ChatForm/ChatFormActions/ChatFormActionFileAttachments.svelte
 
 	interface Props {
 		class?: string;

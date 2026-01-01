@@ -6,15 +6,8 @@
 	import * as Select from '$lib/components/ui/select';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { SETTING_CONFIG_DEFAULT, SETTING_CONFIG_INFO } from '$lib/constants/settings-config';
-<<<<<<< HEAD
-	import { supportsVision } from '$lib/utils/model-capabilities';
-	import { getParameterInfo, resetParameterToServerDefault } from '$lib/stores/settings.svelte';
-	import { ParameterSyncService } from '$lib/services/parameter-sync';
-	import ParameterSourceIndicator from './ParameterSourceIndicator.svelte';
-=======
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { ChatSettingsParameterSourceIndicator } from '$lib/components/app';
->>>>>>> master
 	import type { Component } from 'svelte';
 
 	interface Props {
@@ -241,13 +234,7 @@
 				<div class="space-y-1">
 					<label
 						for={field.key}
-<<<<<<< HEAD
-						class="cursor-pointer text-sm leading-none font-medium {isDisabled
-							? 'text-muted-foreground'
-							: ''} flex items-center gap-1.5"
-=======
 						class="flex cursor-pointer items-center gap-1.5 pt-1 pb-0.5 text-sm leading-none font-medium"
->>>>>>> master
 					>
 						{field.label}
 

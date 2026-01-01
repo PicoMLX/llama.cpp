@@ -85,11 +85,6 @@
 			icon: Monitor,
 			fields: [
 				{
-					key: 'pasteLongTextToFileLen',
-					label: 'Paste long text to file length',
-					type: 'input'
-				},
-				{
 					key: 'showMessageStats',
 					label: 'Show message generation statistics',
 					type: 'checkbox'
@@ -105,36 +100,14 @@
 					type: 'checkbox'
 				},
 				{
-<<<<<<< HEAD:tools/server/webui/src/lib/components/app/chat/ChatSettings/ChatSettingsDialog.svelte
-					key: 'showModelInfo',
-					label: 'Show model information',
-					type: 'checkbox'
-				},
-				{
-					key: 'enableContinueGeneration',
-					label: 'Enable "Continue" button',
-					type: 'checkbox',
-					isExperimental: true
-				},
-				{
-					key: 'pdfAsImage',
-					label: 'Parse PDF as image',
-					type: 'checkbox'
-				},
-				{
-					key: 'renderUserContentAsMarkdown',
-					label: 'Render user content as Markdown',
-					type: 'checkbox'
-=======
 					key: 'autoMicOnEmpty',
 					label: 'Show microphone on empty input',
 					type: 'checkbox',
 					isExperimental: true
->>>>>>> master:tools/server/webui/src/lib/components/app/chat/ChatSettings/ChatSettings.svelte
 				},
 				{
-					key: 'askForTitleConfirmation',
-					label: 'Ask for confirmation before changing conversation title',
+					key: 'renderUserContentAsMarkdown',
+					label: 'Render user content as Markdown',
 					type: 'checkbox'
 				},
 				{

@@ -1,14 +1,8 @@
 import { isSvgMimeType, svgBase64UrlToPngDataURL } from './svg-to-png';
 import { isTextFileByName } from './text-files';
 import { isWebpMimeType, webpBase64UrlToPngDataURL } from './webp-to-png';
-<<<<<<< HEAD
-import { FileTypeCategory } from '$lib/enums/files';
-import { getFileTypeCategory } from '$lib/utils/file-type';
-import { supportsVision } from '$lib/utils/model-capabilities';
-=======
 import { FileTypeCategory } from '$lib/enums';
 import { modelsStore } from '$lib/stores/models.svelte';
->>>>>>> master
 import { settingsStore } from '$lib/stores/settings.svelte';
 import { toast } from 'svelte-sonner';
 import { getFileTypeCategory } from '$lib/utils';

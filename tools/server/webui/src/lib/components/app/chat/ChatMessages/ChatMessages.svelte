@@ -1,24 +1,9 @@
 <script lang="ts">
 	import { ChatMessage } from '$lib/components/app';
-<<<<<<< HEAD
-	import { DatabaseStore } from '$lib/stores/database';
-	import {
-		activeConversation,
-		continueAssistantMessage,
-		deleteMessage,
-		editAssistantMessage,
-		editMessageWithBranching,
-		editUserMessagePreserveResponses,
-		navigateToSibling,
-		regenerateMessageWithBranching
-	} from '$lib/stores/chat.svelte';
-	import { getMessageSiblings } from '$lib/utils/branching';
-=======
 	import { chatStore } from '$lib/stores/chat.svelte';
 	import { conversationsStore, activeConversation } from '$lib/stores/conversations.svelte';
 	import { config } from '$lib/stores/settings.svelte';
 	import { getMessageSiblings } from '$lib/utils';
->>>>>>> master
 
 	interface Props {
 		class?: string;
@@ -116,31 +101,19 @@
 	async function handleContinueAssistantMessage(message: DatabaseMessage) {
 		onUserAction?.();
 
-<<<<<<< HEAD
-		await continueAssistantMessage(message.id);
-=======
 		await chatStore.continueAssistantMessage(message.id);
->>>>>>> master
 
 		refreshAllMessages();
 	}
 
 	async function handleEditUserMessagePreserveResponses(
 		message: DatabaseMessage,
-<<<<<<< HEAD
-		newContent: string
-	) {
-		onUserAction?.();
-
-		await editUserMessagePreserveResponses(message.id, newContent);
-=======
 		newContent: string,
 		newExtras?: DatabaseMessageExtra[]
 	) {
 		onUserAction?.();
 
 		await chatStore.editUserMessagePreserveResponses(message.id, newContent, newExtras);
->>>>>>> master
 
 		refreshAllMessages();
 	}

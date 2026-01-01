@@ -22,15 +22,11 @@
 			newContent: string,
 			shouldBranch: boolean
 		) => void;
-<<<<<<< HEAD
-		onEditUserMessagePreserveResponses?: (message: DatabaseMessage, newContent: string) => void;
-=======
 		onEditUserMessagePreserveResponses?: (
 			message: DatabaseMessage,
 			newContent: string,
 			newExtras?: DatabaseMessageExtra[]
 		) => void;
->>>>>>> master
 		onNavigateToSibling?: (siblingId: string) => void;
 		onRegenerateWithBranching?: (message: DatabaseMessage, modelOverride?: string) => void;
 		siblingInfo?: ChatMessageSiblingInfo | null;
@@ -169,17 +165,10 @@
 		onContinueAssistantMessage?.(message);
 	}
 
-<<<<<<< HEAD
-	function handleSaveEdit() {
-		if (message.role === 'user') {
-			// For user messages, trim to avoid accidental whitespace
-			onEditWithBranching?.(message, editedContent.trim());
-=======
 	async function handleSaveEdit() {
 		if (message.role === 'user' || message.role === 'system') {
 			const finalExtras = await getMergedExtras();
 			onEditWithBranching?.(message, editedContent.trim(), finalExtras);
->>>>>>> master
 		} else {
 			// For assistant messages, preserve exact content including trailing whitespace
 			// This is important for the Continue feature to work properly
@@ -214,15 +203,6 @@
 		return [...editedExtras, ...newExtras];
 	}
 
-	function handleSaveEditOnly() {
-		if (message.role === 'user') {
-			// For user messages, trim to avoid accidental whitespace
-			onEditUserMessagePreserveResponses?.(message, editedContent.trim());
-		}
-
-		isEditing = false;
-	}
-
 	function handleShowDeleteDialogChange(show: boolean) {
 		showDeleteDialog = show;
 	}
@@ -245,7 +225,6 @@
 		onEditedContentChange={handleEditedContentChange}
 		{onNavigateToSibling}
 		onSaveEdit={handleSaveEdit}
-		onSaveEditOnly={handleSaveEditOnly}
 		onShowDeleteDialogChange={handleShowDeleteDialogChange}
 		{showDeleteDialog}
 		{siblingInfo}

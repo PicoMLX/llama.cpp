@@ -2,10 +2,6 @@
 	import { Mic, Square } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Tooltip from '$lib/components/ui/tooltip';
-<<<<<<< HEAD:tools/server/webui/src/lib/components/app/chat/ChatForm/ChatFormActionRecord.svelte
-	import { supportsAudio } from '$lib/utils/model-capabilities';
-=======
->>>>>>> master:tools/server/webui/src/lib/components/app/chat/ChatForm/ChatFormActions/ChatFormActionRecord.svelte
 
 	interface Props {
 		class?: string;

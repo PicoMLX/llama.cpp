@@ -1,20 +1,8 @@
 import { SvelteSet } from 'svelte/reactivity';
 import { ModelsService } from '$lib/services/models';
-<<<<<<< HEAD
-import { persisted } from '$lib/stores/persisted.svelte';
-import { SELECTED_MODEL_LOCALSTORAGE_KEY } from '$lib/constants/localstorage-keys';
-import type { ModelOption } from '$lib/types/models';
-import { serverStore } from '$lib/stores/server.svelte';
-
-type PersistedModelSelection = {
-	id: string;
-	model: string;
-};
-=======
 import { PropsService } from '$lib/services/props';
 import { ServerModelStatus, ModelModality } from '$lib/enums';
 import { serverStore } from '$lib/stores/server.svelte';
->>>>>>> master
 
 /**
  * modelsStore - Reactive store for model management in both MODEL and ROUTER modes
@@ -339,47 +327,6 @@ class ModelsStore {
 		}
 	}
 
-<<<<<<< HEAD
-		/**
-	 * Syncs selection with the server's props model
-	 * Called when modelSelectorEnabled is toggled or when falling back
-	 */
-	async syncWithPropsModel(): Promise<void> {
-		const propsModelName = serverStore.modelName;
-		if (!propsModelName) {
-			console.warn('No props model available to sync with');
-			return;
-		}
-
-		// Ensure models are loaded
-		if (this._models.length === 0) {
-			await this.fetch();
-		}
-
-		// Try to find props model in the models list by matching name
-		const propsModel = this._models.find((m) => m.name === propsModelName);
-
-		if (propsModel) {
-			// Found exact match - use it
-			this._selectedModelId = propsModel.id;
-			this._selectedModelName = propsModel.model;
-			this._persistedSelection.value = {
-				id: propsModel.id,
-				model: propsModel.model
-			};
-		} else {
-			// Not found in list - save props model name as-is
-			// This handles cases where props model isn't in /v1/models
-			this._selectedModelId = propsModelName;
-			this._selectedModelName = propsModelName;
-			this._persistedSelection.value = {
-				id: propsModelName,
-				model: propsModelName
-			};
-		}
-	}
-
-=======
 	/**
 	 * Fetch modalities for all loaded models from /props endpoint
 	 * This updates the modalities field in models array
@@ -619,7 +566,6 @@ class ModelsStore {
 	// Utilities
 	// ─────────────────────────────────────────────────────────────────────────────
 
->>>>>>> master
 	private toDisplayName(id: string): string {
 		const segments = id.split(/\\|\//);
 		const candidate = segments.pop();
@@ -627,7 +573,7 @@ class ModelsStore {
 		return candidate && candidate.trim().length > 0 ? candidate : id;
 	}
 
-<<<<<<< HEAD
+/*
 	/**
 	 * Determines which model should be selected after fetching the models list.
 	 * Priority: current selection > persisted selection > props model > first available model > none
@@ -678,7 +624,8 @@ class ModelsStore {
 		}
 
 		return { id: nextSelectionId, model: nextSelectionName };
-=======
+	}
+	
 	clear(): void {
 		this.models = [];
 		this.routerModels = [];
@@ -691,7 +638,6 @@ class ModelsStore {
 		this.modelLoadingStates.clear();
 		this.modelPropsCache.clear();
 		this.modelPropsFetching.clear();
->>>>>>> master
 	}
 }
 
@@ -705,15 +651,8 @@ export const modelsError = () => modelsStore.error;
 export const selectedModelId = () => modelsStore.selectedModelId;
 export const selectedModelName = () => modelsStore.selectedModelName;
 export const selectedModelOption = () => modelsStore.selectedModel;
-<<<<<<< HEAD
-
-export const fetchModels = modelsStore.fetch.bind(modelsStore);
-export const selectModel = modelsStore.select.bind(modelsStore);
-export const syncWithPropsModel = modelsStore.syncWithPropsModel.bind(modelsStore);
-=======
 export const loadedModelIds = () => modelsStore.loadedModelIds;
 export const loadingModelIds = () => modelsStore.loadingModelIds;
 export const propsCacheVersion = () => modelsStore.propsCacheVersion;
 export const singleModelName = () => modelsStore.singleModelName;
 export const selectedModelContextSize = () => modelsStore.selectedModelContextSize;
->>>>>>> master
