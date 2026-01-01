@@ -15,13 +15,13 @@
 </script>
 
 <header
-	class={`md:background-transparent pointer-events-none fixed top-0 right-0 left-0 z-50 flex items-center justify-end bg-background/40 p-4 backdrop-blur-xl duration-200 ease-linear ${
+	class={`md:background-transparent pointer-events-none fixed top-0 right-0 left-0 z-50 flex items-center justify-between bg-background/40 p-4 backdrop-blur-xl duration-200 ease-linear ${
 		sidebar.open ? 'md:left-[var(--sidebar-width)]' : ''
 	}`}
 >
-	<div class="pointer-events-auto ml-12 flex items-center space-x-2">
+	<div class="pointer-events-auto flex items-center space-x-2">
 		{#if (!sidebar.isMobile && sidebar.state === 'collapsed') || (sidebar.isMobile && !sidebar.openMobile)}
-			<Button variant="ghost" size="sm" href="?new_chat=true#/">
+			<Button class="ml-12" variant="ghost" size="sm" href="?new_chat=true#/">
 				<SquarePen class="h-4 w-4" />
 			</Button>
 		{/if}
