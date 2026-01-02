@@ -1,4 +1,4 @@
-import { DatabaseService, ChatService } from '$lib/services';
+import { DatabaseService, ChatService, ResponsesService } from '$lib/services';
 import { conversationsStore } from '$lib/stores/conversations.svelte';
 import { config } from '$lib/stores/settings.svelte';
 import { contextSize, isRouterMode } from '$lib/stores/server.svelte';
@@ -517,7 +517,11 @@ class ChatStore {
 
 		const abortController = this.getOrCreateAbortController(assistantMessage.convId);
 
-		await ChatService.sendMessage(
+		const currentConfig = config();
+		const useResponsesApi = currentConfig.apiEndpoint === 'responses';
+		const Service = useResponsesApi ? ResponsesService : ChatService;
+
+		await Service.sendMessage(
 			allMessages,
 			{
 				...this.getApiOptions(),

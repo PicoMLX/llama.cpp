@@ -135,7 +135,7 @@
 					key: 'temperature',
 					label: 'Temperature',
 					type: 'input'
-				},
+				}
 				/*
 				{
 					key: 'dynatemp_range',
@@ -247,6 +247,15 @@
 			title: 'Developer',
 			icon: Code,
 			fields: [
+				{
+					key: 'apiEndpoint',
+					label: 'API Endpoint',
+					type: 'select',
+					options: [
+						{ value: 'completions', label: 'Chat Completions (v1/chat/completions)' },
+						{ value: 'responses', label: 'Responses API (v1/responses) (Experimental)' }
+					]
+				},
 				{
 					key: 'showToolCalls',
 					label: 'Show tool call labels',
