@@ -52,6 +52,9 @@
 
 		<DropdownMenu.Content align="start" class="w-48">
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 43110f5ae (Hide audio and image upload buttons for LLMs)
 			{#if hasVisionModality}
 				<Tooltip.Root>
 					<Tooltip.Trigger class="w-full">
@@ -61,6 +64,7 @@
 							onclick={() => handleFileUpload(FileTypeCategory.IMAGE)}
 						>
 							<FILE_TYPE_ICONS.image class="h-4 w-4" />
+<<<<<<< HEAD
 =======
 			<Tooltip.Root>
 				<Tooltip.Trigger class="w-full">
@@ -71,6 +75,8 @@
 					>
 						<FILE_TYPE_ICONS.image class="h-4 w-4" />
 >>>>>>> master
+=======
+>>>>>>> 43110f5ae (Hide audio and image upload buttons for LLMs)
 
 							<span>Images</span>
 						</DropdownMenu.Item>
@@ -85,6 +91,9 @@
 			{/if}
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 43110f5ae (Hide audio and image upload buttons for LLMs)
 			{#if hasAudioModality}
 				<Tooltip.Root>
 					<Tooltip.Trigger class="w-full">
@@ -94,6 +103,7 @@
 							onclick={() => handleFileUpload(FileTypeCategory.AUDIO)}
 						>
 							<FILE_TYPE_ICONS.audio class="h-4 w-4" />
+<<<<<<< HEAD
 =======
 			<Tooltip.Root>
 				<Tooltip.Trigger class="w-full">
@@ -104,6 +114,8 @@
 					>
 						<FILE_TYPE_ICONS.audio class="h-4 w-4" />
 >>>>>>> master
+=======
+>>>>>>> 43110f5ae (Hide audio and image upload buttons for LLMs)
 
 							<span>Audio Files</span>
 						</DropdownMenu.Item>
