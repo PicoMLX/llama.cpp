@@ -140,7 +140,7 @@
 					key: 'temperature',
 					label: 'chat.settings.field.temperature',
 					type: 'input'
-				},
+				}
 				/*
 				{
 					key: 'dynatemp_range',
@@ -260,6 +260,15 @@
 			titleKey: 'chat.settings.section.developer',
 			icon: Code,
 			fields: [
+				{
+					key: 'apiEndpoint',
+					label: 'API Endpoint',
+					type: 'select',
+					options: [
+						{ value: 'completions', label: 'Chat Completions (v1/chat/completions)' },
+						{ value: 'responses', label: 'Responses API (v1/responses) (Experimental)' }
+					]
+				},
 				{
 					key: 'showToolCalls',
 					label: 'chat.settings.field.show_tool_call_labels',
