@@ -6,6 +6,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { replaceState } from '$app/navigation';
+	import { serverName } from '$lib/stores/server.svelte';
 
 	let qParam = $derived(page.url.searchParams.get('q'));
 	let modelParam = $derived(page.url.searchParams.get('model'));
@@ -79,7 +80,7 @@
 </script>
 
 <svelte:head>
-	<title>llama.cpp - AI Chat Interface</title>
+	<title>{serverName()} - AI Chat Interface</title>
 </svelte:head>
 
 <ChatScreen showCenteredEmpty={true} />

@@ -167,6 +167,7 @@ export interface ApiLlamaCppServerProps {
 	};
 	total_slots: number;
 	model_path: string;
+	server_name?: string;
 	role: ServerRole;
 	modalities: {
 		vision: boolean;

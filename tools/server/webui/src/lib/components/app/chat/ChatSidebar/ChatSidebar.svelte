@@ -11,6 +11,7 @@
 	import { chatStore } from '$lib/stores/chat.svelte';
 	import { getPreviewText } from '$lib/utils/text';
 	import ChatSidebarActions from './ChatSidebarActions.svelte';
+	import { serverName } from '$lib/stores/server.svelte';
 
 	let currentChatId = $derived(page.params.id);
 	let isSearchModeActive = $state(false);
@@ -106,7 +107,7 @@
 <ScrollArea class="h-[100vh]">
 	<Sidebar.Header class=" top-0 z-10 gap-6 bg-sidebar/50 px-4 py-4 pb-2 backdrop-blur-lg md:sticky">
 		<a href="#/" onclick={handleMobileSidebarItemClick}>
-			<h1 class="inline-flex items-center gap-1 px-2 text-xl font-semibold">llama.cpp</h1>
+			<h1 class="inline-flex items-center gap-1 px-2 text-xl font-semibold">{serverName()}</h1>
 		</a>
 
 		<ChatSidebarActions {handleMobileSidebarItemClick} bind:isSearchModeActive bind:searchQuery />

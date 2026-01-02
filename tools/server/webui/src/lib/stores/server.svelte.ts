@@ -52,6 +52,10 @@ class ServerStore {
 		return this.role === ServerRole.MODEL;
 	}
 
+	get serverName(): string {
+		return this.props?.server_name || 'Pico AI Server';
+	}
+
 	// ─────────────────────────────────────────────────────────────────────────────
 	// Data Handling
 	// ─────────────────────────────────────────────────────────────────────────────
@@ -138,3 +142,4 @@ export const defaultParams = () => serverStore.defaultParams;
 export const contextSize = () => serverStore.contextSize;
 export const isRouterMode = () => serverStore.isRouterMode;
 export const isModelMode = () => serverStore.isModelMode;
+export const serverName = () => serverStore.serverName;

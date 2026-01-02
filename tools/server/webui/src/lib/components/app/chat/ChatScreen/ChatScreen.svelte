@@ -8,6 +8,7 @@
 		DialogEmptyFileAlert,
 		DialogChatError,
 		ServerLoadingSplash,
+		ServerInfo,
 		DialogConfirmation
 	} from '$lib/components/app';
 	import * as Alert from '$lib/components/ui/alert';
@@ -30,7 +31,7 @@
 		activeConversation
 	} from '$lib/stores/conversations.svelte';
 	import { config } from '$lib/stores/settings.svelte';
-	import { serverLoading, serverError, serverStore, isRouterMode } from '$lib/stores/server.svelte';
+	import { serverLoading, serverError, serverStore, isRouterMode, serverName } from '$lib/stores/server.svelte';
 	import { modelsStore, modelOptions, selectedModelId } from '$lib/stores/models.svelte';
 	import { isFileTypeSupported, filterFilesByModalities } from '$lib/utils';
 	import { parseFilesToMessageExtras, processFilesToChatUploaded } from '$lib/utils/browser-only';
@@ -454,7 +455,7 @@
 	>
 		<div class="w-full max-w-[48rem] px-4">
 			<div class="mb-10 text-center" in:fade={{ duration: 300 }}>
-				<h1 class="mb-4 text-3xl font-semibold tracking-tight">llama.cpp</h1>
+				<h1 class="mb-2 text-3xl font-semibold tracking-tight">{serverName()}</h1>
 
 				<p class="text-lg text-muted-foreground">
 					{serverStore.props?.modalities?.audio
