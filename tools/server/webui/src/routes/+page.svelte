@@ -3,10 +3,10 @@
 	import { chatStore } from '$lib/stores/chat.svelte';
 	import { conversationsStore, isConversationsInitialized } from '$lib/stores/conversations.svelte';
 	import { modelsStore, modelOptions } from '$lib/stores/models.svelte';
-	import { t } from '$lib/i18n';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { replaceState } from '$app/navigation';
+	import { serverName } from '$lib/stores/server.svelte';
 
 	let qParam = $derived(page.url.searchParams.get('q'));
 	let modelParam = $derived(page.url.searchParams.get('model'));
@@ -80,7 +80,7 @@
 </script>
 
 <svelte:head>
-	<title>{t('page.title.home')}</title>
+	<title>{serverName()} - AI Chat Interface</title>
 </svelte:head>
 
 <ChatScreen showCenteredEmpty={true} />
