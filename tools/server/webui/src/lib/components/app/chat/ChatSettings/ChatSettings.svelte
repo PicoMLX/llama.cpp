@@ -136,6 +136,7 @@
 					label: 'Temperature',
 					type: 'input'
 				},
+				/*
 				{
 					key: 'dynatemp_range',
 					label: 'Dynamic temperature range',
@@ -186,8 +187,10 @@
 					label: 'Samplers',
 					type: 'input'
 				}
+				*/
 			]
 		},
+		/*
 		{
 			title: 'Penalties',
 			icon: AlertTriangle,
@@ -234,6 +237,7 @@
 				}
 			]
 		},
+		*/
 		{
 			title: 'Import/Export',
 			icon: Database,
