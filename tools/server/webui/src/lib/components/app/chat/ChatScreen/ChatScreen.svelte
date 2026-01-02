@@ -456,7 +456,6 @@
 	>
 		<div class="w-full max-w-[48rem] px-4">
 			<div class="mb-10 text-center" in:fade={{ duration: 300 }}>
-
 				<h1 class="mb-2 text-3xl font-semibold tracking-tight">{serverName()}</h1>
 
 				<p class="text-lg text-muted-foreground">
