@@ -12,7 +12,10 @@
 	import { getPreviewText } from '$lib/utils/text';
 	import { t } from '$lib/i18n';
 	import ChatSidebarActions from './ChatSidebarActions.svelte';
+<<<<<<< HEAD
 	import { serverName } from '$lib/stores/server.svelte';
+=======
+>>>>>>> 3a166703f (keep sidebar hidden)
 
 	let currentChatId = $derived(page.params.id);
 	let isSearchModeActive = $state(false);
