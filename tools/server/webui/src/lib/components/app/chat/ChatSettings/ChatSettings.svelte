@@ -135,7 +135,11 @@
 					key: 'temperature',
 					label: 'Temperature',
 					type: 'input'
+<<<<<<< HEAD
 				}
+=======
+				},
+>>>>>>> 25a859215 (Comment out advanced options)
 				/*
 				{
 					key: 'dynatemp_range',
