@@ -136,10 +136,14 @@
 					label: 'Temperature',
 					type: 'input'
 <<<<<<< HEAD
+<<<<<<< HEAD
 				}
 =======
 				},
 >>>>>>> 25a859215 (Comment out advanced options)
+=======
+				}
+>>>>>>> 81e3daade (Add Responses API)
 				/*
 				{
 					key: 'dynatemp_range',
@@ -262,7 +266,11 @@
 					type: 'select',
 					options: [
 						{ value: 'completions', label: 'Chat Completions (v1/chat/completions)' },
+<<<<<<< HEAD
 						{ value: 'responses', label: 'Responses API (v1/responses)' }
+=======
+						{ value: 'responses', label: 'Responses API (v1/responses) (Experimental)' }
+>>>>>>> 81e3daade (Add Responses API)
 					]
 				},
 				{
