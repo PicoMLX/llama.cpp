@@ -56,45 +56,49 @@
 		</DropdownMenu.Trigger>
 
 		<DropdownMenu.Content align="start" class="w-48">
-			<Tooltip.Root>
-				<Tooltip.Trigger class="w-full">
-					<DropdownMenu.Item
-						class="images-button flex cursor-pointer items-center gap-2"
-						disabled={!hasVisionModality}
-						onclick={() => handleFileUpload(FileTypeCategory.IMAGE)}
-					>
-						<FILE_TYPE_ICONS.image class="h-4 w-4" />
+			{#if hasVisionModality}
+				<Tooltip.Root>
+					<Tooltip.Trigger class="w-full">
+						<DropdownMenu.Item
+							class="images-button flex cursor-pointer items-center gap-2"
+							disabled={!hasVisionModality}
+							onclick={() => handleFileUpload(FileTypeCategory.IMAGE)}
+						>
+							<FILE_TYPE_ICONS.image class="h-4 w-4" />
 
-						<span>Images</span>
-					</DropdownMenu.Item>
-				</Tooltip.Trigger>
+							<span>Images</span>
+						</DropdownMenu.Item>
+					</Tooltip.Trigger>
 
-				{#if !hasVisionModality}
-					<Tooltip.Content>
-						<p>Images require vision models to be processed</p>
-					</Tooltip.Content>
-				{/if}
-			</Tooltip.Root>
+					{#if !hasVisionModality}
+						<Tooltip.Content>
+							<p>Images require vision models to be processed</p>
+						</Tooltip.Content>
+					{/if}
+				</Tooltip.Root>
+			{/if}
 
-			<Tooltip.Root>
-				<Tooltip.Trigger class="w-full">
-					<DropdownMenu.Item
-						class="audio-button flex cursor-pointer items-center gap-2"
-						disabled={!hasAudioModality}
-						onclick={() => handleFileUpload(FileTypeCategory.AUDIO)}
-					>
-						<FILE_TYPE_ICONS.audio class="h-4 w-4" />
+			{#if hasAudioModality}
+				<Tooltip.Root>
+					<Tooltip.Trigger class="w-full">
+						<DropdownMenu.Item
+							class="audio-button flex cursor-pointer items-center gap-2"
+							disabled={!hasAudioModality}
+							onclick={() => handleFileUpload(FileTypeCategory.AUDIO)}
+						>
+							<FILE_TYPE_ICONS.audio class="h-4 w-4" />
 
-						<span>Audio Files</span>
-					</DropdownMenu.Item>
-				</Tooltip.Trigger>
+							<span>Audio Files</span>
+						</DropdownMenu.Item>
+					</Tooltip.Trigger>
 
-				{#if !hasAudioModality}
-					<Tooltip.Content>
-						<p>Audio files require audio models to be processed</p>
-					</Tooltip.Content>
-				{/if}
-			</Tooltip.Root>
+					{#if !hasAudioModality}
+						<Tooltip.Content>
+							<p>Audio files require audio models to be processed</p>
+						</Tooltip.Content>
+					{/if}
+				</Tooltip.Root>
+			{/if}
 
 			<DropdownMenu.Item
 				class="flex cursor-pointer items-center gap-2"
