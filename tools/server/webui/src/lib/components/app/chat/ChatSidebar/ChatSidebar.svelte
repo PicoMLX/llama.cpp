@@ -12,8 +12,6 @@
 	import { getPreviewText } from '$lib/utils/text';
 	import ChatSidebarActions from './ChatSidebarActions.svelte';
 
-	const sidebar = Sidebar.useSidebar();
-
 	let currentChatId = $derived(page.params.id);
 	let isSearchModeActive = $state(false);
 	let searchQuery = $state('');
@@ -72,11 +70,7 @@
 		selectedConversation = null;
 	}
 
-	export function handleMobileSidebarItemClick() {
-		if (sidebar.isMobile) {
-			sidebar.toggle();
-		}
-	}
+	export function handleMobileSidebarItemClick() {}
 
 	export function activateSearchMode() {
 		isSearchModeActive = true;
