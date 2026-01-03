@@ -3,10 +3,14 @@ export const SETTING_CONFIG_DEFAULT: Record<string, string | number | boolean> =
 	// Do not use nested objects, keep it single level. Prefix the key if you need to group them.
 	apiKey: '',
 <<<<<<< HEAD
+<<<<<<< HEAD
 	apiEndpoint: 'responses',
 =======
 	apiEndpoint: 'completions',
 >>>>>>> 81e3daade (Add Responses API)
+=======
+	apiEndpoint: 'responses',
+>>>>>>> 4364ce5d2 (Make responses standard endpoint)
 	systemMessage: '',
 	showSystemMessage: true,
 	theme: 'system',
