@@ -149,6 +149,7 @@ export interface ApiLlamaCppServerProps {
 			reasoning_in_content: boolean;
 			thinking_forced_open: boolean;
 			samplers: string[];
+			backend_sampling: boolean;
 			'speculative.n_max': number;
 			'speculative.n_min': number;
 			'speculative.p_min': number;
@@ -213,6 +214,7 @@ export interface ApiChatCompletionRequest {
 	dry_penalty_last_n?: number;
 	// Sampler configuration
 	samplers?: string[];
+	backend_sampling?: boolean;
 	// Custom parameters (JSON string)
 	custom?: Record<string, unknown>;
 	timings_per_token?: boolean;
@@ -313,6 +315,7 @@ export interface ApiSlotData {
 		reasoning_in_content: boolean;
 		thinking_forced_open: boolean;
 		samplers: string[];
+		backend_sampling: boolean;
 		'speculative.n_max': number;
 		'speculative.n_min': number;
 		'speculative.p_min': number;
