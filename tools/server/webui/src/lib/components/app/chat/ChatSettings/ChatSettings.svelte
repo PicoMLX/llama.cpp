@@ -253,7 +253,7 @@
 					type: 'select',
 					options: [
 						{ value: 'completions', label: 'Chat Completions (v1/chat/completions)' },
-						{ value: 'responses', label: 'Responses API (v1/responses) (Experimental)' }
+						{ value: 'responses', label: 'Responses API (v1/responses)' }
 					]
 				},
 				{
