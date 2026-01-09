@@ -135,15 +135,7 @@
 					key: 'temperature',
 					label: 'Temperature',
 					type: 'input'
-<<<<<<< HEAD
-<<<<<<< HEAD
-				}
-=======
 				},
->>>>>>> 25a859215 (Comment out advanced options)
-=======
-				}
->>>>>>> 81e3daade (Add Responses API)
 				/*
 				{
 					key: 'dynatemp_range',
@@ -266,15 +258,7 @@
 					type: 'select',
 					options: [
 						{ value: 'completions', label: 'Chat Completions (v1/chat/completions)' },
-<<<<<<< HEAD
-<<<<<<< HEAD
 						{ value: 'responses', label: 'Responses API (v1/responses)' }
-=======
-						{ value: 'responses', label: 'Responses API (v1/responses) (Experimental)' }
->>>>>>> 81e3daade (Add Responses API)
-=======
-						{ value: 'responses', label: 'Responses API (v1/responses)' }
->>>>>>> e1dc7bd8d (Remove experimental label)
 					]
 				},
 				{

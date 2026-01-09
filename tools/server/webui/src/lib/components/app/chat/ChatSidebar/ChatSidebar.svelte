@@ -11,14 +11,7 @@
 	import { chatStore } from '$lib/stores/chat.svelte';
 	import { getPreviewText } from '$lib/utils/text';
 	import ChatSidebarActions from './ChatSidebarActions.svelte';
-<<<<<<< HEAD
-<<<<<<< HEAD
 	import { serverName } from '$lib/stores/server.svelte';
-=======
->>>>>>> 3a166703f (keep sidebar hidden)
-=======
-	import { serverName } from '$lib/stores/server.svelte';
->>>>>>> 41374f739 (Show servername instead of llama.cpp)
 
 	let currentChatId = $derived(page.params.id);
 	let isSearchModeActive = $state(false);
