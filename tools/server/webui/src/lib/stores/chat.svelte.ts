@@ -62,6 +62,7 @@ class ChatStore {
 	// ─────────────────────────────────────────────────────────────────────────────
 
 	activeProcessingState = $state<ApiProcessingState | null>(null);
+	activeReasoningState = $state(false);
 	currentResponse = $state('');
 	errorDialogState = $state<{
 		type: 'timeout' | 'server';
@@ -73,6 +74,7 @@ class ChatStore {
 	chatStreamingStates = new SvelteMap<string, { response: string; messageId: string }>();
 	private abortControllers = new SvelteMap<string, AbortController>();
 	private processingStates = new SvelteMap<string, ApiProcessingState | null>();
+	private reasoningStates = new SvelteMap<string, boolean>();
 	private activeConversationId = $state<string | null>(null);
 	private isStreamingActive = $state(false);
 	private isEditModeActive = $state(false);
@@ -137,8 +139,10 @@ class ChatStore {
 
 		if (conversationId) {
 			this.activeProcessingState = this.processingStates.get(conversationId) || null;
+			this.activeReasoningState = this.reasoningStates.get(conversationId) || false;
 		} else {
 			this.activeProcessingState = null;
+			this.activeReasoningState = false;
 		}
 	}
 
@@ -157,6 +161,23 @@ class ChatStore {
 
 		if (conversationId === this.activeConversationId) {
 			this.activeProcessingState = null;
+		}
+	}
+
+	clearReasoningState(conversationId: string): void {
+		this.reasoningStates.delete(conversationId);
+
+		if (conversationId === this.activeConversationId) {
+			this.activeReasoningState = false;
+		}
+	}
+
+	setReasoningActive(conversationId: string, isActive: boolean): void {
+		if (!conversationId) return;
+		this.reasoningStates.set(conversationId, isActive);
+
+		if (conversationId === this.activeConversationId) {
+			this.activeReasoningState = isActive;
 		}
 	}
 
@@ -515,6 +536,7 @@ class ChatStore {
 
 		this.startStreaming();
 		this.setActiveProcessingConversation(assistantMessage.convId);
+		this.setReasoningActive(assistantMessage.convId, false);
 
 		const abortController = this.getOrCreateAbortController(assistantMessage.convId);
 
@@ -537,6 +559,7 @@ class ChatStore {
 					streamedReasoningContent += reasoningChunk;
 					const idx = conversationsStore.findMessageIndex(assistantMessage.id);
 					conversationsStore.updateMessageAtIndex(idx, { thinking: streamedReasoningContent });
+					this.setReasoningActive(assistantMessage.convId, true);
 				},
 				onToolCallChunk: (toolCallChunk: string) => {
 					const chunk = toolCallChunk.trim();
@@ -597,6 +620,7 @@ class ChatStore {
 					this.setChatLoading(assistantMessage.convId, false);
 					this.clearChatStreaming(assistantMessage.convId);
 					this.clearProcessingState(assistantMessage.convId);
+					this.clearReasoningState(assistantMessage.convId);
 
 					if (isRouterMode()) {
 						modelsStore.fetchRouterModels().catch(console.error);
@@ -609,6 +633,7 @@ class ChatStore {
 						this.setChatLoading(assistantMessage.convId, false);
 						this.clearChatStreaming(assistantMessage.convId);
 						this.clearProcessingState(assistantMessage.convId);
+						this.clearReasoningState(assistantMessage.convId);
 
 						return;
 					}
@@ -618,6 +643,7 @@ class ChatStore {
 					this.setChatLoading(assistantMessage.convId, false);
 					this.clearChatStreaming(assistantMessage.convId);
 					this.clearProcessingState(assistantMessage.convId);
+					this.clearReasoningState(assistantMessage.convId);
 
 					const idx = conversationsStore.findMessageIndex(assistantMessage.id);
 
@@ -1477,6 +1503,7 @@ class ChatStore {
 export const chatStore = new ChatStore();
 
 export const activeProcessingState = () => chatStore.activeProcessingState;
+export const activeReasoningState = () => chatStore.activeReasoningState;
 export const clearEditMode = () => chatStore.clearEditMode();
 export const currentResponse = () => chatStore.currentResponse;
 export const errorDialog = () => chatStore.errorDialogState;

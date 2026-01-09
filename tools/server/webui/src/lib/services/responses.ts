@@ -186,6 +186,7 @@ export class ResponsesService {
 		let fullReasoningContent = '';
 		let lastTimings: ChatMessageTimings | undefined;
 		let modelEmitted = false;
+		let reasoningTextSeen = false;
 
 		try {
 			let buffer = '';
@@ -239,6 +240,14 @@ export class ResponsesService {
 									fullReasoningContent += delta;
 									if (!abortSignal?.aborted) {
 										onReasoningChunk?.(delta);
+									}
+								}
+							}
+							if (eventType === 'response.reasoning_text.delta') {
+								if (!reasoningTextSeen) {
+									reasoningTextSeen = true;
+									if (!abortSignal?.aborted) {
+										onReasoningChunk?.('');
 									}
 								}
 							}
