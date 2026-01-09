@@ -51,21 +51,7 @@
 		</DropdownMenu.Trigger>
 
 		<DropdownMenu.Content align="start" class="w-48">
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 43110f5ae (Hide audio and image upload buttons for LLMs)
-			{#if hasVisionModality}
-				<Tooltip.Root>
-					<Tooltip.Trigger class="w-full">
-						<DropdownMenu.Item
-							class="images-button flex cursor-pointer items-center gap-2"
-							disabled={!hasVisionModality}
-							onclick={() => handleFileUpload(FileTypeCategory.IMAGE)}
-						>
-							<FILE_TYPE_ICONS.image class="h-4 w-4" />
-<<<<<<< HEAD
-=======
+			{#if hasVisionModality}				
 			<Tooltip.Root>
 				<Tooltip.Trigger class="w-full">
 					<DropdownMenu.Item
@@ -74,10 +60,6 @@
 						onclick={() => onFileUpload?.()}
 					>
 						<FILE_TYPE_ICONS.image class="h-4 w-4" />
->>>>>>> master
-=======
->>>>>>> 43110f5ae (Hide audio and image upload buttons for LLMs)
-
 							<span>Images</span>
 						</DropdownMenu.Item>
 					</Tooltip.Trigger>
@@ -89,22 +71,7 @@
 					{/if}
 				</Tooltip.Root>
 			{/if}
-
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 43110f5ae (Hide audio and image upload buttons for LLMs)
 			{#if hasAudioModality}
-				<Tooltip.Root>
-					<Tooltip.Trigger class="w-full">
-						<DropdownMenu.Item
-							class="audio-button flex cursor-pointer items-center gap-2"
-							disabled={!hasAudioModality}
-							onclick={() => handleFileUpload(FileTypeCategory.AUDIO)}
-						>
-							<FILE_TYPE_ICONS.audio class="h-4 w-4" />
-<<<<<<< HEAD
-=======
 			<Tooltip.Root>
 				<Tooltip.Trigger class="w-full">
 					<DropdownMenu.Item
@@ -113,20 +80,17 @@
 						onclick={() => onFileUpload?.()}
 					>
 						<FILE_TYPE_ICONS.audio class="h-4 w-4" />
->>>>>>> master
-=======
->>>>>>> 43110f5ae (Hide audio and image upload buttons for LLMs)
 
-							<span>Audio Files</span>
-						</DropdownMenu.Item>
-					</Tooltip.Trigger>
+						<span>Audio Files</span>
+					</DropdownMenu.Item>
+				</Tooltip.Trigger>
 
-					{#if !hasAudioModality}
-						<Tooltip.Content>
-							<p>Audio files require audio models to be processed</p>
-						</Tooltip.Content>
-					{/if}
-				</Tooltip.Root>
+				{#if !hasAudioModality}
+					<Tooltip.Content>
+						<p>Audio files require audio models to be processed</p>
+					</Tooltip.Content>
+				{/if}
+			</Tooltip.Root>
 			{/if}
 
 			<DropdownMenu.Item
