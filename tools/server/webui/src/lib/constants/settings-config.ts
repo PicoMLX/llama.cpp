@@ -49,6 +49,7 @@ export const SETTING_CONFIG_DEFAULT: Record<string, string | number | boolean> =
 
 export const SETTING_CONFIG_INFO: Record<string, string> = {
 	apiKey: 'chat.settings.help.api_key',
+	apiEndpoint: 'chat.settings.help.endpoint',
 	systemMessage: 'chat.settings.help.system_message',
 	showSystemMessage: 'chat.settings.help.show_system_message',
 	theme: 'chat.settings.help.theme',
