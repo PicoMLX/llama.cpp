@@ -49,8 +49,7 @@ export const SETTING_CONFIG_DEFAULT: Record<string, string | number | boolean> =
 
 export const SETTING_CONFIG_INFO: Record<string, string> = {
 	apiKey: 'Set the API Key if you are using <code>--api-key</code> option for the server.',
-	apiEndpoint:
-		'Choose between Chat Completions API (v1/chat/completions) or the newer Responses API (v1/responses)',
+	apiEndpoint: 'Choose Open Responses (recommended; most features) or Chat Completions (legacy)',
 	systemMessage: 'The starting message that defines how model should behave.',
 	showSystemMessage: 'Display the system message at the top of each conversation.',
 	theme:

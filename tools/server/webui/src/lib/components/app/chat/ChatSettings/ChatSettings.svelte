@@ -257,8 +257,8 @@
 					label: 'API Endpoint',
 					type: 'select',
 					options: [
-						{ value: 'completions', label: 'Chat Completions (v1/chat/completions)' },
-						{ value: 'responses', label: 'Responses API (v1/responses)' }
+						{ value: 'responses', label: 'Open Responses (v1/responses)' },
+						{ value: 'completions', label: 'Chat Completions (v1/chat/completions)' }
 					]
 				},
 				{
