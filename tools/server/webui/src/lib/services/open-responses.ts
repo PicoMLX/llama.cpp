@@ -2,12 +2,12 @@ import { getJsonHeaders } from '$lib/utils';
 import { AttachmentType } from '$lib/enums';
 
 /**
- * ResponsesService - API communication layer for OpenAI Responses API
+ * OpenResponsesService - API communication layer for Open Responses API
  *
  * This service provides an alternative to ChatService, using OpenAI's newer
  * Responses API (v1/responses) instead of Chat Completions (v1/chat/completions).
  *
- * The Responses API has a different request/response format but this service
+ * The Open Responses API has a different request/response format but this service
  * normalizes the output to match ChatService's callback interface for seamless
  * integration with the chat store.
  *
@@ -17,7 +17,7 @@ import { AttachmentType } from '$lib/enums';
  * - Different streaming event types
  * - Response content in `output[].content[].text` instead of `choices[].message.content`
  */
-export class ResponsesService {
+export class OpenResponsesService {
 	/**
 	 * Sends a message using the Responses API.
 	 * Normalizes the response to match ChatService callback signatures.
@@ -44,9 +44,9 @@ export class ResponsesService {
 			disableReasoningFormat
 		} = options;
 
-		const input = ResponsesService.convertMessagesToInput(messages);
+		const input = OpenResponsesService.convertMessagesToInput(messages);
 
-		const apiKey = ResponsesService.getApiKey();
+		const apiKey = OpenResponsesService.getApiKey();
 		const headers = getJsonHeaders();
 
 		const requestBody: Record<string, unknown> = {
@@ -91,7 +91,7 @@ export class ResponsesService {
 			});
 
 			if (!response.ok) {
-				const error = await ResponsesService.parseErrorResponse(response);
+				const error = await OpenResponsesService.parseErrorResponse(response);
 				if (onError) {
 					onError(error);
 				}
@@ -99,7 +99,7 @@ export class ResponsesService {
 			}
 
 			if (stream) {
-				await ResponsesService.handleStreamResponse(
+				await OpenResponsesService.handleStreamResponse(
 					response,
 					onChunk,
 					onComplete,
@@ -112,7 +112,7 @@ export class ResponsesService {
 				);
 				return;
 			} else {
-				return ResponsesService.handleNonStreamResponse(
+				return OpenResponsesService.handleNonStreamResponse(
 					response,
 					onComplete,
 					onError,
@@ -147,7 +147,7 @@ export class ResponsesService {
 				userFriendlyError = new Error('Unknown error occurred while sending message');
 			}
 
-			console.error('Error in ResponsesService.sendMessage:', error);
+			console.error('Error in OpenResponsesService.sendMessage:', error);
 			if (onError) {
 				onError(userFriendlyError);
 			}
@@ -262,7 +262,7 @@ export class ResponsesService {
 							if (eventType === 'response.completed' || eventType === 'response.done') {
 								const responseData = parsed.response || parsed;
 								if (responseData.usage) {
-									lastTimings = ResponsesService.convertUsageToTimings(responseData.usage);
+									lastTimings = OpenResponsesService.convertUsageToTimings(responseData.usage);
 									onTimings?.(lastTimings, undefined);
 								}
 								if (responseData.model && !modelEmitted) {
@@ -347,7 +347,7 @@ export class ResponsesService {
 				throw noResponseError;
 			}
 
-			const timings = data.usage ? ResponsesService.convertUsageToTimings(data.usage) : undefined;
+			const timings = data.usage ? OpenResponsesService.convertUsageToTimings(data.usage) : undefined;
 
 			onComplete?.(content, reasoningContent || undefined, timings, undefined);
 
@@ -410,7 +410,7 @@ export class ResponsesService {
 				if (!dbMsg.extra || dbMsg.extra.length === 0) {
 					content = dbMsg.content;
 				} else {
-					content = ResponsesService.convertExtrasToContent(dbMsg);
+					content = OpenResponsesService.convertExtrasToContent(dbMsg);
 				}
 			} else {
 				const apiMsg = msg as ApiChatMessageData;
@@ -424,7 +424,7 @@ export class ResponsesService {
 				if (typeof apiMsg.content === 'string') {
 					content = apiMsg.content;
 				} else {
-					content = ResponsesService.convertApiContentParts(apiMsg.content);
+					content = OpenResponsesService.convertApiContentParts(apiMsg.content);
 				}
 			}
 
