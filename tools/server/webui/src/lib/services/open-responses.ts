@@ -186,6 +186,7 @@ export class OpenResponsesService {
 		let fullReasoningContent = '';
 		let lastTimings: ChatMessageTimings | undefined;
 		let modelEmitted = false;
+		let reasoningSummarySeen = false;
 		let reasoningTextSeen = false;
 
 		try {
@@ -237,6 +238,17 @@ export class OpenResponsesService {
 							if (eventType === 'response.reasoning_summary_text.delta') {
 								const delta = parsed.delta || '';
 								if (delta) {
+									reasoningSummarySeen = true;
+									fullReasoningContent += delta;
+									if (!abortSignal?.aborted) {
+										onReasoningChunk?.(delta);
+									}
+								}
+							}
+							if (eventType === 'response.reasoning.delta') {
+								const delta = parsed.delta || '';
+								// Prefer summaries when available; many local models only emit reasoning deltas.
+								if (delta && !reasoningSummarySeen) {
 									fullReasoningContent += delta;
 									if (!abortSignal?.aborted) {
 										onReasoningChunk?.(delta);
