@@ -3,4 +3,4 @@ export { DatabaseService } from './database';
 export { ModelsService } from './models';
 export { PropsService } from './props';
 export { ParameterSyncService } from './parameter-sync';
-export { ResponsesService } from './responses';
+export { OpenResponsesService as OpenResponsesService } from './open-responses';
