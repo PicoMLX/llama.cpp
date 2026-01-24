@@ -23,6 +23,7 @@ const MAX_BUNDLE_SIZE = 2 * 1024 * 1024;
  * e.g. maximum size of embedded font (see node_modules/katex/dist/fonts/*.woff2)
  */
 const MAX_ASSET_SIZE = 32000;
+const OUTPUT_DIR = resolve('../../../../PicoServer/PicoServer/HTTP Server/HTML');
 
 /** public/index.html.gz minified flag */
 const ENABLE_JS_MINIFICATION = true;
@@ -32,11 +33,11 @@ function llamaCppBuildPlugin() {
 		name: 'llamacpp:build',
 		apply: 'build' as const,
 		closeBundle() {
-			// Ensure the SvelteKit adapter has finished writing to ../public
+			// Ensure the SvelteKit adapter has finished writing to the output directory.
 			setTimeout(() => {
 				try {
-					const indexPath = resolve('../public/index.html');
-					const gzipPath = resolve('../public/index.html.gz');
+					const indexPath = resolve(OUTPUT_DIR, 'index.html');
+					const gzipPath = resolve(OUTPUT_DIR, 'index.html.gz');
 
 					if (!existsSync(indexPath)) {
 						return;
