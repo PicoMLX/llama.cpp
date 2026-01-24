@@ -35,8 +35,8 @@ function llamaCppBuildPlugin() {
 			// Ensure the SvelteKit adapter has finished writing to ../public
 			setTimeout(() => {
 				try {
-					const indexPath = resolve('../public/index.html');
-					const gzipPath = resolve('../public/index.html.gz');
+					const indexPath = resolve('../../../../PicoServer/PicoServer/HTTP Server/HTML/index.html');
+					const gzipPath = resolve('../../../../PicoServer/PicoServer/HTTP Server/HTML/index.html.gz');
 
 					if (!existsSync(indexPath)) {
 						return;
