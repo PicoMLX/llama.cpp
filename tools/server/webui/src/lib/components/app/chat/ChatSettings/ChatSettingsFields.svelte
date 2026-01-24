@@ -241,14 +241,15 @@
 				<p class="mt-1 text-xs text-muted-foreground">
 					{@html helpText}
 				</p>
-			{/if}
-		{:else if field.type === 'checkbox'}
-			{@const fieldLabel = t(field.label)}
-			<div class="flex items-start space-x-3">
-				<Checkbox
-					id={field.key}
-					checked={Boolean(localConfig[field.key])}
-					onCheckedChange={(checked) => onConfigChange(field.key, checked)}
+		{/if}
+	{:else if field.type === 'checkbox'}
+		{@const fieldLabel = t(field.label)}
+		{@const helpText = getHelpText(field)}
+		<div class="flex items-start space-x-3">
+			<Checkbox
+				id={field.key}
+				checked={Boolean(localConfig[field.key])}
+				onCheckedChange={(checked) => onConfigChange(field.key, checked)}
 					class="mt-1"
 				/>
 
@@ -261,15 +262,14 @@
 
 						{#if field.isExperimental}
 							<FlaskConical class="h-3.5 w-3.5 text-muted-foreground" />
-						{/if}
-					</label>
-
-					{@const helpText = getHelpText(field)}
-					{#if helpText}
-						<p class="text-xs text-muted-foreground">
-							{@html helpText}
-						</p>
 					{/if}
+				</label>
+
+				{#if helpText}
+					<p class="text-xs text-muted-foreground">
+						{@html helpText}
+					</p>
+				{/if}
 				</div>
 			</div>
 		{/if}
