@@ -14,8 +14,11 @@
 	import { goto } from '$app/navigation';
 	import { modelsStore } from '$lib/stores/models.svelte';
 	import { TOOLTIP_DELAY_DURATION } from '$lib/constants/tooltip-config';
+	import { i18n } from '$lib/i18n';
 
 	let { children } = $props();
+
+	i18n.init();
 
 	let sidebarOpen = $state(false);
 	let innerHeight = $state<number | undefined>();
