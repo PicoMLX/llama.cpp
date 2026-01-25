@@ -456,13 +456,9 @@
 	>
 		<div class="w-full max-w-[48rem] px-4">
 			<div class="mb-10 text-center" in:fade={{ duration: 300 }}>
-<<<<<<< HEAD
 				<h1 class="mb-4 text-3xl font-semibold tracking-tight">
-					{t('chat.landing.title')}
+					{serverName()}
 				</h1>
-=======
-				<h1 class="mb-2 text-3xl font-semibold tracking-tight">{serverName()}</h1>
->>>>>>> 2d0c71996 (Show servername instead of llama.cpp)
 
 				<p class="text-lg text-muted-foreground">
 					{serverStore.props?.modalities?.audio
