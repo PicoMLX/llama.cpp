@@ -325,27 +325,25 @@ class SettingsStore {
 	 * Reset all parameters to their default values (from props)
 	 * This is used by the "Reset to Default" functionality
 	 * Prioritizes server defaults from /props, falls back to webui defaults
+	 * Also resets non-syncable settings to their local defaults
 	 */
 	forceSyncWithServerDefaults(): void {
 		const propsDefaults = this.getServerDefaults();
 		const syncableKeys = ParameterSyncService.getSyncableParameterKeys();
+		const nextConfig: SettingsConfigType = {
+			...(SETTING_CONFIG_DEFAULT as SettingsConfigType)
+		};
 
 		for (const key of syncableKeys) {
 			if (propsDefaults[key] !== undefined) {
 				const normalizedValue = normalizeFloatingPoint(propsDefaults[key]);
 
-				setConfigValue(this.config, key, normalizedValue);
-			} else {
-				if (key in SETTING_CONFIG_DEFAULT) {
-					const defaultValue = getConfigValue(SETTING_CONFIG_DEFAULT, key);
-
-					setConfigValue(this.config, key, defaultValue);
-				}
+				setConfigValue(nextConfig, key, normalizedValue);
 			}
-
-			this.userOverrides.delete(key);
 		}
 
+		this.config = nextConfig;
+		this.userOverrides.clear();
 		this.saveConfig();
 	}
 
