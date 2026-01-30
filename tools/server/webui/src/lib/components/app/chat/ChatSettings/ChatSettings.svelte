@@ -262,11 +262,11 @@
 			fields: [
 				{
 					key: 'apiEndpoint',
-					labelKey: 'chat.settings.field.endpoint',
+					label: 'chat.settings.field.endpoint',
 					type: 'select',
 					options: [
-						{ value: 'responses', labelKey: 'chat.settings.field.endpoint.open_responses' },	
-						{ value: 'completions', labelKey: 'chat.settings.field.endpoint.completions' }
+						{ value: 'responses', label: 'chat.settings.field.endpoint.open_responses' },
+						{ value: 'completions', label: 'chat.settings.field.endpoint.completions' }
 					]
 				},
 				{
