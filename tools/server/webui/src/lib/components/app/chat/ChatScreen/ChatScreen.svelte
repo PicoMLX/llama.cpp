@@ -22,6 +22,7 @@
 		chatStore,
 		errorDialog,
 		isLoading,
+		isChatStreaming,
 		isEditing,
 		getAddFilesHandler
 	} from '$lib/stores/chat.svelte';
@@ -83,7 +84,7 @@
 	let isServerLoading = $derived(serverLoading());
 	let hasPropsError = $derived(!!serverError());
 
-	let isCurrentConversationLoading = $derived(isLoading());
+	let isCurrentConversationLoading = $derived(isLoading() || isChatStreaming());
 
 	let isRouter = $derived(isRouterMode());
 

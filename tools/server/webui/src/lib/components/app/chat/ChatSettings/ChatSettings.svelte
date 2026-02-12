@@ -275,8 +275,13 @@
 					type: 'checkbox'
 				},
 				{
-					key: 'disableReasoningFormat',
-					label: 'chat.settings.field.show_raw_llm_output',
+					key: 'disableReasoningParsing',
+					label: 'chat.settings.field.disable_reasoning_parsing',
+					type: 'checkbox'
+				},
+				{
+					key: 'showRawOutputSwitch',
+					label: 'chat.settings.field.show_raw_output_switch',
 					type: 'checkbox'
 				},
 				{

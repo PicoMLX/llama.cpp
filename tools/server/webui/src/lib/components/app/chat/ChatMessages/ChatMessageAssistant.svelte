@@ -91,6 +91,9 @@
 
 	const processingState = useProcessingState();
 
+	// Local state for raw output toggle (per message)
+	let showRawOutput = $state(false);
+
 	let currentConfig = $derived(config());
 	let isRouter = $derived(isRouterMode());
 	let displayedModel = $derived((): string | null => {
@@ -239,7 +242,7 @@
 			</div>
 		</div>
 	{:else if message.role === 'assistant'}
-		{#if config().disableReasoningFormat}
+		{#if showRawOutput}
 			<pre class="raw-output">{messageContent || ''}</pre>
 		{:else}
 			<MarkdownContent content={messageContent || ''} />
@@ -356,6 +359,9 @@
 			{onConfirmDelete}
 			{onNavigateToSibling}
 			{onShowDeleteDialogChange}
+			showRawOutputSwitch={currentConfig.showRawOutputSwitch}
+			rawOutputEnabled={showRawOutput}
+			onRawOutputToggle={(enabled) => (showRawOutput = enabled)}
 		/>
 	{/if}
 </div>

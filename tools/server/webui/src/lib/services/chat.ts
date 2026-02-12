@@ -91,7 +91,7 @@ export class ChatService {
 			custom,
 			timings_per_token,
 			// Config options
-			disableReasoningFormat
+			disableReasoningParsing
 		} = options;
 
 		const normalizedMessages: ApiChatMessageData[] = messages
@@ -128,7 +128,7 @@ export class ChatService {
 			requestBody.model = options.model;
 		}
 
-		requestBody.reasoning_format = disableReasoningFormat ? 'none' : 'auto';
+		requestBody.reasoning_format = disableReasoningParsing ? 'none' : 'auto';
 
 		if (temperature !== undefined) requestBody.temperature = temperature;
 		if (max_tokens !== undefined) {
