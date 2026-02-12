@@ -18,8 +18,12 @@
 	let { conversations, messageCountMap = new Map(), mode, onCancel, onConfirm }: Props = $props();
 
 	let searchQuery = $state('');
-	let selectedIds = $state.raw<SvelteSet<string>>(new SvelteSet(conversations.map((c) => c.id)));
+	let selectedIds = $state.raw<SvelteSet<string>>(getInitialSelectedIds());
 	let lastClickedId = $state<string | null>(null);
+
+	function getInitialSelectedIds(): SvelteSet<string> {
+		return new SvelteSet(conversations.map((c) => c.id));
+	}
 
 	function getConversationName(conv: DatabaseConversation) {
 		return conv.name || t('dialog.conversation_selection.untitled');
@@ -97,7 +101,7 @@
 	}
 
 	function handleCancel() {
-		selectedIds = new SvelteSet(conversations.map((c) => c.id));
+		selectedIds = getInitialSelectedIds();
 		searchQuery = '';
 		lastClickedId = null;
 
@@ -105,7 +109,7 @@
 	}
 
 	export function reset() {
-		selectedIds = new SvelteSet(conversations.map((c) => c.id));
+		selectedIds = getInitialSelectedIds();
 		searchQuery = '';
 		lastClickedId = null;
 	}

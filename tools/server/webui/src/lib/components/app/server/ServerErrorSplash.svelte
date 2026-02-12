@@ -9,6 +9,7 @@
 	import { config, settingsStore } from '$lib/stores/settings.svelte';
 	import { t } from '$lib/i18n';
 	import { fade, fly, scale } from 'svelte/transition';
+	import { KeyboardKey } from '$lib/enums/keyboard';
 
 	interface Props {
 		class?: string;
@@ -118,7 +119,7 @@
 	}
 
 	function handleApiKeyKeydown(event: KeyboardEvent) {
-		if (event.key === 'Enter') {
+		if (event.key === KeyboardKey.ENTER) {
 			handleSaveApiKey();
 		}
 	}
