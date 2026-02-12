@@ -28,6 +28,7 @@
 		onFileUpload?: () => void;
 		onMicClick?: () => void;
 		onStop?: () => void;
+		onSystemPromptClick?: () => void;
 	}
 
 	let {
@@ -40,7 +41,8 @@
 		uploadedFiles = [],
 		onFileUpload,
 		onMicClick,
-		onStop
+		onStop,
+		onSystemPromptClick
 	}: Props = $props();
 
 	let currentConfig = $derived(config());
@@ -171,6 +173,7 @@
 		{hasAudioModality}
 		{hasVisionModality}
 		{onFileUpload}
+		{onSystemPromptClick}
 	/>
 
 	<ModelsSelector

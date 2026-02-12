@@ -115,10 +115,10 @@
 					{t('chat.message.system.cancel')}
 				</Button>
 
-				<Button class="h-8 px-3" onclick={onSaveEdit} disabled={!editedContent.trim()} size="sm">
-					<Check class="mr-1 h-3 w-3" />
-					{t('chat.message.system.send')}
-				</Button>
+					<Button class="h-8 px-3" onclick={onSaveEdit} disabled={!editedContent.trim()} size="sm">
+						<Check class="mr-1 h-3 w-3" />
+						{t('chat.message.system.save')}
+					</Button>
 			</div>
 		</div>
 	{:else}
