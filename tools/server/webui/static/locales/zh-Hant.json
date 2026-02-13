@@ -197,7 +197,7 @@
   "chat.settings.field.frequency_penalty" : "頻率懲罰機制。",
   "chat.settings.field.keep_stats_visible" : "生成後持續顯示統計資料。",
   "chat.settings.field.max_tokens" : "最大令牌數。",
-  "chat.settings.field.min_p" : "敏·P.",
+  "chat.settings.field.min_p" : "敏·P",
   "chat.settings.field.parse_pdf_as_image" : "將 PDF 檔案解析為圖像。",
   "chat.settings.field.paste_long_text_to_file_length" : "將長文字貼上為檔案的長度門檻",
   "chat.settings.field.presence_penalty" : "出現頻率懲罰 (chūxiàn pínlǜ chéngfá)",

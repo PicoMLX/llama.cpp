@@ -159,7 +159,7 @@
   "chat.models.none_available" : "利用可能なモデルがありません。",
   "chat.models.none_found" : "モデルが見つかりませんでした。",
   "chat.models.not_available" : "利用できません。\n(Riyō dekimasen.)",
-  "chat.models.search.placeholder" : "検索モデル...",
+  "chat.models.search.placeholder" : "検索モデル",
   "chat.models.select" : "モデルを選択してください。",
   "chat.models.unload" : "モデルの読み込みを解除する。",
   "chat.models.validation.failed" : "モデルの機能検証に失敗しました。",

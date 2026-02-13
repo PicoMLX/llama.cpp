@@ -151,7 +151,7 @@
   "chat.models.error.unload_model_status" : "模型載入失敗（狀態：{status}）",
   "chat.models.load_failed" : "無法載入模型「{modelName}」。",
   "chat.models.loading" : "正在加載模型…",
-  "chat.models.loading_model" : "模型正在加載中...",
+  "chat.models.loading_model" : "模型正在加載中",
   "chat.models.modalities.audio" : "音頻。",
   "chat.models.modalities.vision" : "願景 (yun6 ging1)",
   "chat.models.no_audio" : "無支援音訊功能。",
