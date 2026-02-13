@@ -4,6 +4,7 @@
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { ChatMessageStatsView } from '$lib/enums';
 	import { t } from '$lib/i18n';
+	import { formatPerformanceTime } from '$lib/utils/formatters';
 
 	interface Props {
 		predictedTokens?: number;
@@ -58,8 +59,8 @@
 	);
 
 	let tokensPerSecond = $derived(hasGenerationStats ? (predictedTokens! / predictedMs!) * 1000 : 0);
-	let timeInSeconds = $derived(
-		predictedMs !== undefined ? (predictedMs / 1000).toFixed(2) : '0.00'
+	let formattedTime = $derived(
+		predictedMs !== undefined ? formatPerformanceTime(predictedMs) : '0s'
 	);
 
 	let promptTokensPerSecond = $derived(
@@ -68,15 +69,15 @@
 			: undefined
 	);
 
-	let promptTimeInSeconds = $derived(
-		promptMs !== undefined ? (promptMs / 1000).toFixed(2) : undefined
+	let formattedPromptTime = $derived(
+		promptMs !== undefined ? formatPerformanceTime(promptMs) : undefined
 	);
 
 	let hasPromptStats = $derived(
 		promptTokens !== undefined &&
 			promptMs !== undefined &&
 			promptTokensPerSecond !== undefined &&
-			promptTimeInSeconds !== undefined
+			formattedPromptTime !== undefined
 	);
 
 	// In live mode, generation tab is disabled until we have generation stats
@@ -142,12 +143,12 @@
 				})}
 				tooltipLabel={t('chat.stats.generated_tokens')}
 			/>
-			<BadgeChatStatistic
-				class="bg-transparent"
-				icon={Clock}
-				value={t('chat.stats.value.seconds', { value: timeInSeconds })}
-				tooltipLabel={t('chat.stats.generation_time')}
-			/>
+				<BadgeChatStatistic
+					class="bg-transparent"
+					icon={Clock}
+					value={formattedTime}
+					tooltipLabel={t('chat.stats.generation_time')}
+				/>
 			<BadgeChatStatistic
 				class="bg-transparent"
 				icon={Gauge}
@@ -165,12 +166,12 @@
 				})}
 				tooltipLabel={t('chat.stats.prompt_tokens')}
 			/>
-			<BadgeChatStatistic
-				class="bg-transparent"
-				icon={Clock}
-				value={t('chat.stats.value.seconds', { value: promptTimeInSeconds })}
-				tooltipLabel={t('chat.stats.prompt_time')}
-			/>
+				<BadgeChatStatistic
+					class="bg-transparent"
+					icon={Clock}
+					value={formattedPromptTime ?? '0s'}
+					tooltipLabel={t('chat.stats.prompt_time')}
+				/>
 			<BadgeChatStatistic
 				class="bg-transparent"
 				icon={Gauge}
