@@ -8,7 +8,6 @@
 		DialogEmptyFileAlert,
 		DialogChatError,
 		ServerLoadingSplash,
-		ServerInfo,
 		DialogConfirmation
 	} from '$lib/components/app';
 	import * as Alert from '$lib/components/ui/alert';

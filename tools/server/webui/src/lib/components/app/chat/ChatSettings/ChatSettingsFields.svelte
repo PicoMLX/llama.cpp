@@ -31,7 +31,7 @@
 
 	function getDefaultPlaceholder(key: string) {
 		const defaultValue = SETTING_CONFIG_DEFAULT[key] ?? t('chat.settings.default_none');
-		return t('chat.settings.default_value', { value: defaultValue });
+		return t('chat.settings.default_value', { value: String(defaultValue) });
 	}
 
 	function getHelpText(field: SettingsFieldConfig): string | null {

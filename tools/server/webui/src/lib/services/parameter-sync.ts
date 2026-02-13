@@ -70,6 +70,18 @@ export const SYNCABLE_PARAMETERS: SyncableParameter[] = [
 		canSync: true
 	},
 	{ key: 'showToolCalls', serverKey: 'showToolCalls', type: 'boolean', canSync: true },
+	{
+		key: 'disableReasoningParsing',
+		serverKey: 'disableReasoningParsing',
+		type: 'boolean',
+		canSync: true
+	},
+	{
+		key: 'showRawOutputSwitch',
+		serverKey: 'showRawOutputSwitch',
+		type: 'boolean',
+		canSync: true
+	},
 	{ key: 'keepStatsVisible', serverKey: 'keepStatsVisible', type: 'boolean', canSync: true },
 	{ key: 'showMessageStats', serverKey: 'showMessageStats', type: 'boolean', canSync: true },
 	{

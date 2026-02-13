@@ -41,7 +41,7 @@ export class OpenResponsesService {
 			max_tokens,
 			top_p,
 			custom,
-			disableReasoningFormat
+			disableReasoningParsing
 		} = options;
 
 		const input = OpenResponsesService.convertMessagesToInput(messages);
@@ -66,7 +66,7 @@ export class OpenResponsesService {
 		}
 		if (top_p !== undefined) requestBody.top_p = top_p;
 
-		if (!disableReasoningFormat) {
+		if (!disableReasoningParsing) {
 			requestBody.reasoning = { effort: 'medium' };
 		}
 

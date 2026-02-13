@@ -128,17 +128,17 @@
 					<DropdownMenu.Item
 						class="flex cursor-pointer items-center gap-2"
 						onclick={() => onSystemPromptClick?.()}
-					>
-						<MessageSquare class="h-4 w-4" />
+						>
+							<MessageSquare class="h-4 w-4" />
 
-						<span>System Prompt</span>
-					</DropdownMenu.Item>
-				</Tooltip.Trigger>
+							<span>{t('chat.form.attachments.system_prompt')}</span>
+						</DropdownMenu.Item>
+					</Tooltip.Trigger>
 
-				<Tooltip.Content>
-					<p>Add a custom system message for this conversation</p>
-				</Tooltip.Content>
-			</Tooltip.Root>
+					<Tooltip.Content>
+						<p>{t('chat.form.attachments.system_prompt_tooltip')}</p>
+					</Tooltip.Content>
+				</Tooltip.Root>
 		</DropdownMenu.Content>
 	</DropdownMenu.Root>
 </div>
