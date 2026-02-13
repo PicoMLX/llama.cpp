@@ -462,7 +462,7 @@
   "server.error.troubleshooting.step_network" : "네트워크 연결 상태를 확인하세요.",
   "server.error.troubleshooting.step_url" : "올바른 URL로 서버에 접속할 수 있는지 확인하십시오.",
   "server.error.troubleshooting.title" : "문제 해결 방법.\n(Munje haegyeol bangbeop.)\n\nOr, depending on context:\n\n문제 해결.\n(Munje ha",
-  "server.loading.message" : "llama.cpp 서버와의 연결을 시작합니다…",
+  "server.loading.message" : "Pico 서버와의 연결을 시작합니다…",
   "server.loading.title" : "서버에 연결 중입니다.",
   "ui.close" : "닫기.",
   "ui.sidebar.description" : "모바일 사이드바를 표시합니다.",
