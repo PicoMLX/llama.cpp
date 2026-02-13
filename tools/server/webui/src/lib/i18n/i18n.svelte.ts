@@ -1,41 +1,12 @@
 import { browser } from '$app/environment';
 import { base } from '$app/paths';
+import { getLocaleCandidates } from './locale-utils';
 
 const DEFAULT_LOCALE = 'en';
 
 type TranslationParams = Record<string, string | number>;
 type Messages = Record<string, string>;
 type Catalog = Record<string, Messages>;
-
-function normalizeLocale(value: string): string {
-	const trimmed = value.trim();
-	if (!trimmed) return DEFAULT_LOCALE;
-
-	const normalized = trimmed.replace('_', '-');
-	const [language, region, ...rest] = normalized.split('-');
-
-	if (!language) return DEFAULT_LOCALE;
-	if (!region) return language.toLowerCase();
-
-	const extra = rest.length > 0 ? `-${rest.join('-')}` : '';
-	return `${language.toLowerCase()}-${region.toUpperCase()}${extra}`;
-}
-
-function getLocaleCandidates(locale: string): string[] {
-	const normalized = normalizeLocale(locale);
-	const baseLocale = normalized.split('-')[0] || DEFAULT_LOCALE;
-	const candidates = [normalized];
-
-	if (baseLocale && baseLocale !== normalized) {
-		candidates.push(baseLocale);
-	}
-
-	if (!candidates.includes(DEFAULT_LOCALE)) {
-		candidates.push(DEFAULT_LOCALE);
-	}
-
-	return candidates;
-}
 
 function interpolate(value: string, params?: TranslationParams): string {
 	if (!params) return value;
