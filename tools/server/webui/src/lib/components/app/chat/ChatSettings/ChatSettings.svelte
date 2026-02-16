@@ -270,8 +270,8 @@
 					label: 'chat.settings.field.endpoint',
 					type: 'select',
 					options: [
-						{ value: 'responses', label: 'chat.settings.field.endpoint.open_responses' },
-						{ value: 'completions', label: 'chat.settings.field.endpoint.completions' }
+						{ value: 'responses', rawLabel: 'Open Responses (v1/responses)' },
+						{ value: 'completions', rawLabel: 'Chat Completions (v1/chat/completions)' }
 					]
 				},
 				{

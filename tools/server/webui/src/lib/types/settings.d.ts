@@ -11,7 +11,12 @@ export interface SettingsFieldConfig {
 	type: SettingsFieldType;
 	isExperimental?: boolean;
 	help?: string;
-	options?: Array<{ value: string; label: string; icon?: typeof import('@lucide/svelte').Icon }>;
+	options?: Array<{
+		value: string;
+		label?: string;
+		rawLabel?: string;
+		icon?: typeof import('@lucide/svelte').Icon;
+	}>;
 }
 
 export interface SettingsChatServiceOptions {

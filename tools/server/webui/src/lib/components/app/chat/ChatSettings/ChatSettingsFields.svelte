@@ -198,9 +198,11 @@
 								<IconComponent class="h-4 w-4" />
 							{/if}
 
-							{selectedOption?.label
-								? t(selectedOption.label)
-								: t('chat.settings.select_label', { label: fieldLabel })}
+							{selectedOption?.rawLabel
+								? selectedOption.rawLabel
+								: selectedOption?.label
+									? t(selectedOption.label)
+									: t('chat.settings.select_label', { label: fieldLabel })}
 						</div>
 					</Select.Trigger>
 					{#if isCustomRealTime}
@@ -223,13 +225,14 @@
 				<Select.Content>
 					{#if field.options}
 						{#each field.options as option (option.value)}
-							<Select.Item value={option.value} label={t(option.label)}>
+							{@const optionLabel = option.rawLabel ?? t(option.label)}
+							<Select.Item value={option.value} label={optionLabel}>
 								<div class="flex items-center gap-2">
 									{#if option.icon}
 										{@const IconComponent = option.icon}
 										<IconComponent class="h-4 w-4" />
 									{/if}
-									{t(option.label)}
+									{optionLabel}
 								</div>
 							</Select.Item>
 						{/each}
