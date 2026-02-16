@@ -9,12 +9,7 @@
 		class?: string;
 	}
 
-	let {
-		value = $bindable(''),
-		placeholder,
-		onInput,
-		class: className
-	}: Props = $props();
+	let { value = $bindable(''), placeholder, onInput, class: className }: Props = $props();
 </script>
 
 <SearchInput

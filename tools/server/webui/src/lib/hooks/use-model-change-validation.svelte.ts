@@ -2,26 +2,21 @@ import { modelsStore } from '$lib/stores/models.svelte';
 import { isRouterMode } from '$lib/stores/server.svelte';
 import { t } from '$lib/i18n';
 import { toast } from 'svelte-sonner';
+import type { ModelModalities } from '$lib/types';
 
 interface UseModelChangeValidationOptions {
 	/**
 	 * Function to get required modalities for validation.
-	 * For ChatForm: () => usedModalities() - all messages
-	 * For ChatMessageAssistant: () => getModalitiesUpToMessage(messageId) - messages before
 	 */
 	getRequiredModalities: () => ModelModalities;
 
 	/**
 	 * Optional callback to execute after successful validation.
-	 * For ChatForm: undefined - just select model
-	 * For ChatMessageAssistant: (modelName) => onRegenerate(modelName)
 	 */
 	onSuccess?: (modelName: string) => void;
 
 	/**
 	 * Optional callback for rollback on validation failure.
-	 * For ChatForm: (previousId) => selectModelById(previousId)
-	 * For ChatMessageAssistant: undefined - no rollback needed
 	 */
 	onValidationFailure?: (previousModelId: string | null) => Promise<void>;
 }
@@ -34,12 +29,10 @@ export function useModelChangeValidation(options: UseModelChangeValidationOption
 
 	async function handleModelChange(modelId: string, modelName: string): Promise<boolean> {
 		try {
-			// Store previous selection for potential rollback
 			if (onValidationFailure) {
 				previousSelectedModelId = modelsStore.selectedModelId;
 			}
 
-			// Load model if not already loaded (router mode only)
 			let hasLoadedModel = false;
 			const isModelLoadedBefore = modelsStore.isModelLoaded(modelName);
 
@@ -53,13 +46,11 @@ export function useModelChangeValidation(options: UseModelChangeValidationOption
 				}
 			}
 
-			// Fetch model props to validate modalities
 			const props = await modelsStore.fetchModelProps(modelName);
 
 			if (props?.modalities) {
 				const requiredModalities = getRequiredModalities();
 
-				// Check if model supports required modalities
 				const missingModalities: string[] = [];
 				if (requiredModalities.vision && !props.modalities.vision) {
 					missingModalities.push(t('chat.models.modalities.vision'));
@@ -76,7 +67,6 @@ export function useModelChangeValidation(options: UseModelChangeValidationOption
 						})
 					);
 
-					// Unload the model if we just loaded it
 					if (isRouter && hasLoadedModel) {
 						try {
 							await modelsStore.unloadModel(modelName);
@@ -85,7 +75,6 @@ export function useModelChangeValidation(options: UseModelChangeValidationOption
 						}
 					}
 
-					// Execute rollback callback if provided
 					if (onValidationFailure && previousSelectedModelId) {
 						await onValidationFailure(previousSelectedModelId);
 					}
@@ -94,10 +83,8 @@ export function useModelChangeValidation(options: UseModelChangeValidationOption
 				}
 			}
 
-			// Select the model (validation passed)
 			await modelsStore.selectModelById(modelId);
 
-			// Execute success callback if provided
 			if (onSuccess) {
 				onSuccess(modelName);
 			}
@@ -107,7 +94,6 @@ export function useModelChangeValidation(options: UseModelChangeValidationOption
 			console.error('Failed to change model:', error);
 			toast.error(t('chat.models.validation.failed'));
 
-			// Execute rollback callback on error if provided
 			if (onValidationFailure && previousSelectedModelId) {
 				await onValidationFailure(previousSelectedModelId);
 			}

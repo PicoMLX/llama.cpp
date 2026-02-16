@@ -359,7 +359,9 @@ export class OpenResponsesService {
 				throw noResponseError;
 			}
 
-			const timings = data.usage ? OpenResponsesService.convertUsageToTimings(data.usage) : undefined;
+			const timings = data.usage
+				? OpenResponsesService.convertUsageToTimings(data.usage)
+				: undefined;
 
 			onComplete?.(content, reasoningContent || undefined, timings, undefined);
 

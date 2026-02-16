@@ -134,7 +134,7 @@
 
 	const { handleModelChange } = useModelChangeValidation({
 		getRequiredModalities,
-		onValidationFailure: async (previousModelId) => {
+		onValidationFailure: async (previousModelId: string | null) => {
 			if (previousModelId) {
 				await modelsStore.selectModelById(previousModelId);
 			}
@@ -349,16 +349,12 @@
 				onclick={handleSubmit}
 				disabled={!canSubmit}
 				type="button"
-				title={
-					saveWithoutRegenerate
-						? t('chat.message.edit.save_changes')
-						: t('chat.message.edit.send_regenerate')
-				}
+				title={saveWithoutRegenerate
+					? t('chat.message.edit.save_changes')
+					: t('chat.message.edit.send_regenerate')}
 			>
 				<span class="sr-only">
-					{saveWithoutRegenerate
-						? t('chat.message.edit.save')
-						: t('chat.message.edit.send')}
+					{saveWithoutRegenerate ? t('chat.message.edit.save') : t('chat.message.edit.send')}
 				</span>
 
 				<ArrowUp class="h-5 w-5" />

@@ -9,7 +9,7 @@
 	import { config, settingsStore } from '$lib/stores/settings.svelte';
 	import { t } from '$lib/i18n';
 	import { fade, fly, scale } from 'svelte/transition';
-	import { KeyboardKey } from '$lib/enums/keyboard';
+	import { KeyboardKey } from '$lib/enums';
 
 	interface Props {
 		class?: string;
@@ -197,7 +197,8 @@
 					{/if}
 					{#if apiKeyState === 'success'}
 						<p class="text-sm text-green-600" in:fly={{ y: -10, duration: 200 }}>
-							<span aria-hidden="true">✓</span> {t('server.error.api_key.success')}
+							<span aria-hidden="true">✓</span>
+							{t('server.error.api_key.success')}
 						</p>
 					{/if}
 				</div>

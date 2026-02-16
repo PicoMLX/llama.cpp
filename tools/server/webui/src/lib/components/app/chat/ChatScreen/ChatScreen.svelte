@@ -31,10 +31,17 @@
 		activeConversation
 	} from '$lib/stores/conversations.svelte';
 	import { config } from '$lib/stores/settings.svelte';
-	import { serverLoading, serverError, serverStore, isRouterMode, serverName } from '$lib/stores/server.svelte';
+	import {
+		serverLoading,
+		serverError,
+		serverStore,
+		isRouterMode,
+		serverName
+	} from '$lib/stores/server.svelte';
 	import { modelsStore, modelOptions, selectedModelId } from '$lib/stores/models.svelte';
 	import { isFileTypeSupported, filterFilesByModalities } from '$lib/utils';
 	import { parseFilesToMessageExtras, processFilesToChatUploaded } from '$lib/utils/browser-only';
+	import { ErrorDialogType } from '$lib/enums';
 	import { t } from '$lib/i18n';
 	import { onMount } from 'svelte';
 	import { fade, fly, slide } from 'svelte/transition';
@@ -528,14 +535,14 @@
 	<AlertDialog.Portal>
 		<AlertDialog.Overlay />
 
-			<AlertDialog.Content class="flex max-w-md flex-col">
-				<AlertDialog.Header>
-					<AlertDialog.Title>{t('chat.upload_error.title')}</AlertDialog.Title>
+		<AlertDialog.Content class="flex max-w-md flex-col">
+			<AlertDialog.Header>
+				<AlertDialog.Title>{t('chat.upload_error.title')}</AlertDialog.Title>
 
-					<AlertDialog.Description class="text-sm text-muted-foreground">
+				<AlertDialog.Description class="text-sm text-muted-foreground">
 					{t('chat.upload_error.description')}
-					</AlertDialog.Description>
-				</AlertDialog.Header>
+				</AlertDialog.Description>
+			</AlertDialog.Header>
 
 			<div class="!max-h-[50vh] min-h-0 flex-1 space-y-4 overflow-y-auto">
 				{#if fileErrorData.generallyUnsupported.length > 0}
@@ -624,7 +631,7 @@
 	contextInfo={activeErrorDialog?.contextInfo}
 	onOpenChange={handleErrorDialogOpenChange}
 	open={Boolean(activeErrorDialog)}
-	type={activeErrorDialog?.type ?? 'server'}
+	type={(activeErrorDialog?.type as ErrorDialogType) ?? ErrorDialogType.SERVER}
 />
 
 <style>

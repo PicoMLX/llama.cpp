@@ -98,12 +98,9 @@ export async function parseFilesToMessageExtras(
 					settingsStore.updateConfig('pdfAsImage', false);
 
 					// Show toast notification to user
-					toast.warning(
-						t('chat.attachments.pdf.non_vision_warning'),
-						{
-							duration: 5000
-						}
-					);
+					toast.warning(t('chat.attachments.pdf.non_vision_warning'), {
+						duration: 5000
+					});
 
 					shouldProcessAsImages = false;
 				}

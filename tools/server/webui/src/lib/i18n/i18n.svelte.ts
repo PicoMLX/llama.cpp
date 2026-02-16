@@ -28,8 +28,7 @@ class I18nStore {
 		if (!browser || this.initialized) return;
 		this.initialized = true;
 
-		const preferredLocale =
-			navigator.languages?.[0] || navigator.language || DEFAULT_LOCALE;
+		const preferredLocale = navigator.languages?.[0] || navigator.language || DEFAULT_LOCALE;
 
 		void this.setLocale(preferredLocale);
 	}

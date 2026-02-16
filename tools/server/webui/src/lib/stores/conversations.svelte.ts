@@ -1,7 +1,7 @@
 import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
 import { toast } from 'svelte-sonner';
-import { DatabaseService } from '$lib/services/database';
+import { DatabaseService } from '$lib/services/database.service';
 import { config } from '$lib/stores/settings.svelte';
 import { filterByLeafNodeId, findLeafNode } from '$lib/utils';
 import { AttachmentType } from '$lib/enums';
@@ -242,7 +242,9 @@ class ConversationsStore {
 
 		const leafNodeId =
 			this.activeConversation.currNode ||
-			allMessages.reduce((latest, msg) => (msg.timestamp > latest.timestamp ? msg : latest)).id;
+			allMessages.reduce((latest: DatabaseMessage, msg: DatabaseMessage) =>
+				msg.timestamp > latest.timestamp ? msg : latest
+			).id;
 
 		const currentPath = filterByLeafNodeId(allMessages, leafNodeId, false) as DatabaseMessage[];
 
@@ -342,9 +344,11 @@ class ConversationsStore {
 		if (!this.activeConversation) return;
 
 		const allMessages = await DatabaseService.getConversationMessages(this.activeConversation.id);
-		const rootMessage = allMessages.find((m) => m.type === 'root' && m.parent === null);
+		const rootMessage = allMessages.find(
+			(m: DatabaseMessage) => m.type === 'root' && m.parent === null
+		);
 		const currentFirstUserMessage = this.activeMessages.find(
-			(m) => m.role === 'user' && m.parent === rootMessage?.id
+			(m: DatabaseMessage) => m.role === 'user' && m.parent === rootMessage?.id
 		);
 
 		const currentLeafNodeId = findLeafNode(allMessages, siblingId);
@@ -356,7 +360,7 @@ class ConversationsStore {
 		// Only show title dialog if we're navigating between different first user message siblings
 		if (rootMessage && this.activeMessages.length > 0) {
 			const newFirstUserMessage = this.activeMessages.find(
-				(m) => m.role === 'user' && m.parent === rootMessage.id
+				(m: DatabaseMessage) => m.role === 'user' && m.parent === rootMessage.id
 			);
 
 			if (
@@ -453,7 +457,7 @@ class ConversationsStore {
 		}
 
 		const allData = await Promise.all(
-			allConversations.map(async (conv) => {
+			allConversations.map(async (conv: DatabaseConversation) => {
 				const messages = await DatabaseService.getConversationMessages(conv.id);
 				return { conv, messages };
 			})
@@ -469,9 +473,7 @@ class ConversationsStore {
 		document.body.removeChild(a);
 		URL.revokeObjectURL(url);
 
-		toast.success(
-			t('chat.conversations.export.prepared', { count: allConversations.length })
-		);
+		toast.success(t('chat.conversations.export.prepared', { count: allConversations.length }));
 
 		return allConversations;
 	}

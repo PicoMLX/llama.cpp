@@ -119,9 +119,7 @@
 	<Sidebar.Group class="mt-4 space-y-2 p-0 px-4">
 		{#if (filteredConversations.length > 0 && isSearchModeActive) || !isSearchModeActive}
 			<Sidebar.GroupLabel>
-				{isSearchModeActive
-					? t('chat.sidebar.search_results')
-					: t('chat.sidebar.conversations')}
+				{isSearchModeActive ? t('chat.sidebar.search_results') : t('chat.sidebar.conversations')}
 			</Sidebar.GroupLabel>
 		{/if}
 

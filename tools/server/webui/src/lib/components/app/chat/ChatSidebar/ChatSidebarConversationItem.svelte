@@ -143,7 +143,7 @@
 					{
 						icon: Download,
 						label: t('chat.sidebar.actions.export'),
-						onclick: (e) => {
+						onclick: (e: Event) => {
 							e.stopPropagation();
 							conversationsStore.downloadConversation(conversation.id);
 						},

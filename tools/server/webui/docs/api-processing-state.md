@@ -9,23 +9,23 @@ Source of truth in the UI: `src/lib/types/api.d.ts`.
 
 ```ts
 interface ApiProcessingState {
-  status: 'initializing' | 'generating' | 'preparing' | 'idle';
-  tokensDecoded: number;
-  tokensRemaining: number;
-  contextUsed: number;
-  contextTotal: number;
-  outputTokensUsed: number;
-  outputTokensMax: number;
-  temperature: number;
-  topP: number;
-  speculative: boolean;
-  hasNextToken: boolean;
-  tokensPerSecond?: number;
-  progressPercent?: number;
-  promptProgress?: ChatMessagePromptProgress;
-  promptTokens?: number;
-  promptMs?: number;
-  cacheTokens?: number;
+	status: 'initializing' | 'generating' | 'preparing' | 'idle';
+	tokensDecoded: number;
+	tokensRemaining: number;
+	contextUsed: number;
+	contextTotal: number;
+	outputTokensUsed: number;
+	outputTokensMax: number;
+	temperature: number;
+	topP: number;
+	speculative: boolean;
+	hasNextToken: boolean;
+	tokensPerSecond?: number;
+	progressPercent?: number;
+	promptProgress?: ChatMessagePromptProgress;
+	promptTokens?: number;
+	promptMs?: number;
+	cacheTokens?: number;
 }
 ```
 
@@ -106,28 +106,28 @@ The UI does not call a dedicated "processing state" endpoint. Instead, it derive
 
 ```json
 {
-  "status": "preparing",
-  "tokensDecoded": 0,
-  "tokensRemaining": 256,
-  "contextUsed": 2048,
-  "contextTotal": 8192,
-  "outputTokensUsed": 0,
-  "outputTokensMax": 256,
-  "temperature": 0.8,
-  "topP": 0.95,
-  "speculative": false,
-  "hasNextToken": true,
-  "tokensPerSecond": 0,
-  "progressPercent": 42,
-  "promptProgress": {
-    "processed": 420,
-    "total": 1000,
-    "time_ms": 850,
-    "cache": 0
-  },
-  "promptTokens": 1000,
-  "promptMs": 850,
-  "cacheTokens": 0
+	"status": "preparing",
+	"tokensDecoded": 0,
+	"tokensRemaining": 256,
+	"contextUsed": 2048,
+	"contextTotal": 8192,
+	"outputTokensUsed": 0,
+	"outputTokensMax": 256,
+	"temperature": 0.8,
+	"topP": 0.95,
+	"speculative": false,
+	"hasNextToken": true,
+	"tokensPerSecond": 0,
+	"progressPercent": 42,
+	"promptProgress": {
+		"processed": 420,
+		"total": 1000,
+		"time_ms": 850,
+		"cache": 0
+	},
+	"promptTokens": 1000,
+	"promptMs": 850,
+	"cacheTokens": 0
 }
 ```
 
@@ -142,11 +142,11 @@ From `ApiChatCompletionStreamChunk.timings` in `src/lib/types/api.d.ts`:
 
 ```json
 {
-  "prompt_n": 0,
-  "prompt_ms": 0,
-  "predicted_n": 0,
-  "predicted_ms": 0,
-  "cache_n": 0
+	"prompt_n": 0,
+	"prompt_ms": 0,
+	"predicted_n": 0,
+	"predicted_ms": 0,
+	"cache_n": 0
 }
 ```
 
@@ -162,10 +162,10 @@ From `ChatMessagePromptProgress` in `src/lib/types/chat.d.ts`:
 
 ```json
 {
-  "cache": 0,
-  "processed": 0,
-  "time_ms": 0,
-  "total": 0
+	"cache": 0,
+	"processed": 0,
+	"time_ms": 0,
+	"total": 0
 }
 ```
 
@@ -181,28 +181,28 @@ Each stream event is an SSE `data:` line containing JSON with optional `timings`
 
 ```json
 {
-  "object": "chat.completion.chunk",
-  "model": "some-model",
-  "choices": [
-    {
-      "delta": {
-        "content": "Hello",
-        "reasoning_content": ""
-      }
-    }
-  ],
-  "timings": {
-    "prompt_n": 128,
-    "prompt_ms": 42,
-    "predicted_n": 12,
-    "predicted_ms": 18,
-    "cache_n": 0
-  },
-  "prompt_progress": {
-    "cache": 0,
-    "processed": 128,
-    "time_ms": 42,
-    "total": 512
-  }
+	"object": "chat.completion.chunk",
+	"model": "some-model",
+	"choices": [
+		{
+			"delta": {
+				"content": "Hello",
+				"reasoning_content": ""
+			}
+		}
+	],
+	"timings": {
+		"prompt_n": 128,
+		"prompt_ms": 42,
+		"predicted_n": 12,
+		"predicted_ms": 18,
+		"cache_n": 0
+	},
+	"prompt_progress": {
+		"cache": 0,
+		"processed": 128,
+		"time_ms": 42,
+		"total": 512
+	}
 }
 ```

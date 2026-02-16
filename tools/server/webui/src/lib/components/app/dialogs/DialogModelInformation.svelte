@@ -1,7 +1,7 @@
 <script lang="ts">
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as Table from '$lib/components/ui/table';
-	import { BadgeModality, CopyToClipboardIcon } from '$lib/components/app';
+	import { BadgeModality, ActionIconCopyToClipboard } from '$lib/components/app';
 	import { serverStore } from '$lib/stores/server.svelte';
 	import { modelsStore, modelOptions, modelsLoading } from '$lib/stores/models.svelte';
 	import { formatFileSize, formatParameters, formatNumber } from '$lib/utils';
@@ -76,7 +76,7 @@
 											{modelName}
 										</span>
 
-										<CopyToClipboardIcon
+										<ActionIconCopyToClipboard
 											text={modelName || ''}
 											canCopy={!!modelName}
 											ariaLabel={t('dialog.model_info.copy_model_name')}
@@ -102,7 +102,7 @@
 										{serverProps.model_path}
 									</span>
 
-									<CopyToClipboardIcon
+									<ActionIconCopyToClipboard
 										text={serverProps.model_path}
 										ariaLabel={t('dialog.model_info.copy_model_path')}
 									/>
@@ -110,15 +110,26 @@
 							</Table.Row>
 
 							<!-- Context Size -->
-							<Table.Row>
-								<Table.Cell class="h-10 align-middle font-medium">
-									{t('dialog.model_info.context_size')}
-								</Table.Cell>
-								<Table.Cell
-									>{formatNumber(serverProps.default_generation_settings.n_ctx)}
-									{t('dialog.model_info.tokens')}</Table.Cell
-								>
-							</Table.Row>
+							{#if serverProps?.default_generation_settings?.n_ctx}
+								<Table.Row>
+									<Table.Cell class="h-10 align-middle font-medium">
+										{t('dialog.model_info.context_size')}
+									</Table.Cell>
+									<Table.Cell
+										>{formatNumber(serverProps.default_generation_settings.n_ctx)}
+										{t('dialog.model_info.tokens')}</Table.Cell
+									>
+								</Table.Row>
+							{:else}
+								<Table.Row>
+									<Table.Cell class="h-10 align-middle font-medium text-red-500">
+										{t('dialog.model_info.context_size')}
+									</Table.Cell>
+									<Table.Cell class="text-red-500"
+										>{t('dialog.model_info.not_available')}</Table.Cell
+									>
+								</Table.Row>
+							{/if}
 
 							<!-- Training Context -->
 							{#if modelMeta?.n_ctx_train}
@@ -127,7 +138,8 @@
 										{t('dialog.model_info.training_context')}
 									</Table.Cell>
 									<Table.Cell
-										>{formatNumber(modelMeta.n_ctx_train)} {t('dialog.model_info.tokens')}</Table.Cell
+										>{formatNumber(modelMeta.n_ctx_train)}
+										{t('dialog.model_info.tokens')}</Table.Cell
 									>
 								</Table.Row>
 							{/if}

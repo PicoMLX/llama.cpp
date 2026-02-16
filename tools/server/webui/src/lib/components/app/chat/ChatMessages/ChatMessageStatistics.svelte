@@ -29,7 +29,7 @@
 		initialView = ChatMessageStatsView.GENERATION
 	}: Props = $props();
 
-	let activeView: ChatMessageStatsView = $state(initialView);
+	let activeView: ChatMessageStatsView = $derived(initialView);
 	let hasAutoSwitchedToGeneration = $state(false);
 
 	// In live mode: auto-switch to GENERATION tab when prompt processing completes
@@ -143,12 +143,12 @@
 				})}
 				tooltipLabel={t('chat.stats.generated_tokens')}
 			/>
-				<BadgeChatStatistic
-					class="bg-transparent"
-					icon={Clock}
-					value={formattedTime}
-					tooltipLabel={t('chat.stats.generation_time')}
-				/>
+			<BadgeChatStatistic
+				class="bg-transparent"
+				icon={Clock}
+				value={formattedTime}
+				tooltipLabel={t('chat.stats.generation_time')}
+			/>
 			<BadgeChatStatistic
 				class="bg-transparent"
 				icon={Gauge}
@@ -166,12 +166,12 @@
 				})}
 				tooltipLabel={t('chat.stats.prompt_tokens')}
 			/>
-				<BadgeChatStatistic
-					class="bg-transparent"
-					icon={Clock}
-					value={formattedPromptTime ?? '0s'}
-					tooltipLabel={t('chat.stats.prompt_time')}
-				/>
+			<BadgeChatStatistic
+				class="bg-transparent"
+				icon={Clock}
+				value={formattedPromptTime ?? '0s'}
+				tooltipLabel={t('chat.stats.prompt_time')}
+			/>
 			<BadgeChatStatistic
 				class="bg-transparent"
 				icon={Gauge}

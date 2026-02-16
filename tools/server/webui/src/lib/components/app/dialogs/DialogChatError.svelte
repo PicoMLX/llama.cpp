@@ -1,11 +1,12 @@
 <script lang="ts">
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { AlertTriangle, TimerOff } from '@lucide/svelte';
+	import { ErrorDialogType } from '$lib/enums';
 	import { t } from '$lib/i18n';
 
 	interface Props {
 		open: boolean;
-		type: 'timeout' | 'server';
+		type: ErrorDialogType;
 		message: string;
 		contextInfo?: { n_prompt_tokens: number; n_ctx: number };
 		onOpenChange?: (open: boolean) => void;
@@ -13,7 +14,7 @@
 
 	let { open = $bindable(), type, message, contextInfo, onOpenChange }: Props = $props();
 
-	const isTimeout = $derived(type === 'timeout');
+	const isTimeout = $derived(type === ErrorDialogType.TIMEOUT);
 	const title = $derived(
 		isTimeout ? t('dialog.chat_error.title_timeout') : t('dialog.chat_error.title_server')
 	);
@@ -61,10 +62,12 @@
 						<span class="font-medium">{t('dialog.chat_error.prompt_tokens')}</span>
 						{contextInfo.n_prompt_tokens.toLocaleString()}
 					</p>
-					<p>
-						<span class="font-medium">{t('dialog.chat_error.context_size')}</span>
-						{contextInfo.n_ctx.toLocaleString()}
-					</p>
+					{#if contextInfo.n_ctx}
+						<p>
+							<span class="font-medium">{t('dialog.chat_error.context_size')}</span>
+							{contextInfo.n_ctx.toLocaleString()}
+						</p>
+					{/if}
 				</div>
 			{/if}
 		</div>

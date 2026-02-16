@@ -118,9 +118,7 @@
 					showImportDialog = true;
 				} catch (err: unknown) {
 					const message =
-						err instanceof Error
-							? err.message
-							: t('chat.settings.import_export.error.unknown');
+						err instanceof Error ? err.message : t('chat.settings.import_export.error.unknown');
 
 					console.error('Failed to parse file:', err);
 					alert(t('chat.settings.import_export.import.parse_failed', { message }));

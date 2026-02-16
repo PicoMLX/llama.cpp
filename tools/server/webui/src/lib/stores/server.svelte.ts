@@ -1,4 +1,4 @@
-import { PropsService } from '$lib/services/props';
+import { PropsService } from '$lib/services/props.service';
 import { ServerRole } from '$lib/enums';
 import { t } from '$lib/i18n';
 
