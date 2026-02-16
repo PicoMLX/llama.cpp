@@ -6,6 +6,7 @@
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { FILE_TYPE_ICONS } from '$lib/constants/icons';
 	import { TOOLTIP_DELAY_DURATION } from '$lib/constants/tooltip-config';
+	import { t } from '$lib/i18n';
 
 	interface Props {
 		class?: string;
@@ -38,41 +39,41 @@
 	let isNewChat = $derived(!page.params.id);
 	let systemMessageTooltip = $derived(
 		isNewChat
-			? 'Add custom system message for a new conversation'
-			: 'Inject custom system message at the beginning of the conversation'
+			? t('chat.form.attachments.system_prompt_tooltip_new')
+			: t('chat.form.attachments.system_prompt_tooltip_inject')
 	);
 
 	let actions = $derived.by<AttachmentAction[]>(() => [
 		{
 			id: 'images',
-			label: 'Images',
+			label: t('chat.form.attachments.images'),
 			disabled: !hasVisionModality,
 			disabledReason: !hasVisionModality
-				? 'Images require vision models to be processed'
+				? t('chat.form.attachments.images_requires_vision')
 				: undefined
 		},
 		{
 			id: 'audio',
-			label: 'Audio Files',
+			label: t('chat.form.attachments.audio'),
 			disabled: !hasAudioModality,
 			disabledReason: !hasAudioModality
-				? 'Audio files require audio models to be processed'
+				? t('chat.form.attachments.audio_requires_model')
 				: undefined
 		},
 		{
 			id: 'text',
-			label: 'Text Files'
+			label: t('chat.form.attachments.text')
 		},
 		{
 			id: 'pdf',
-			label: 'PDF Files',
+			label: t('chat.form.attachments.pdf'),
 			tooltip: !hasVisionModality
-				? 'PDFs will be converted to text. Image-based PDFs may not work properly.'
+				? t('chat.form.attachments.pdf_text_warning')
 				: undefined
 		},
 		{
 			id: 'system',
-			label: 'System Message',
+			label: t('chat.form.attachments.system_prompt'),
 			tooltip: systemMessageTooltip
 		}
 	]);
@@ -86,13 +87,13 @@
 		onFileUpload?.();
 	}
 
-	const triggerTooltipText = 'Add files or system message';
+	let triggerTooltipText = $derived(t('chat.form.attachments.tooltip_default'));
 	const itemClass = 'flex cursor-pointer items-center gap-2';
 </script>
 
 <div class="flex items-center gap-1 {className}">
 	<DropdownMenu.Root>
-		<DropdownMenu.Trigger name="Attach files" {disabled}>
+		<DropdownMenu.Trigger name={t('chat.form.attachments.trigger_label')} {disabled}>
 			<Tooltip.Root>
 				<Tooltip.Trigger class="w-full">
 					<Button
