@@ -34,6 +34,11 @@ class I18nStore {
 	}
 
 	async setLocale(value: string) {
+		// Always load English fallback first to ensure complete translation coverage
+		if (!this.messages[DEFAULT_LOCALE]) {
+			await this.fetchLocale(DEFAULT_LOCALE);
+		}
+
 		const candidates = getLocaleCandidates(value);
 		const resolved = await this.loadFirstAvailable(candidates);
 		this.locale = resolved;
@@ -70,9 +75,7 @@ class I18nStore {
 
 		this.isLoading = true;
 		try {
-			const response = await fetch(`${base}/locales/${locale}.json`, {
-				cache: 'force-cache'
-			});
+			const response = await fetch(`${base}/locales/${locale}.json`);
 
 			if (!response.ok) {
 				return false;
