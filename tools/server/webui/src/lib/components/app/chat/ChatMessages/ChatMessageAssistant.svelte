@@ -225,7 +225,8 @@
 
 	let showProcessingInfoBottom = $derived(
 		message?.role === MessageRole.ASSISTANT &&
-			isActivelyProcessing &&
+			isCurrentlyLoading &&
+			!isStreaming &&
 			!hasNoContent &&
 			isLastAssistantMessage
 	);
