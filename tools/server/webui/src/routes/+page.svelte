@@ -30,8 +30,18 @@
 		replaceState(url.toString(), {});
 	}
 
-	async function handleUrlParams() {
+	async function handleUrlParams(isCancelled?: () => boolean) {
+		// Fast path: new chat only needs URL cleanup; avoid async model fetch work that can race with
+		// the user's first submit and clobber a just-created chat navigation.
+		if (qParam === null && modelParam === null && newChatParam === 'true') {
+			if (!isCancelled?.()) {
+				clearUrlParams();
+			}
+			return;
+		}
+
 		await modelsStore.fetch();
+		if (isCancelled?.()) return;
 
 		if (modelParam) {
 			const model = modelsStore.findModelByName(modelParam);
@@ -39,6 +49,7 @@
 			if (model) {
 				try {
 					await modelsStore.selectModelById(model.id);
+					if (isCancelled?.()) return;
 				} catch (error) {
 					console.error('Failed to select model:', error);
 					requestedModelName = modelParam;
@@ -57,25 +68,40 @@
 		// Handle ?q= parameter - create new conversation and send message
 		if (qParam !== null) {
 			await conversationsStore.createConversation();
+			if (isCancelled?.()) return;
 			await chatStore.sendMessage(qParam);
+			if (isCancelled?.()) return;
 			clearUrlParams();
 		} else if (modelParam || newChatParam === 'true') {
 			clearUrlParams();
 		}
 	}
 
-	onMount(async () => {
-		if (!isConversationsInitialized()) {
-			await conversationsStore.initialize();
-		}
+	onMount(() => {
+		let cancelled = false;
 
-		conversationsStore.clearActiveConversation();
-		chatStore.clearUIState();
+		(async () => {
+			if (!isConversationsInitialized()) {
+				await conversationsStore.initialize();
+				if (cancelled) return;
+			}
 
-		// Handle URL params only if we have ?q= or ?model= or ?new_chat=true
-		if (qParam !== null || modelParam !== null || newChatParam === 'true') {
-			await handleUrlParams();
-		}
+			conversationsStore.clearActiveConversation();
+			chatStore.clearUIState();
+
+			// Handle URL params only if we have ?q= or ?model= or ?new_chat=true
+			if (qParam !== null || modelParam !== null || newChatParam === 'true') {
+				await handleUrlParams(() => cancelled);
+			}
+		})().catch((error) => {
+			if (!cancelled) {
+				console.error('Failed to handle landing page initialization:', error);
+			}
+		});
+
+		return () => {
+			cancelled = true;
+		};
 	});
 </script>
 
