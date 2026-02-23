@@ -82,7 +82,7 @@
   "chat.form.helper.press": "Drücken Sie",
   "chat.form.helper.shift_enter": "Umschalt + Eingabetaste",
   "chat.form.helper.to_send": "senden",
-  "chat.form.placeholder": "Frag einfach... / Stell jede Frage... / Frag ruhig...\n\n(Depending on the desired level of formality and the context, any of these options would be suitable",
+  "chat.form.placeholder": "Nachricht eingeben...",
   "chat.form.record.no_audio": "Das aktuelle Modell unterstützt keine Audiofunktion",
   "chat.form.record.start": "Aufnahme starten",
   "chat.form.record.stop": "Aufnahme beenden",

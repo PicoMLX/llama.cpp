@@ -82,7 +82,7 @@
   "chat.form.helper.press": "Пресса",
   "chat.form.helper.shift_enter": "Shift + Enter",
   "chat.form.helper.to_send": "отправить",
-  "chat.form.placeholder": "Спрашивайте всё, что угодно…",
+  "chat.form.placeholder": "Введите сообщение...",
   "chat.form.record.no_audio": "Текущая версия не поддерживает аудио",
   "chat.form.record.start": "Начать запись",
   "chat.form.record.stop": "Прекратить запись",

@@ -82,7 +82,7 @@
   "chat.form.helper.press": "Press",
   "chat.form.helper.shift_enter": "Shift + Enter",
   "chat.form.helper.to_send": "to send",
-  "chat.form.placeholder": "Ask anything...",
+  "chat.form.placeholder": "Type a message...",
   "chat.form.record.no_audio": "Current model does not support audio",
   "chat.form.record.start": "Start recording",
   "chat.form.record.stop": "Stop recording",

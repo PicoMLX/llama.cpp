@@ -82,7 +82,7 @@
   "chat.form.helper.press": "Sajtó",
   "chat.form.helper.shift_enter": "Shift + Enter",
   "chat.form.helper.to_send": "küldeni",
-  "chat.form.placeholder": "Kérdezz bátran! / Kérdezz nyugodtan! / Mondd el, mi érdekel!",
+  "chat.form.placeholder": "Írj egy üzenetet...",
   "chat.form.record.no_audio": "A jelenlegi modell nem támogatja az audio funkciót",
   "chat.form.record.start": "Kezd el a felvételt",
   "chat.form.record.stop": "Állítsa le a felvételt",

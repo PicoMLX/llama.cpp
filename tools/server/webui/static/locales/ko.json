@@ -82,7 +82,7 @@
   "chat.form.helper.press": "언론",
   "chat.form.helper.shift_enter": "Shift + Enter. (시프트 + 엔터)",
   "chat.form.helper.to_send": "보내다",
-  "chat.form.placeholder": "무엇이든 물어보세요.",
+  "chat.form.placeholder": "메시지를 입력하세요...",
   "chat.form.record.no_audio": "현재 모델은 오디오를 지원하지 않습니다",
   "chat.form.record.start": "녹음을 시작합니다",
   "chat.form.record.stop": "녹음 중지",

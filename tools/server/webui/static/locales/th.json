@@ -82,7 +82,7 @@
   "chat.form.helper.press": "สื่อมวลชน",
   "chat.form.helper.shift_enter": "Shift + Enter",
   "chat.form.helper.to_send": "ส่ง (sòng)",
-  "chat.form.placeholder": "ถามมาได้เลย… / ถามอะไรก็ได้… / มีอะไรถามได้เลย…",
+  "chat.form.placeholder": "พิมพ์ข้อความ...",
   "chat.form.record.no_audio": "ขณะนี้ยังไม่รองรับการใช้งานเสียงในรุ่นนี้\n\n(Khana ni yang mai rong rap kan chai ngan siang nai run ni)",
   "chat.form.record.start": "เริ่มบันทกเสียง/วดโอ.\n(Reim ban-teuk siang/wi-dio.)\n\n*Note: Depending on the",
   "chat.form.record.stop": "หยุดบันทึกเสียง",

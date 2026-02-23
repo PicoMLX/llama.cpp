@@ -83,7 +83,7 @@
 	"dialog.model_not_available.requested_label": "Requested:",
 	"dialog.model_not_available.select_label": "Select an available model:",
 	"dialog.model_not_available.cancel": "Cancel",
-	"chat.form.placeholder": "Ask anything...",
+	"chat.form.placeholder": "Type a message...",
 	"chat.form.submit.tooltip_select_model": "Please select a model first",
 	"chat.form.submit.tooltip_model_unavailable": "Selected model is not available, please select another",
 	"chat.form.stop": "Stop",

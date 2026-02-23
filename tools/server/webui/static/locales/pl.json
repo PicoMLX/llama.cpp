@@ -82,7 +82,7 @@
   "chat.form.helper.press": "Prasa",
   "chat.form.helper.shift_enter": "Shift + Enter",
   "chat.form.helper.to_send": "wysłać",
-  "chat.form.placeholder": "Pytaj o co chcesz… / Zadawaj pytania… / Śmiało pytaj… / Pytaj śmiało…",
+  "chat.form.placeholder": "Wpisz wiadomość...",
   "chat.form.record.no_audio": "Obecny model nie obsługuje dźwięku",
   "chat.form.record.start": "Rozpocznij nagrywanie",
   "chat.form.record.stop": "Przestań nagrywać",

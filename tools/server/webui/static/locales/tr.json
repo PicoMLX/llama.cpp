@@ -82,7 +82,7 @@
   "chat.form.helper.press": "Basın",
   "chat.form.helper.shift_enter": "Shift + Enter",
   "chat.form.helper.to_send": "göndermek",
-  "chat.form.placeholder": "İstediğini sor... / Ne istersen sor... / Sormak istediğin ne varsa sor...",
+  "chat.form.placeholder": "Bir mesaj yaz...",
   "chat.form.record.no_audio": "Mevcut model, ses desteği sağlamamaktadır",
   "chat.form.record.start": "Kayda başla",
   "chat.form.record.stop": "Kaydı durdur",

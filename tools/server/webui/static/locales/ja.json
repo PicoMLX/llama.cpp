@@ -82,7 +82,7 @@
   "chat.form.helper.press": "プレス",
   "chat.form.helper.shift_enter": "Shift + Enter",
   "chat.form.helper.to_send": "送信する。",
-  "chat.form.placeholder": "何でも聞いてください。",
+  "chat.form.placeholder": "メッセージを入力...",
   "chat.form.record.no_audio": "現在のモデルでは、音声はサポートされていません。",
   "chat.form.record.start": "録音を開始",
   "chat.form.record.stop": "録音を停止",

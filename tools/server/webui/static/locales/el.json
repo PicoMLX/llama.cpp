@@ -82,7 +82,7 @@
   "chat.form.helper.press": "Πρέσα",
   "chat.form.helper.shift_enter": "Shift + Enter",
   "chat.form.helper.to_send": "να στείλει / στείλτε / να αποστείλει / αποστείλετε\n\n(The best translation depends on the context and intended",
-  "chat.form.placeholder": "Ρώτησε ό,τι θέλεις...",
+  "chat.form.placeholder": "Πληκτρολογήστε ένα μήνυμα...",
   "chat.form.record.no_audio": "Το τρέχον μοντέλο δεν υποστηρίζει ήχο",
   "chat.form.record.start": "Έναρξη εγγραφής",
   "chat.form.record.stop": "Σταμάτα την εγγραφή",

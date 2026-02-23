@@ -82,7 +82,7 @@
   "chat.form.helper.press": "Stampa",
   "chat.form.helper.shift_enter": "Maiusc + Invio",
   "chat.form.helper.to_send": "inviare",
-  "chat.form.placeholder": "Chiedi pure... / Non esitare a chiedere... / Sono a tua disposizione... / Dimmi pure... / Chiedi quello che vuoi...",
+  "chat.form.placeholder": "Scrivi un messaggio...",
   "chat.form.record.no_audio": "Il modello attuale non supporta la riproduzione audio",
   "chat.form.record.start": "Inizia la registrazione",
   "chat.form.record.stop": "Smetti di registrare",

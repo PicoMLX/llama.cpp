@@ -82,7 +82,7 @@
   "chat.form.helper.press": "Press. (No change needed – the word is identical in both dialects.)",
   "chat.form.helper.shift_enter": "Shift + Return",
   "chat.form.helper.to_send": "to send. (No change needed – the meaning is identical in both dialects.)",
-  "chat.form.placeholder": "Go ahead and ask anything you like…",
+  "chat.form.placeholder": "Type a message...",
   "chat.form.record.no_audio": "The current version doesn’t support audio",
   "chat.form.record.start": "Begin recording",
   "chat.form.record.stop": "Stop recording. (No change needed – the phrase is identical in both dialects.)",

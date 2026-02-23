@@ -82,7 +82,7 @@
   "chat.form.helper.press": "לחץ",
   "chat.form.helper.shift_enter": "היסט + אנטר",
   "chat.form.helper.to_send": "לשלוח",
-  "chat.form.placeholder": "שאלו כל מה שתרצו...\n\n(Sha’alu kol mah she-tirtzu...)",
+  "chat.form.placeholder": "הקלד הודעה...",
   "chat.form.record.no_audio": "הדגם הנוכחי אינו תומך בשמע",
   "chat.form.record.start": "התחל הקלטה",
   "chat.form.record.stop": "עצור הקלטה",
