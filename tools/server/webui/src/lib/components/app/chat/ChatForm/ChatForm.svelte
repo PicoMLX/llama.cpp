@@ -51,7 +51,7 @@
 		class: className = '',
 		disabled = false,
 		isLoading = false,
-		placeholder = 'Type a message...',
+		placeholder,
 		uploadedFiles = $bindable([]),
 		value = $bindable(''),
 		onAttachmentRemove,
@@ -91,6 +91,7 @@
 
 	// Configuration
 	let currentConfig = $derived(config());
+	let resolvedPlaceholder = $derived(placeholder ?? t('chat.form.placeholder'));
 	let pasteLongTextToFileLength = $derived.by(() => {
 		const n = Number(currentConfig.pasteLongTextToFileLen);
 		return Number.isNaN(n) ? Number(SETTING_CONFIG_DEFAULT.pasteLongTextToFileLen) : n;
@@ -354,7 +355,7 @@
 					onValueChange?.(value);
 				}}
 				{disabled}
-				{placeholder}
+				placeholder={resolvedPlaceholder}
 			/>
 
 			<ChatFormActions
