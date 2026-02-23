@@ -29,11 +29,18 @@
 		activeConversation
 	} from '$lib/stores/conversations.svelte';
 	import { config } from '$lib/stores/settings.svelte';
-	import { serverLoading, serverError, serverStore, isRouterMode } from '$lib/stores/server.svelte';
+	import {
+		serverLoading,
+		serverError,
+		serverStore,
+		isRouterMode,
+		serverName
+	} from '$lib/stores/server.svelte';
 	import { modelsStore, modelOptions, selectedModelId } from '$lib/stores/models.svelte';
 	import { isFileTypeSupported, filterFilesByModalities } from '$lib/utils';
 	import { parseFilesToMessageExtras, processFilesToChatUploaded } from '$lib/utils/browser-only';
-	import { ErrorDialogType } from '$lib/enums';
+
+	import { t } from '$lib/i18n';
 	import { onMount } from 'svelte';
 	import { fade, fly, slide } from 'svelte/transition';
 	import { Trash2, AlertTriangle, RefreshCw } from '@lucide/svelte';
@@ -237,30 +244,35 @@
 	}
 
 	async function handleSendMessage(message: string, files?: ChatUploadedFile[]): Promise<boolean> {
-		const plainFiles = files ? $state.snapshot(files) : undefined;
-		const result = plainFiles
-			? await parseFilesToMessageExtras(plainFiles, activeModelId ?? undefined)
-			: undefined;
+		try {
+			const plainFiles = files ? $state.snapshot(files) : undefined;
+			const result = plainFiles
+				? await parseFilesToMessageExtras(plainFiles, activeModelId ?? undefined)
+				: undefined;
 
-		if (result?.emptyFiles && result.emptyFiles.length > 0) {
-			emptyFileNames = result.emptyFiles;
-			showEmptyFileDialog = true;
+			if (result?.emptyFiles && result.emptyFiles.length > 0) {
+				emptyFileNames = result.emptyFiles;
+				showEmptyFileDialog = true;
 
-			if (files) {
-				const emptyFileNamesSet = new Set(result.emptyFiles);
-				uploadedFiles = uploadedFiles.filter((file) => !emptyFileNamesSet.has(file.name));
+				if (files) {
+					const emptyFileNamesSet = new Set(result.emptyFiles);
+					uploadedFiles = uploadedFiles.filter((file) => !emptyFileNamesSet.has(file.name));
+				}
+				return false;
 			}
+
+			const extras = result?.extras;
+
+			// Enable autoscroll for user-initiated message sending
+			autoScroll.enable();
+			const accepted = await chatStore.sendMessage(message, extras);
+			if (accepted) autoScroll.scrollToBottom();
+
+			return accepted;
+		} catch (error) {
+			console.error('Failed to send chat message from screen:', error);
 			return false;
 		}
-
-		const extras = result?.extras;
-
-		// Enable autoscroll for user-initiated message sending
-		autoScroll.enable();
-		await chatStore.sendMessage(message, extras);
-		autoScroll.scrollToBottom();
-
-		return true;
 	}
 
 	async function processFiles(files: File[]) {
@@ -350,7 +362,7 @@
 {#if !isEmpty}
 	<div
 		bind:this={chatScrollContainer}
-		aria-label="Chat interface with file drop zone"
+		aria-label={t('chat.screen.aria.chat')}
 		class="flex h-full flex-col overflow-y-auto px-4 md:px-6"
 		ondragenter={handleDragEnter}
 		ondragleave={handleDragLeave}
@@ -382,14 +394,14 @@
 					<Alert.Root variant="destructive">
 						<AlertTriangle class="h-4 w-4" />
 						<Alert.Title class="flex items-center justify-between">
-							<span>Server unavailable</span>
+							<span>{t('chat.server.unavailable')}</span>
 							<button
 								onclick={() => serverStore.fetch()}
 								disabled={isServerLoading}
 								class="flex items-center gap-1.5 rounded-lg bg-destructive/20 px-2 py-1 text-xs font-medium hover:bg-destructive/30 disabled:opacity-50"
 							>
 								<RefreshCw class="h-3 w-3 {isServerLoading ? 'animate-spin' : ''}" />
-								{isServerLoading ? 'Retrying...' : 'Retry'}
+								{isServerLoading ? t('chat.server.retrying') : t('chat.server.retry')}
 							</button>
 						</Alert.Title>
 						<Alert.Description>{serverError()}</Alert.Description>
@@ -418,7 +430,7 @@
 	<ServerLoadingSplash />
 {:else}
 	<div
-		aria-label="Welcome screen with file drop zone"
+		aria-label={t('chat.screen.aria.welcome')}
 		class="flex h-full items-center justify-center"
 		ondragenter={handleDragEnter}
 		ondragleave={handleDragLeave}
@@ -428,12 +440,14 @@
 	>
 		<div class="w-full max-w-[48rem] px-4">
 			<div class="mb-10 text-center" in:fade={{ duration: 300 }}>
-				<h1 class="mb-2 text-3xl font-semibold tracking-tight">llama.cpp</h1>
+				<h1 class="mb-2 text-3xl font-semibold tracking-tight">
+					{serverName()}
+				</h1>
 
 				<p class="text-lg text-muted-foreground">
 					{serverStore.props?.modalities?.audio
-						? 'Record audio, type a message '
-						: 'Type a message'} or upload files to get started
+						? t('chat.landing.prompt_with_audio')
+						: t('chat.landing.prompt_no_audio')}
 				</p>
 			</div>
 
@@ -442,14 +456,14 @@
 					<Alert.Root variant="destructive">
 						<AlertTriangle class="h-4 w-4" />
 						<Alert.Title class="flex items-center justify-between">
-							<span>Server unavailable</span>
+							<span>{t('chat.server.unavailable')}</span>
 							<button
 								onclick={() => serverStore.fetch()}
 								disabled={isServerLoading}
 								class="flex items-center gap-1.5 rounded-lg bg-destructive/20 px-2 py-1 text-xs font-medium hover:bg-destructive/30 disabled:opacity-50"
 							>
 								<RefreshCw class="h-3 w-3 {isServerLoading ? 'animate-spin' : ''}" />
-								{isServerLoading ? 'Retrying...' : 'Retry'}
+								{isServerLoading ? t('chat.server.retrying') : t('chat.server.retry')}
 							</button>
 						</Alert.Title>
 						<Alert.Description>{serverError()}</Alert.Description>
@@ -482,17 +496,19 @@
 
 		<AlertDialog.Content class="flex max-w-md flex-col">
 			<AlertDialog.Header>
-				<AlertDialog.Title>File Upload Error</AlertDialog.Title>
+				<AlertDialog.Title>{t('chat.upload_error.title')}</AlertDialog.Title>
 
 				<AlertDialog.Description class="text-sm text-muted-foreground">
-					Some files cannot be uploaded with the current model.
+					{t('chat.upload_error.description')}
 				</AlertDialog.Description>
 			</AlertDialog.Header>
 
 			<div class="!max-h-[50vh] min-h-0 flex-1 space-y-4 overflow-y-auto">
 				{#if fileErrorData.generallyUnsupported.length > 0}
 					<div class="space-y-2">
-						<h4 class="text-sm font-medium text-destructive">Unsupported File Types</h4>
+						<h4 class="text-sm font-medium text-destructive">
+							{t('chat.upload_error.unsupported_types')}
+						</h4>
 
 						<div class="space-y-1">
 							{#each fileErrorData.generallyUnsupported as file (file.name)}
@@ -501,7 +517,9 @@
 										{file.name}
 									</p>
 
-									<p class="mt-1 text-xs text-muted-foreground">File type not supported</p>
+									<p class="mt-1 text-xs text-muted-foreground">
+										{t('chat.upload_error.file_type_not_supported')}
+									</p>
 								</div>
 							{/each}
 						</div>
@@ -518,7 +536,8 @@
 									</p>
 
 									<p class="mt-1 text-xs text-muted-foreground">
-										{fileErrorData.modalityReasons[file.name] || 'Not supported by current model'}
+										{fileErrorData.modalityReasons[file.name] ||
+											t('chat.upload_error.modality_not_supported')}
 									</p>
 								</div>
 							{/each}
@@ -528,7 +547,7 @@
 			</div>
 
 			<div class="rounded-md bg-muted/50 p-3">
-				<h4 class="mb-2 text-sm font-medium">This model supports:</h4>
+				<h4 class="mb-2 text-sm font-medium">{t('chat.upload_error.supported_header')}</h4>
 
 				<p class="text-sm text-muted-foreground">
 					{fileErrorData.supportedTypes.join(', ')}
@@ -537,7 +556,7 @@
 
 			<AlertDialog.Footer>
 				<AlertDialog.Action onclick={() => (showFileErrorDialog = false)}>
-					Got it
+					{t('chat.upload_error.confirm')}
 				</AlertDialog.Action>
 			</AlertDialog.Footer>
 		</AlertDialog.Content>
@@ -546,10 +565,10 @@
 
 <DialogConfirmation
 	bind:open={showDeleteDialog}
-	title="Delete Conversation"
-	description="Are you sure you want to delete this conversation? This action cannot be undone and will permanently remove all messages in this conversation."
-	confirmText="Delete"
-	cancelText="Cancel"
+	title={t('chat.conversation.delete.title')}
+	description={t('chat.conversation.delete.description')}
+	confirmText={t('chat.conversation.delete.confirm')}
+	cancelText={t('chat.conversation.delete.cancel')}
 	variant="destructive"
 	icon={Trash2}
 	onConfirm={handleDeleteConfirm}
@@ -571,7 +590,7 @@
 	contextInfo={activeErrorDialog?.contextInfo}
 	onOpenChange={handleErrorDialogOpenChange}
 	open={Boolean(activeErrorDialog)}
-	type={activeErrorDialog?.type ?? ErrorDialogType.SERVER}
+	type={activeErrorDialog?.type ?? 'server'}
 />
 
 <style>

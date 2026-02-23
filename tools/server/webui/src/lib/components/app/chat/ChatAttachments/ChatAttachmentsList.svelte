@@ -8,6 +8,7 @@
 	} from '$lib/components/app';
 	import { Button } from '$lib/components/ui/button';
 	import { getAttachmentDisplayItems } from '$lib/utils';
+	import { t } from '$lib/i18n';
 
 	interface Props {
 		class?: string;
@@ -121,7 +122,7 @@
 						class="h-6 text-xs text-muted-foreground hover:text-foreground"
 						onclick={() => (viewAllDialogOpen = true)}
 					>
-						View all ({displayItems.length})
+						{t('chat.attachments.view_all', { count: displayItems.length })}
 					</Button>
 				</div>
 			{/if}

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import {
+		ActionIconCopyToClipboard as CopyToClipboardIcon,
 		ChatMessageActions,
 		ChatMessageStatistics,
 		MarkdownContent,
@@ -13,7 +14,7 @@
 	import { autoResizeTextarea, copyToClipboard, isIMEComposing } from '$lib/utils';
 	import { tick } from 'svelte';
 	import { fade } from 'svelte/transition';
-	import { Check, X } from '@lucide/svelte';
+	import { Check, Wrench, X } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import { INPUT_CLASSES } from '$lib/constants/css-classes';
@@ -21,6 +22,7 @@
 	import Label from '$lib/components/ui/label/label.svelte';
 	import { config } from '$lib/stores/settings.svelte';
 	import { isRouterMode } from '$lib/stores/server.svelte';
+	import { t } from '$lib/i18n';
 	import { modelsStore } from '$lib/stores/models.svelte';
 	import { ServerModelStatus } from '$lib/enums';
 	import { REASONING_TAGS } from '$lib/constants/agentic';
@@ -147,6 +149,24 @@
 	let showRawOutput = $state(false);
 	let statsContainerEl: HTMLDivElement | undefined = $state();
 
+	// Parse tool calls from the serialized JSON string stored in the database message
+	let toolCalls = $derived.by((): ApiChatCompletionToolCall[] | null => {
+		if (!message.toolCalls) return null;
+		try {
+			const parsed = JSON.parse(message.toolCalls);
+			return Array.isArray(parsed) ? parsed : null;
+		} catch {
+			return null;
+		}
+	});
+
+	// Fallback: if toolCalls JSON parsing fails, show the raw string
+	let fallbackToolCalls = $derived.by((): string | null => {
+		if (!message.toolCalls) return null;
+		if (toolCalls && toolCalls.length > 0) return null;
+		return message.toolCalls;
+	});
+
 	function getScrollParent(el: HTMLElement): HTMLElement | null {
 		let parent = el.parentElement;
 		while (parent) {
@@ -225,12 +245,64 @@
 			processingState.startMonitoring();
 		}
 	});
+
+	function formatToolCallBadge(toolCall: ApiChatCompletionToolCall, index: number) {
+		const callNumber = index + 1;
+		const functionName = toolCall.function?.name?.trim();
+		const label = functionName || `Call #${callNumber}`;
+
+		const payload: Record<string, unknown> = {};
+
+		const id = toolCall.id?.trim();
+		if (id) {
+			payload.id = id;
+		}
+
+		const type = toolCall.type?.trim();
+		if (type) {
+			payload.type = type;
+		}
+
+		if (toolCall.function) {
+			const fnPayload: Record<string, unknown> = {};
+
+			const name = toolCall.function.name?.trim();
+			if (name) {
+				fnPayload.name = name;
+			}
+
+			const rawArguments = toolCall.function.arguments?.trim();
+			if (rawArguments) {
+				try {
+					fnPayload.arguments = JSON.parse(rawArguments);
+				} catch {
+					fnPayload.arguments = rawArguments;
+				}
+			}
+
+			if (Object.keys(fnPayload).length > 0) {
+				payload.function = fnPayload;
+			}
+		}
+
+		const formattedPayload = JSON.stringify(payload, null, 2);
+
+		return {
+			label,
+			tooltip: formattedPayload,
+			copyValue: formattedPayload
+		};
+	}
+
+	function handleCopyToolCall(payload: string) {
+		void copyToClipboard(payload, t('chat.message.tool_calls.copied'));
+	}
 </script>
 
 <div
 	class="text-md group w-full leading-7.5 {className}"
 	role="group"
-	aria-label="Assistant message with actions"
+	aria-label={t('chat.message.assistant.aria')}
 >
 	{#if !editCtx.isEditing && thinkingContent}
 		<ChatMessageThinkingBlock
@@ -263,7 +335,7 @@
 					autoResizeTextarea(e.currentTarget);
 					editCtx.setContent(e.currentTarget.value);
 				}}
-				placeholder="Edit assistant message..."
+				placeholder={t('chat.message.assistant.placeholder')}
 			></textarea>
 
 			<div class="mt-2 flex items-center justify-between">
@@ -274,13 +346,13 @@
 						onCheckedChange={(checked) => (shouldBranchAfterEdit = checked === true)}
 					/>
 					<Label for="branch-after-edit" class="cursor-pointer text-sm text-muted-foreground">
-						Branch conversation after edit
+						{t('chat.message.assistant.branch_after_edit')}
 					</Label>
 				</div>
 				<div class="flex gap-2">
 					<Button class="h-8 px-3" onclick={editCtx.cancel} size="sm" variant="outline">
 						<X class="mr-1 h-3 w-3" />
-						Cancel
+						{t('chat.message.assistant.cancel')}
 					</Button>
 
 					<Button
@@ -290,7 +362,7 @@
 						size="sm"
 					>
 						<Check class="mr-1 h-3 w-3" />
-						Save
+						{t('chat.message.assistant.save')}
 					</Button>
 				</div>
 			</div>
@@ -371,6 +443,51 @@
 					{/if}
 				{/if}
 			</div>
+		{/if}
+
+		{#if config().showToolCalls}
+			{#if (toolCalls && toolCalls.length > 0) || fallbackToolCalls}
+				<span class="inline-flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+					<span class="inline-flex items-center gap-1">
+						<Wrench class="h-3.5 w-3.5" />
+
+						<span>{t('chat.message.tool_calls.label')}</span>
+					</span>
+
+					{#if toolCalls && toolCalls.length > 0}
+						{#each toolCalls as toolCall, index (toolCall.id ?? `${index}`)}
+							{@const badge = formatToolCallBadge(toolCall, index)}
+							<button
+								type="button"
+								class="tool-call-badge inline-flex cursor-pointer items-center gap-1 rounded-sm bg-muted-foreground/15 px-1.5 py-0.75"
+								title={badge.tooltip}
+								aria-label={t('chat.message.tool_calls.copy', { label: badge.label })}
+								onclick={() => handleCopyToolCall(badge.copyValue)}
+							>
+								{badge.label}
+								<CopyToClipboardIcon
+									text={badge.copyValue}
+									ariaLabel={t('chat.message.tool_calls.copy', { label: badge.label })}
+								/>
+							</button>
+						{/each}
+					{:else if fallbackToolCalls}
+						<button
+							type="button"
+							class="tool-call-badge tool-call-badge--fallback inline-flex cursor-pointer items-center gap-1 rounded-sm bg-muted-foreground/15 px-1.5 py-0.75"
+							title={fallbackToolCalls}
+							aria-label={t('chat.message.tool_calls.copy_payload')}
+							onclick={() => handleCopyToolCall(fallbackToolCalls)}
+						>
+							{fallbackToolCalls}
+							<CopyToClipboardIcon
+								text={fallbackToolCalls}
+								ariaLabel={t('chat.message.tool_calls.copy_payload')}
+							/>
+						</button>
+					{/if}
+				</span>
+			{/if}
 		{/if}
 	</div>
 

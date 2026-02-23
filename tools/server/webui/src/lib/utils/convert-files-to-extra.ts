@@ -7,6 +7,7 @@ import { modelsStore } from '$lib/stores/models.svelte';
 import { getFileTypeCategory } from '$lib/utils';
 import { readFileAsText, isLikelyTextFile } from './text-files';
 import { toast } from 'svelte-sonner';
+import { t } from '$lib/i18n';
 import type { FileProcessingResult, ChatUploadedFile, DatabaseMessageExtra } from '$lib/types';
 
 function readFileAsBase64(file: File): Promise<string> {
@@ -93,12 +94,9 @@ export async function parseFilesToMessageExtras(
 					settingsStore.updateConfig('pdfAsImage', false);
 
 					// Show toast notification to user
-					toast.warning(
-						'PDF setting changed: Non-vision model detected, PDFs will be processed as text instead of images.',
-						{
-							duration: 5000
-						}
-					);
+					toast.warning(t('chat.attachments.pdf.non_vision_warning'), {
+						duration: 5000
+					});
 
 					shouldProcessAsImages = false;
 				}
@@ -110,7 +108,10 @@ export async function parseFilesToMessageExtras(
 
 						// Show success toast for PDF image processing
 						toast.success(
-							`PDF "${file.name}" processed as ${images.length} images for vision model.`,
+							t('chat.attachments.pdf.processed_images', {
+								name: file.name,
+								count: images.length
+							}),
 							{
 								duration: 3000
 							}
@@ -119,7 +120,7 @@ export async function parseFilesToMessageExtras(
 						extras.push({
 							type: AttachmentType.PDF,
 							name: file.name,
-							content: `PDF file with ${images.length} pages`,
+							content: t('chat.attachments.pdf.pages_summary', { count: images.length }),
 							images: images,
 							processedAsImages: true,
 							base64Data: base64Data
@@ -146,9 +147,14 @@ export async function parseFilesToMessageExtras(
 					const content = await convertPDFToText(file.file);
 
 					// Show success toast for PDF text processing
-					toast.success(`PDF "${file.name}" processed as text content.`, {
-						duration: 3000
-					});
+					toast.success(
+						t('chat.attachments.pdf.processed_text', {
+							name: file.name
+						}),
+						{
+							duration: 3000
+						}
+					);
 
 					extras.push({
 						type: AttachmentType.PDF,

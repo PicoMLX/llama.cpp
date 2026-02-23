@@ -6,6 +6,7 @@
 	import { getMessageEditContext } from '$lib/contexts';
 	import { INPUT_CLASSES } from '$lib/constants/css-classes';
 	import { config } from '$lib/stores/settings.svelte';
+	import { t } from '$lib/i18n';
 	import { isIMEComposing } from '$lib/utils';
 	import ChatMessageActions from './ChatMessageActions.svelte';
 	import { KeyboardKey, MessageRole } from '$lib/enums';
@@ -99,7 +100,7 @@
 </script>
 
 <div
-	aria-label="System message with actions"
+	aria-label={t('chat.message.system.aria')}
 	class="group flex flex-col items-end gap-3 md:gap-2 {className}"
 	role="group"
 >
@@ -111,14 +112,13 @@
 				class="min-h-[60px] w-full resize-none rounded-2xl px-3 py-2 text-sm {INPUT_CLASSES}"
 				onkeydown={handleEditKeydown}
 				oninput={(e) => editCtx.setContent(e.currentTarget.value)}
-				placeholder="Edit system message..."
+				placeholder={t('chat.message.system.placeholder')}
 			></textarea>
 
 			<div class="mt-2 flex justify-end gap-2">
 				<Button class="h-8 px-3" onclick={editCtx.cancel} size="sm" variant="outline">
 					<X class="mr-1 h-3 w-3" />
-
-					Cancel
+					{t('chat.message.system.cancel')}
 				</Button>
 
 				<Button
@@ -128,8 +128,7 @@
 					size="sm"
 				>
 					<Check class="mr-1 h-3 w-3" />
-
-					Save
+					{t('chat.message.system.save')}
 				</Button>
 			</div>
 		</div>
@@ -185,7 +184,7 @@
 										size="sm"
 										variant="outline"
 									>
-										Show full system message
+										{t('chat.message.system.show_full')}
 									</Button>
 								</div>
 							{/if}
@@ -202,7 +201,7 @@
 									size="sm"
 									variant="outline"
 								>
-									Collapse System Message
+									{t('chat.message.system.collapse')}
 								</Button>
 							</div>
 						{/if}

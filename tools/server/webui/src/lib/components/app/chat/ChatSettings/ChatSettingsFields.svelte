@@ -10,6 +10,7 @@
 	import { SettingsFieldType } from '$lib/enums/settings';
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { ChatSettingsParameterSourceIndicator } from '$lib/components/app';
+	import { t } from '$lib/i18n';
 	import type { Component } from 'svelte';
 
 	interface Props {
@@ -29,11 +30,23 @@
 
 		return settingsStore.getParameterInfo(key);
 	}
+
+	function getDefaultPlaceholder(key: string) {
+		const defaultValue = SETTING_CONFIG_DEFAULT[key] ?? t('chat.settings.default_none');
+		return t('chat.settings.default_value', { value: String(defaultValue) });
+	}
+
+	function getHelpText(field: SettingsFieldConfig): string | null {
+		const key = field.help || SETTING_CONFIG_INFO[field.key];
+		if (!key) return null;
+		return t(key);
+	}
 </script>
 
 {#each fields as field (field.key)}
 	<div class="space-y-2">
 		{#if field.type === SettingsFieldType.INPUT}
+			{@const fieldLabel = t(field.label)}
 			{@const paramInfo = getParameterSourceInfo(field.key)}
 			{@const currentValue = String(localConfig[field.key] ?? '')}
 			{@const propsDefault = paramInfo?.serverDefault}
@@ -56,7 +69,7 @@
 
 			<div class="flex items-center gap-2">
 				<Label for={field.key} class="flex items-center gap-1.5 text-sm font-medium">
-					{field.label}
+					{fieldLabel}
 
 					{#if field.isExperimental}
 						<FlaskConical class="h-3.5 w-3.5 text-muted-foreground" />
@@ -75,7 +88,7 @@
 						// Update local config immediately for real-time badge feedback
 						onConfigChange(field.key, e.currentTarget.value);
 					}}
-					placeholder={`Default: ${SETTING_CONFIG_DEFAULT[field.key] ?? 'none'}`}
+					placeholder={getDefaultPlaceholder(field.key)}
 					class="w-full {isCustomRealTime ? 'pr-8' : ''}"
 				/>
 				{#if isCustomRealTime}
@@ -88,21 +101,23 @@
 							onConfigChange(field.key, String(defaultValue));
 						}}
 						class="absolute top-1/2 right-2 inline-flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded transition-colors hover:bg-muted"
-						aria-label="Reset to default"
-						title="Reset to default"
+						aria-label={t('chat.settings.reset_to_default')}
+						title={t('chat.settings.reset_to_default')}
 					>
 						<RotateCcw class="h-3 w-3" />
 					</button>
 				{/if}
 			</div>
-			{#if field.help || SETTING_CONFIG_INFO[field.key]}
+			{@const helpText = getHelpText(field)}
+			{#if helpText}
 				<p class="mt-1 text-xs text-muted-foreground">
-					{@html field.help || SETTING_CONFIG_INFO[field.key]}
+					{@html helpText}
 				</p>
 			{/if}
 		{:else if field.type === SettingsFieldType.TEXTAREA}
+			{@const fieldLabel = t(field.label)}
 			<Label for={field.key} class="block flex items-center gap-1.5 text-sm font-medium">
-				{field.label}
+				{fieldLabel}
 
 				{#if field.isExperimental}
 					<FlaskConical class="h-3.5 w-3.5 text-muted-foreground" />
@@ -113,13 +128,14 @@
 				id={field.key}
 				value={String(localConfig[field.key] ?? '')}
 				onchange={(e) => onConfigChange(field.key, e.currentTarget.value)}
-				placeholder={`Default: ${SETTING_CONFIG_DEFAULT[field.key] ?? 'none'}`}
+				placeholder={getDefaultPlaceholder(field.key)}
 				class="min-h-[10rem] w-full md:max-w-2xl"
 			/>
 
-			{#if field.help || SETTING_CONFIG_INFO[field.key]}
+			{@const helpText = getHelpText(field)}
+			{#if helpText}
 				<p class="mt-1 text-xs text-muted-foreground">
-					{field.help || SETTING_CONFIG_INFO[field.key]}
+					{@html helpText}
 				</p>
 			{/if}
 
@@ -132,11 +148,12 @@
 					/>
 
 					<Label for="showSystemMessage" class="cursor-pointer text-sm font-normal">
-						Show system message in conversations
+						{t('chat.settings.field.show_system_message')}
 					</Label>
 				</div>
 			{/if}
 		{:else if field.type === SettingsFieldType.SELECT}
+			{@const fieldLabel = t(field.label)}
 			{@const selectedOption = field.options?.find(
 				(opt: { value: string; label: string; icon?: Component }) =>
 					opt.value === localConfig[field.key]
@@ -153,7 +170,7 @@
 
 			<div class="flex items-center gap-2">
 				<Label for={field.key} class="flex items-center gap-1.5 text-sm font-medium">
-					{field.label}
+					{fieldLabel}
 
 					{#if field.isExperimental}
 						<FlaskConical class="h-3.5 w-3.5 text-muted-foreground" />
@@ -183,7 +200,11 @@
 								<IconComponent class="h-4 w-4" />
 							{/if}
 
-							{selectedOption?.label || `Select ${field.label.toLowerCase()}`}
+							{selectedOption?.rawLabel
+								? selectedOption.rawLabel
+								: selectedOption?.label
+									? t(selectedOption.label)
+									: t('chat.settings.select_label', { label: fieldLabel })}
 						</div>
 					</Select.Trigger>
 					{#if isCustomRealTime}
@@ -196,8 +217,8 @@
 								onConfigChange(field.key, String(defaultValue));
 							}}
 							class="absolute top-1/2 right-8 inline-flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded transition-colors hover:bg-muted"
-							aria-label="Reset to default"
-							title="Reset to default"
+							aria-label={t('chat.settings.reset_to_default')}
+							title={t('chat.settings.reset_to_default')}
 						>
 							<RotateCcw class="h-3 w-3" />
 						</button>
@@ -206,25 +227,29 @@
 				<Select.Content>
 					{#if field.options}
 						{#each field.options as option (option.value)}
-							<Select.Item value={option.value} label={option.label}>
+							{@const optionLabel = option.rawLabel ?? t(option.label)}
+							<Select.Item value={option.value} label={optionLabel}>
 								<div class="flex items-center gap-2">
 									{#if option.icon}
 										{@const IconComponent = option.icon}
 										<IconComponent class="h-4 w-4" />
 									{/if}
-									{option.label}
+									{optionLabel}
 								</div>
 							</Select.Item>
 						{/each}
 					{/if}
 				</Select.Content>
 			</Select.Root>
-			{#if field.help || SETTING_CONFIG_INFO[field.key]}
+			{@const helpText = getHelpText(field)}
+			{#if helpText}
 				<p class="mt-1 text-xs text-muted-foreground">
-					{field.help || SETTING_CONFIG_INFO[field.key]}
+					{@html helpText}
 				</p>
 			{/if}
 		{:else if field.type === SettingsFieldType.CHECKBOX}
+			{@const fieldLabel = t(field.label)}
+			{@const helpText = getHelpText(field)}
 			<div class="flex items-start space-x-3">
 				<Checkbox
 					id={field.key}
@@ -238,16 +263,16 @@
 						for={field.key}
 						class="flex cursor-pointer items-center gap-1.5 pt-1 pb-0.5 text-sm leading-none font-medium"
 					>
-						{field.label}
+						{fieldLabel}
 
 						{#if field.isExperimental}
 							<FlaskConical class="h-3.5 w-3.5 text-muted-foreground" />
 						{/if}
 					</label>
 
-					{#if field.help || SETTING_CONFIG_INFO[field.key]}
+					{#if helpText}
 						<p class="text-xs text-muted-foreground">
-							{field.help || SETTING_CONFIG_INFO[field.key]}
+							{@html helpText}
 						</p>
 					{/if}
 				</div>

@@ -1,4 +1,4 @@
-import { activeProcessingState } from '$lib/stores/chat.svelte';
+import { activeProcessingState, activeReasoningState } from '$lib/stores/chat.svelte';
 import { config } from '$lib/stores/settings.svelte';
 import { STATS_UNITS } from '$lib/constants/processing-info';
 import type { ApiProcessingState, LiveProcessingStats, LiveGenerationStats } from '$lib/types';
@@ -44,6 +44,12 @@ export function useProcessingState(): UseProcessingStateReturn {
 		}
 		// Read directly from the reactive state export
 		return activeProcessingState();
+	});
+	const reasoningActive = $derived.by(() => {
+		if (!isMonitoring) {
+			return false;
+		}
+		return activeReasoningState();
 	});
 
 	// Track last known state for keepStatsVisible functionality
@@ -99,6 +105,10 @@ export function useProcessingState(): UseProcessingStateReturn {
 	}
 
 	function getProcessingMessage(): string {
+		if (reasoningActive) {
+			return 'Thinking...';
+		}
+
 		if (!processingState) {
 			return 'Processing...';
 		}

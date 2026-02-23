@@ -14,6 +14,7 @@
 	import { isRouterMode } from '$lib/stores/server.svelte';
 	import { chatStore } from '$lib/stores/chat.svelte';
 	import { activeMessages } from '$lib/stores/conversations.svelte';
+	import { t } from '$lib/i18n';
 
 	interface Props {
 		canSend?: boolean;
@@ -138,11 +139,11 @@
 
 	let submitTooltip = $derived.by(() => {
 		if (!hasModelSelected) {
-			return 'Please select a model first';
+			return t('chat.form.submit.tooltip_select_model');
 		}
 
 		if (!isSelectedModelInCache) {
-			return 'Selected model is not available, please select another';
+			return t('chat.form.submit.tooltip_model_unavailable');
 		}
 
 		return '';
@@ -183,7 +184,7 @@
 			onclick={onStop}
 			class="group h-8 w-8 rounded-full p-0 hover:bg-destructive/10!"
 		>
-			<span class="sr-only">Stop</span>
+			<span class="sr-only">{t('chat.form.stop')}</span>
 
 			<Square
 				class="h-8 w-8 fill-muted-foreground stroke-muted-foreground group-hover:fill-destructive group-hover:stroke-destructive hover:fill-destructive hover:stroke-destructive"

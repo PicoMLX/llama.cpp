@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { autoResizeTextarea } from '$lib/utils';
+	import { t } from '$lib/i18n';
 	import { onMount } from 'svelte';
 
 	interface Props {
@@ -18,7 +19,7 @@
 		onInput,
 		onKeydown,
 		onPaste,
-		placeholder = 'Ask anything...',
+		placeholder = t('chat.form.placeholder'),
 		value = $bindable('')
 	}: Props = $props();
 

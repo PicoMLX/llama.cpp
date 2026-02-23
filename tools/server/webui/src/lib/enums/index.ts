@@ -3,7 +3,6 @@ export { AttachmentType } from './attachment';
 export {
 	ChatMessageStatsView,
 	ContentPartType,
-	ErrorDialogType,
 	MessageRole,
 	MessageType,
 	ReasoningFormat

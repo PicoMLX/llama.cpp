@@ -4,6 +4,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import { ScrollArea } from '$lib/components/ui/scroll-area';
+	import { t } from '$lib/i18n';
 	import { SvelteSet } from 'svelte/reactivity';
 
 	interface Props {
@@ -24,9 +25,13 @@
 		return new SvelteSet(conversations.map((c) => c.id));
 	}
 
+	function getConversationName(conv: DatabaseConversation) {
+		return conv.name || t('dialog.conversation_selection.untitled');
+	}
+
 	let filteredConversations = $derived(
 		conversations.filter((conv) => {
-			const name = conv.name || 'Untitled conversation';
+			const name = getConversationName(conv);
 			return name.toLowerCase().includes(searchQuery.toLowerCase());
 		})
 	);
@@ -114,7 +119,11 @@
 	<div class="relative">
 		<Search class="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 
-		<Input bind:value={searchQuery} placeholder="Search conversations..." class="pr-9 pl-9" />
+		<Input
+			bind:value={searchQuery}
+			placeholder={t('dialog.conversation_selection.search.placeholder')}
+			class="pr-9 pl-9"
+		/>
 
 		{#if searchQuery}
 			<button
@@ -129,9 +138,14 @@
 
 	<div class="flex items-center justify-between text-sm text-muted-foreground">
 		<span>
-			{selectedIds.size} of {conversations.length} selected
+			{t('dialog.conversation_selection.selection_status', {
+				selected: selectedIds.size,
+				total: conversations.length
+			})}
 			{#if searchQuery}
-				({filteredConversations.length} shown)
+				{t('dialog.conversation_selection.selection_shown', {
+					shown: filteredConversations.length
+				})}
 			{/if}
 		</span>
 	</div>
@@ -149,9 +163,13 @@
 							/>
 						</th>
 
-						<th class="p-3 text-left text-sm font-medium">Conversation Name</th>
+						<th class="p-3 text-left text-sm font-medium">
+							{t('dialog.conversation_selection.table.name')}
+						</th>
 
-						<th class="w-32 p-3 text-left text-sm font-medium">Messages</th>
+						<th class="w-32 p-3 text-left text-sm font-medium">
+							{t('dialog.conversation_selection.table.messages')}
+						</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -159,9 +177,9 @@
 						<tr>
 							<td colspan="3" class="p-8 text-center text-sm text-muted-foreground">
 								{#if searchQuery}
-									No conversations found matching "{searchQuery}"
+									{t('dialog.conversation_selection.empty.filtered', { query: searchQuery })}
 								{:else}
-									No conversations available
+									{t('dialog.conversation_selection.empty.none')}
 								{/if}
 							</td>
 						</tr>
@@ -183,8 +201,8 @@
 								</td>
 
 								<td class="p-3 text-sm">
-									<div class="max-w-[17rem] truncate" title={conv.name || 'Untitled conversation'}>
-										{conv.name || 'Untitled conversation'}
+									<div class="max-w-[17rem] truncate" title={getConversationName(conv)}>
+										{getConversationName(conv)}
 									</div>
 								</td>
 
@@ -200,10 +218,14 @@
 	</div>
 
 	<div class="flex justify-end gap-2">
-		<Button variant="outline" onclick={handleCancel}>Cancel</Button>
+		<Button variant="outline" onclick={handleCancel}>
+			{t('dialog.conversation_selection.cancel')}
+		</Button>
 
 		<Button onclick={handleConfirm} disabled={selectedIds.size === 0}>
-			{mode === 'export' ? 'Export' : 'Import'} ({selectedIds.size})
+			{mode === 'export'
+				? t('dialog.conversation_selection.confirm_export', { count: selectedIds.size })
+				: t('dialog.conversation_selection.confirm_import', { count: selectedIds.size })}
 		</Button>
 	</div>
 </div>

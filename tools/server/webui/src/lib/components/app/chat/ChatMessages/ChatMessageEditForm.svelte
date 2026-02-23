@@ -7,6 +7,7 @@
 	import { KeyboardKey } from '$lib/enums';
 	import { chatStore } from '$lib/stores/chat.svelte';
 	import { processFilesToChatUploaded } from '$lib/utils/browser-only';
+	import { t } from '$lib/i18n';
 
 	const editCtx = getMessageEditContext();
 
@@ -109,7 +110,7 @@
 			<Switch id="save-only-switch" bind:checked={saveWithoutRegenerate} class="scale-75" />
 
 			<label for="save-only-switch" class="cursor-pointer text-xs text-muted-foreground">
-				Update without re-sending
+				{t('chat.message.edit.update_without_resend')}
 			</label>
 		</div>
 	{:else}
@@ -119,16 +120,16 @@
 	<Button class="h-7 px-3 text-xs" onclick={attemptCancel} size="sm" variant="ghost">
 		<X class="mr-1 h-3 w-3" />
 
-		Cancel
+		{t('chat.message.edit.cancel')}
 	</Button>
 </div>
 
 <DialogConfirmation
 	bind:open={showDiscardDialog}
-	title="Discard changes?"
-	description="You have unsaved changes. Are you sure you want to discard them?"
-	confirmText="Discard"
-	cancelText="Keep editing"
+	title={t('chat.message.edit.discard.title')}
+	description={t('chat.message.edit.discard.description')}
+	confirmText={t('chat.message.edit.discard.confirm')}
+	cancelText={t('chat.message.edit.discard.cancel')}
 	variant="destructive"
 	icon={AlertTriangle}
 	onConfirm={editCtx.cancel}

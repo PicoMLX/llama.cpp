@@ -24,6 +24,7 @@ import { DatabaseService } from '$lib/services/database.service';
 import { config } from '$lib/stores/settings.svelte';
 import { filterByLeafNodeId, findLeafNode } from '$lib/utils';
 import { MessageRole } from '$lib/enums';
+import { t } from '$lib/i18n';
 
 class ConversationsStore {
 	/**
@@ -46,8 +47,51 @@ class ConversationsStore {
 	/** Whether the store has been initialized */
 	isInitialized = $state(false);
 
+	/** Last local storage / IndexedDB error encountered by the conversations store */
+	storageError = $state<{ name: string; message: string } | null>(null);
+
 	/** Callback for title update confirmation dialog */
 	titleUpdateConfirmationCallback?: (currentTitle: string, newTitle: string) => Promise<boolean>;
+
+	private normalizeStorageError(error: unknown): { name: string; message: string } {
+		if (error instanceof Error) {
+			const message = error.message?.trim() || 'Unknown local storage error';
+			return { name: error.name || 'Error', message };
+		}
+
+		return {
+			name: 'Error',
+			message: typeof error === 'string' ? error : 'Unknown local storage error'
+		};
+	}
+
+	private setStorageError(error: unknown): { name: string; message: string } {
+		const normalized = this.normalizeStorageError(error);
+		const previous = this.storageError;
+		const isSameError =
+			previous?.name === normalized.name && previous?.message === normalized.message;
+
+		this.storageError = normalized;
+
+		if (!isSameError) {
+			toast.error('Local conversation storage error', {
+				description: normalized.message
+			});
+		}
+
+		return normalized;
+	}
+
+	private clearStorageError(): void {
+		this.storageError = null;
+	}
+
+	private createStorageTaggedError(error: unknown): Error {
+		const normalized = this.setStorageError(error);
+		const taggedError = new Error(normalized.message);
+		taggedError.name = 'ConversationStorageError';
+		return taggedError;
+	}
 
 	/**
 	 *
@@ -149,8 +193,13 @@ class ConversationsStore {
 	 * Loads all conversations from the database
 	 */
 	async loadConversations(): Promise<void> {
-		const conversations = await DatabaseService.getAllConversations();
-		this.conversations = conversations;
+		try {
+			const conversations = await DatabaseService.getAllConversations();
+			this.conversations = conversations;
+			this.clearStorageError();
+		} catch (error) {
+			throw this.createStorageTaggedError(error);
+		}
 	}
 
 	/**
@@ -160,7 +209,13 @@ class ConversationsStore {
 	 */
 	async createConversation(name?: string): Promise<string> {
 		const conversationName = name || `Chat ${new Date().toLocaleString()}`;
-		const conversation = await DatabaseService.createConversation(conversationName);
+		let conversation: DatabaseConversation;
+		try {
+			conversation = await DatabaseService.createConversation(conversationName);
+			this.clearStorageError();
+		} catch (error) {
+			throw this.createStorageTaggedError(error);
+		}
 
 		this.conversations = [conversation, ...this.conversations];
 		this.activeConversation = conversation;
@@ -247,12 +302,12 @@ class ConversationsStore {
 			this.clearActiveConversation();
 			this.conversations = [];
 
-			toast.success('All conversations deleted');
+			toast.success(t('chat.conversations.delete_all.success'));
 
 			await goto(`?new_chat=true#/`);
 		} catch (error) {
 			console.error('Failed to delete all conversations:', error);
-			toast.error('Failed to delete conversations');
+			toast.error(t('chat.conversations.delete_all.failed'));
 		}
 	}
 
@@ -468,7 +523,7 @@ class ConversationsStore {
 		const allConversations = await DatabaseService.getAllConversations();
 
 		if (allConversations.length === 0) {
-			throw new Error('No conversations to export');
+			throw new Error(t('chat.conversations.export.none'));
 		}
 
 		const allData = await Promise.all(
@@ -488,7 +543,7 @@ class ConversationsStore {
 		document.body.removeChild(a);
 		URL.revokeObjectURL(url);
 
-		toast.success(`All conversations (${allConversations.length}) prepared for download`);
+		toast.success(t('chat.conversations.export.prepared', { count: allConversations.length }));
 
 		return allConversations;
 	}
@@ -508,7 +563,7 @@ class ConversationsStore {
 				const file = (e.target as HTMLInputElement)?.files?.[0];
 
 				if (!file) {
-					reject(new Error('No file selected'));
+					reject(new Error(t('chat.conversations.import.no_file')));
 					return;
 				}
 
@@ -527,11 +582,16 @@ class ConversationsStore {
 					) {
 						importedData = [parsedData];
 					} else {
-						throw new Error('Invalid file format');
+						throw new Error(t('chat.conversations.import.invalid_format'));
 					}
 
 					const result = await DatabaseService.importConversations(importedData);
-					toast.success(`Imported ${result.imported} conversation(s), skipped ${result.skipped}`);
+					toast.success(
+						t('chat.conversations.import.success', {
+							imported: result.imported,
+							skipped: result.skipped
+						})
+					);
 
 					await this.loadConversations();
 
@@ -541,10 +601,11 @@ class ConversationsStore {
 
 					resolve(importedConversations);
 				} catch (err: unknown) {
-					const message = err instanceof Error ? err.message : 'Unknown error';
+					const message =
+						err instanceof Error ? err.message : t('chat.conversations.import.unknown_error');
 					console.error('Failed to import conversations:', err);
-					toast.error('Import failed', { description: message });
-					reject(new Error(`Import failed: ${message}`));
+					toast.error(t('chat.conversations.import.failed'), { description: message });
+					reject(new Error(t('chat.conversations.import.failed_with', { message })));
 				}
 			};
 
@@ -608,3 +669,4 @@ export const conversations = () => conversationsStore.conversations;
 export const activeConversation = () => conversationsStore.activeConversation;
 export const activeMessages = () => conversationsStore.activeMessages;
 export const isConversationsInitialized = () => conversationsStore.isInitialized;
+export const conversationStorageError = () => conversationsStore.storageError;

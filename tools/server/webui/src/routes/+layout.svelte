@@ -4,8 +4,7 @@
 	import { page } from '$app/state';
 	import { untrack } from 'svelte';
 	import { ChatSidebar, DialogConversationTitleUpdate } from '$lib/components/app';
-	import { isLoading } from '$lib/stores/chat.svelte';
-	import { conversationsStore, activeMessages } from '$lib/stores/conversations.svelte';
+	import { conversationsStore } from '$lib/stores/conversations.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { isRouterMode, serverStore } from '$lib/stores/server.svelte';
@@ -15,19 +14,14 @@
 	import { goto } from '$app/navigation';
 	import { modelsStore } from '$lib/stores/models.svelte';
 	import { TOOLTIP_DELAY_DURATION } from '$lib/constants/tooltip-config';
+	import { i18n } from '$lib/i18n';
 	import { KeyboardKey } from '$lib/enums';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 
 	let { children } = $props();
 
-	let isChatRoute = $derived(page.route.id === '/chat/[id]');
-	let isHomeRoute = $derived(page.route.id === '/');
-	let isNewChatMode = $derived(page.url.searchParams.get('new_chat') === 'true');
-	let showSidebarByDefault = $derived(activeMessages().length > 0 || isLoading());
-	let alwaysShowSidebarOnDesktop = $derived(config().alwaysShowSidebarOnDesktop);
-	let autoShowSidebarOnNewChat = $derived(config().autoShowSidebarOnNewChat);
-	let isMobile = new IsMobile();
-	let isDesktop = $derived(!isMobile.current);
+	i18n.init();
+
 	let sidebarOpen = $state(false);
 	let innerHeight = $state<number | undefined>();
 	let chatSidebar:
@@ -48,7 +42,6 @@
 			event.preventDefault();
 			if (chatSidebar?.activateSearchMode) {
 				chatSidebar.activateSearchMode();
-				sidebarOpen = true;
 			}
 		}
 
@@ -81,30 +74,6 @@
 			titleUpdateResolve = null;
 		}
 	}
-
-	$effect(() => {
-		if (alwaysShowSidebarOnDesktop && isDesktop) {
-			sidebarOpen = true;
-			return;
-		}
-
-		if (isHomeRoute && !isNewChatMode) {
-			// Auto-collapse sidebar when navigating to home route (but not in new chat mode)
-			sidebarOpen = false;
-		} else if (isHomeRoute && isNewChatMode) {
-			// Keep sidebar open in new chat mode
-			sidebarOpen = true;
-		} else if (isChatRoute) {
-			// On chat routes, only auto-show sidebar if setting is enabled
-			if (autoShowSidebarOnNewChat) {
-				sidebarOpen = true;
-			}
-			// If setting is disabled, don't change sidebar state - let user control it manually
-		} else {
-			// Other routes follow default behavior
-			sidebarOpen = showSidebarByDefault;
-		}
-	});
 
 	// Initialize server properties on app load (run once)
 	$effect(() => {
@@ -205,14 +174,12 @@
 				<ChatSidebar bind:this={chatSidebar} />
 			</Sidebar.Root>
 
-			{#if !(alwaysShowSidebarOnDesktop && isDesktop)}
-				<Sidebar.Trigger
-					class="transition-left absolute left-0 z-[900] h-8 w-8 duration-200 ease-linear {sidebarOpen
-						? 'md:left-[var(--sidebar-width)]'
-						: ''}"
-					style="translate: 1rem 1rem;"
-				/>
-			{/if}
+			<Sidebar.Trigger
+				class="transition-left absolute left-0 z-[900] h-8 w-8 duration-200 ease-linear {sidebarOpen
+					? 'md:left-[var(--sidebar-width)]'
+					: ''}"
+				style="translate: 1rem 1rem;"
+			/>
 
 			<Sidebar.Inset class="flex flex-1 flex-col overflow-hidden">
 				{@render children?.()}

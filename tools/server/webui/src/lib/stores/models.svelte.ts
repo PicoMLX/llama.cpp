@@ -2,6 +2,7 @@ import { SvelteSet } from 'svelte/reactivity';
 import { ServerModelStatus, ModelModality } from '$lib/enums';
 import { ModelsService, PropsService } from '$lib/services';
 import { serverStore } from '$lib/stores/server.svelte';
+import { t } from '$lib/i18n';
 import { TTLCache } from '$lib/utils';
 import { MODEL_PROPS_CACHE_TTL_MS, MODEL_PROPS_CACHE_MAX_ENTRIES } from '$lib/constants/cache';
 
@@ -290,7 +291,7 @@ class ModelsStore {
 			}
 		} catch (error) {
 			this.models = [];
-			this.error = error instanceof Error ? error.message : 'Failed to load models';
+			this.error = error instanceof Error ? error.message : t('chat.models.error.load_models');
 			throw error;
 		} finally {
 			this.loading = false;
@@ -431,7 +432,7 @@ class ModelsStore {
 		if (this.selectedModelId === modelId) return;
 
 		const option = this.models.find((model) => model.id === modelId);
-		if (!option) throw new Error('Selected model is not available');
+		if (!option) throw new Error(t('chat.models.error.selected_unavailable'));
 
 		this.updating = true;
 		this.error = null;
@@ -548,7 +549,7 @@ class ModelsStore {
 
 			await this.updateModelModalities(modelId);
 		} catch (error) {
-			this.error = error instanceof Error ? error.message : 'Failed to load model';
+			this.error = error instanceof Error ? error.message : t('chat.models.error.load_model');
 			throw error;
 		} finally {
 			this.modelLoadingStates.set(modelId, false);
@@ -574,7 +575,7 @@ class ModelsStore {
 
 			await this.pollForModelStatus(modelId, ServerModelStatus.UNLOADED);
 		} catch (error) {
-			this.error = error instanceof Error ? error.message : 'Failed to unload model';
+			this.error = error instanceof Error ? error.message : t('chat.models.error.unload_model');
 			throw error;
 		} finally {
 			this.modelLoadingStates.set(modelId, false);

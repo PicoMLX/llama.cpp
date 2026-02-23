@@ -2,6 +2,7 @@
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import type { Component } from 'svelte';
 	import { KeyboardKey } from '$lib/enums';
+	import { t } from '$lib/i18n';
 
 	interface Props {
 		open: boolean;
@@ -20,8 +21,8 @@
 		open = $bindable(),
 		title,
 		description,
-		confirmText = 'Confirm',
-		cancelText = 'Cancel',
+		confirmText = t('dialog.confirmation.confirm'),
+		cancelText = t('dialog.confirmation.cancel'),
 		variant = 'default',
 		icon,
 		onConfirm,

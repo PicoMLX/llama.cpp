@@ -3,6 +3,7 @@
 	import { ChatAttachmentsList, MarkdownContent } from '$lib/components/app';
 	import { getMessageEditContext } from '$lib/contexts';
 	import { config } from '$lib/stores/settings.svelte';
+	import { t } from '$lib/i18n';
 	import ChatMessageActions from './ChatMessageActions.svelte';
 	import ChatMessageEditForm from './ChatMessageEditForm.svelte';
 	import { MessageRole } from '$lib/enums';
@@ -73,7 +74,7 @@
 </script>
 
 <div
-	aria-label="User message with actions"
+	aria-label={t('chat.message.user.aria')}
 	class="group flex flex-col items-end gap-3 md:gap-2 {className}"
 	role="group"
 >

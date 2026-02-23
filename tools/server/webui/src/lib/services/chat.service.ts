@@ -10,6 +10,7 @@ import {
 import type { ApiChatMessageContentPart, ApiChatCompletionToolCall } from '$lib/types/api';
 import { modelsStore } from '$lib/stores/models.svelte';
 import { AGENTIC_REGEX } from '$lib/constants/agentic';
+import { t } from '$lib/i18n';
 
 export class ChatService {
 	private static stripReasoningContent(
@@ -268,21 +269,19 @@ export class ChatService {
 
 			if (error instanceof Error) {
 				if (error.name === 'TypeError' && error.message.includes('fetch')) {
-					userFriendlyError = new Error(
-						'Unable to connect to server - please check if the server is running'
-					);
+					userFriendlyError = new Error(t('chat.error.unable_connect'));
 					userFriendlyError.name = 'NetworkError';
 				} else if (error.message.includes('ECONNREFUSED')) {
-					userFriendlyError = new Error('Connection refused - server may be offline');
+					userFriendlyError = new Error(t('chat.error.connection_refused'));
 					userFriendlyError.name = 'NetworkError';
 				} else if (error.message.includes('ETIMEDOUT')) {
-					userFriendlyError = new Error('Request timed out - the server took too long to respond');
+					userFriendlyError = new Error(t('chat.error.timeout'));
 					userFriendlyError.name = 'TimeoutError';
 				} else {
 					userFriendlyError = error;
 				}
 			} else {
-				userFriendlyError = new Error('Unknown error occurred while sending message');
+				userFriendlyError = new Error(t('chat.error.unknown_send'));
 			}
 
 			console.error('Error in sendMessage:', error);
@@ -334,7 +333,7 @@ export class ChatService {
 		const reader = response.body?.getReader();
 
 		if (!reader) {
-			throw new Error('No response body');
+			throw new Error(t('chat.error.no_response_body'));
 		}
 
 		const decoder = new TextDecoder();
@@ -478,7 +477,7 @@ export class ChatService {
 				);
 			}
 		} catch (error) {
-			const err = error instanceof Error ? error : new Error('Stream error');
+			const err = error instanceof Error ? error : new Error(t('chat.error.stream_error'));
 
 			onError?.(err);
 
@@ -514,8 +513,7 @@ export class ChatService {
 			const responseText = await response.text();
 
 			if (!responseText.trim()) {
-				const noResponseError = new Error('No response received from server. Please try again.');
-
+				const noResponseError = new Error(t('chat.error.no_response_received'));
 				throw noResponseError;
 			}
 
@@ -544,8 +542,7 @@ export class ChatService {
 			}
 
 			if (!content.trim() && !serializedToolCalls) {
-				const noResponseError = new Error('No response received from server. Please try again.');
-
+				const noResponseError = new Error(t('chat.error.no_response_received'));
 				throw noResponseError;
 			}
 
@@ -553,7 +550,7 @@ export class ChatService {
 
 			return content;
 		} catch (error) {
-			const err = error instanceof Error ? error : new Error('Parse error');
+			const err = error instanceof Error ? error : new Error(t('chat.error.parse_error'));
 
 			onError?.(err);
 

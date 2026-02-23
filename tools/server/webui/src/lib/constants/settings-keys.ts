@@ -47,6 +47,8 @@ export const SETTINGS_KEYS = {
 	DRY_ALLOWED_LENGTH: 'dry_allowed_length',
 	DRY_PENALTY_LAST_N: 'dry_penalty_last_n',
 	// Developer
+	API_ENDPOINT: 'apiEndpoint',
+	SHOW_TOOL_CALLS: 'showToolCalls',
 	DISABLE_REASONING_PARSING: 'disableReasoningParsing',
 	SHOW_RAW_OUTPUT_SWITCH: 'showRawOutputSwitch',
 	CUSTOM: 'custom'

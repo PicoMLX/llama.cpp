@@ -21,6 +21,7 @@
 		type SettingsSectionTitle
 	} from '$lib/constants/settings-sections';
 	import { setMode } from 'mode-watcher';
+	import { t } from '$lib/i18n';
 	import { ColorMode } from '$lib/enums/ui';
 	import { SettingsFieldType } from '$lib/enums/settings';
 	import type { Component } from 'svelte';
@@ -36,82 +37,85 @@
 	let { onSave, initialSection }: Props = $props();
 
 	const settingSections: Array<{
+		id: string;
 		fields: SettingsFieldConfig[];
 		icon: Component;
-		title: SettingsSectionTitle;
+		titleKey: string;
 	}> = [
 		{
-			title: SETTINGS_SECTION_TITLES.GENERAL,
+			id: SETTINGS_SECTION_TITLES.GENERAL,
+			titleKey: 'chat.settings.section.general',
 			icon: Settings,
 			fields: [
 				{
 					key: SETTINGS_KEYS.THEME,
-					label: 'Theme',
+					label: 'chat.settings.field.theme',
 					type: SettingsFieldType.SELECT,
 					options: SETTINGS_COLOR_MODES_CONFIG
 				},
-				{ key: SETTINGS_KEYS.API_KEY, label: 'API Key', type: SettingsFieldType.INPUT },
+				{ key: SETTINGS_KEYS.API_KEY, label: 'chat.settings.field.api_key', type: SettingsFieldType.INPUT },
 				{
 					key: SETTINGS_KEYS.SYSTEM_MESSAGE,
-					label: 'System Message',
+					label: 'chat.settings.field.system_message',
 					type: SettingsFieldType.TEXTAREA
 				},
 				{
 					key: SETTINGS_KEYS.PASTE_LONG_TEXT_TO_FILE_LEN,
-					label: 'Paste long text to file length',
+					label: 'chat.settings.field.paste_long_text_to_file_length',
 					type: SettingsFieldType.INPUT
 				},
 				{
 					key: SETTINGS_KEYS.COPY_TEXT_ATTACHMENTS_AS_PLAIN_TEXT,
-					label: 'Copy text attachments as plain text',
+					label: 'chat.settings.field.copy_text_attachments_as_plain_text',
 					type: SettingsFieldType.CHECKBOX
 				},
 				{
 					key: SETTINGS_KEYS.ENABLE_CONTINUE_GENERATION,
-					label: 'Enable "Continue" button',
+					label: 'chat.settings.field.enable_continue_generation',
 					type: SettingsFieldType.CHECKBOX,
 					isExperimental: true
 				},
 				{
 					key: SETTINGS_KEYS.PDF_AS_IMAGE,
-					label: 'Parse PDF as image',
+					label: 'chat.settings.field.parse_pdf_as_image',
 					type: SettingsFieldType.CHECKBOX
 				},
 				{
 					key: SETTINGS_KEYS.ASK_FOR_TITLE_CONFIRMATION,
-					label: 'Ask for confirmation before changing conversation title',
+					label: 'chat.settings.field.ask_for_title_confirmation',
 					type: SettingsFieldType.CHECKBOX
 				}
 			]
 		},
 		{
-			title: SETTINGS_SECTION_TITLES.DISPLAY,
+			id: SETTINGS_SECTION_TITLES.DISPLAY,
+			titleKey: 'chat.settings.section.display',
 			icon: Monitor,
 			fields: [
 				{
 					key: SETTINGS_KEYS.SHOW_MESSAGE_STATS,
-					label: 'Show message generation statistics',
+					label: 'chat.settings.field.show_message_stats',
 					type: SettingsFieldType.CHECKBOX
 				},
 				{
 					key: SETTINGS_KEYS.SHOW_THOUGHT_IN_PROGRESS,
-					label: 'Show thought in progress',
+					label: 'chat.settings.field.show_thought_in_progress',
 					type: SettingsFieldType.CHECKBOX
 				},
 				{
 					key: SETTINGS_KEYS.KEEP_STATS_VISIBLE,
-					label: 'Keep stats visible after generation',
+					label: 'chat.settings.field.keep_stats_visible',
 					type: SettingsFieldType.CHECKBOX
 				},
 				{
 					key: SETTINGS_KEYS.AUTO_MIC_ON_EMPTY,
-					label: 'Show microphone on empty input',
+					label: 'chat.settings.field.show_microphone_on_empty',
 					type: SettingsFieldType.CHECKBOX,
 					isExperimental: true
 				},
 				{
 					key: SETTINGS_KEYS.RENDER_USER_CONTENT_AS_MARKDOWN,
-					label: 'Render user content as Markdown',
+					label: 'chat.settings.field.render_user_content_as_markdown',
 					type: SettingsFieldType.CHECKBOX
 				},
 				{
@@ -121,155 +125,177 @@
 				},
 				{
 					key: SETTINGS_KEYS.DISABLE_AUTO_SCROLL,
-					label: 'Disable automatic scroll',
+					label: 'chat.settings.field.disable_auto_scroll',
 					type: SettingsFieldType.CHECKBOX
 				},
 				{
 					key: SETTINGS_KEYS.ALWAYS_SHOW_SIDEBAR_ON_DESKTOP,
-					label: 'Always show sidebar on desktop',
+					label: 'chat.settings.field.always_show_sidebar_on_desktop',
 					type: SettingsFieldType.CHECKBOX
 				},
 				{
 					key: SETTINGS_KEYS.AUTO_SHOW_SIDEBAR_ON_NEW_CHAT,
-					label: 'Auto-show sidebar on new chat',
+					label: 'chat.settings.field.auto_show_sidebar_on_new_chat',
 					type: SettingsFieldType.CHECKBOX
 				}
 			]
 		},
 		{
-			title: SETTINGS_SECTION_TITLES.SAMPLING,
+			id: SETTINGS_SECTION_TITLES.SAMPLING,
+			titleKey: 'chat.settings.section.sampling',
 			icon: Funnel,
 			fields: [
 				{
 					key: SETTINGS_KEYS.TEMPERATURE,
-					label: 'Temperature',
+					label: 'chat.settings.field.temperature',
 					type: SettingsFieldType.INPUT
-				},
+				}
+				/*
 				{
 					key: SETTINGS_KEYS.DYNATEMP_RANGE,
-					label: 'Dynamic temperature range',
+					label: 'chat.settings.field.dynamic_temperature_range',
 					type: SettingsFieldType.INPUT
 				},
 				{
 					key: SETTINGS_KEYS.DYNATEMP_EXPONENT,
-					label: 'Dynamic temperature exponent',
+					label: 'chat.settings.field.dynamic_temperature_exponent',
 					type: SettingsFieldType.INPUT
 				},
 				{
 					key: SETTINGS_KEYS.TOP_K,
-					label: 'Top K',
+					label: 'chat.settings.field.top_k',
 					type: SettingsFieldType.INPUT
 				},
 				{
 					key: SETTINGS_KEYS.TOP_P,
-					label: 'Top P',
+					label: 'chat.settings.field.top_p',
 					type: SettingsFieldType.INPUT
 				},
 				{
 					key: SETTINGS_KEYS.MIN_P,
-					label: 'Min P',
+					label: 'chat.settings.field.min_p',
 					type: SettingsFieldType.INPUT
 				},
 				{
 					key: SETTINGS_KEYS.XTC_PROBABILITY,
-					label: 'XTC probability',
+					label: 'chat.settings.field.xtc_probability',
 					type: SettingsFieldType.INPUT
 				},
 				{
 					key: SETTINGS_KEYS.XTC_THRESHOLD,
-					label: 'XTC threshold',
+					label: 'chat.settings.field.xtc_threshold',
 					type: SettingsFieldType.INPUT
 				},
 				{
 					key: SETTINGS_KEYS.TYP_P,
-					label: 'Typical P',
+					label: 'chat.settings.field.typical_p',
 					type: SettingsFieldType.INPUT
 				},
 				{
 					key: SETTINGS_KEYS.MAX_TOKENS,
-					label: 'Max tokens',
+					label: 'chat.settings.field.max_tokens',
 					type: SettingsFieldType.INPUT
 				},
 				{
 					key: SETTINGS_KEYS.SAMPLERS,
-					label: 'Samplers',
+					label: 'chat.settings.field.samplers',
 					type: SettingsFieldType.INPUT
 				},
 				{
 					key: SETTINGS_KEYS.BACKEND_SAMPLING,
-					label: 'Backend sampling',
+					label: 'chat.settings.field.backend_sampling',
 					type: SettingsFieldType.CHECKBOX
 				}
+				*/
 			]
 		},
+		/*
 		{
-			title: SETTINGS_SECTION_TITLES.PENALTIES,
+			id: SETTINGS_SECTION_TITLES.PENALTIES,
+			titleKey: 'chat.settings.section.penalties',
 			icon: AlertTriangle,
 			fields: [
 				{
 					key: SETTINGS_KEYS.REPEAT_LAST_N,
-					label: 'Repeat last N',
+					label: 'chat.settings.field.repeat_last_n',
 					type: SettingsFieldType.INPUT
 				},
 				{
 					key: SETTINGS_KEYS.REPEAT_PENALTY,
-					label: 'Repeat penalty',
+					label: 'chat.settings.field.repeat_penalty',
 					type: SettingsFieldType.INPUT
 				},
 				{
 					key: SETTINGS_KEYS.PRESENCE_PENALTY,
-					label: 'Presence penalty',
+					label: 'chat.settings.field.presence_penalty',
 					type: SettingsFieldType.INPUT
 				},
 				{
 					key: SETTINGS_KEYS.FREQUENCY_PENALTY,
-					label: 'Frequency penalty',
+					label: 'chat.settings.field.frequency_penalty',
 					type: SettingsFieldType.INPUT
 				},
 				{
 					key: SETTINGS_KEYS.DRY_MULTIPLIER,
-					label: 'DRY multiplier',
+					label: 'chat.settings.field.dry_multiplier',
 					type: SettingsFieldType.INPUT
 				},
 				{
 					key: SETTINGS_KEYS.DRY_BASE,
-					label: 'DRY base',
+					label: 'chat.settings.field.dry_base',
 					type: SettingsFieldType.INPUT
 				},
 				{
 					key: SETTINGS_KEYS.DRY_ALLOWED_LENGTH,
-					label: 'DRY allowed length',
+					label: 'chat.settings.field.dry_allowed_length',
 					type: SettingsFieldType.INPUT
 				},
 				{
 					key: SETTINGS_KEYS.DRY_PENALTY_LAST_N,
-					label: 'DRY penalty last N',
+					label: 'chat.settings.field.dry_penalty_last_n',
 					type: SettingsFieldType.INPUT
 				}
 			]
 		},
+		*/
 		{
-			title: SETTINGS_SECTION_TITLES.IMPORT_EXPORT,
+			id: SETTINGS_SECTION_TITLES.IMPORT_EXPORT,
+			titleKey: 'chat.settings.section.import_export',
 			icon: Database,
 			fields: []
 		},
 		{
-			title: SETTINGS_SECTION_TITLES.DEVELOPER,
+			id: SETTINGS_SECTION_TITLES.DEVELOPER,
+			titleKey: 'chat.settings.section.developer',
 			icon: Code,
 			fields: [
 				{
+					key: SETTINGS_KEYS.API_ENDPOINT,
+					label: 'chat.settings.field.endpoint',
+					type: SettingsFieldType.SELECT,
+					options: [
+						{ value: 'responses', rawLabel: 'Open Responses (v1/responses)' },
+						{ value: 'completions', rawLabel: 'Chat Completions (v1/chat/completions)' }
+					]
+				},
+				{
+					key: SETTINGS_KEYS.SHOW_TOOL_CALLS,
+					label: 'chat.settings.field.show_tool_call_labels',
+					type: SettingsFieldType.CHECKBOX
+				},
+				{
 					key: SETTINGS_KEYS.DISABLE_REASONING_PARSING,
-					label: 'Disable reasoning content parsing',
+					label: 'chat.settings.field.disable_reasoning_parsing',
 					type: SettingsFieldType.CHECKBOX
 				},
 				{
 					key: SETTINGS_KEYS.SHOW_RAW_OUTPUT_SWITCH,
-					label: 'Enable raw output toggle',
+					label: 'chat.settings.field.show_raw_output_switch',
 					type: SettingsFieldType.CHECKBOX
 				},
 				{
 					key: SETTINGS_KEYS.CUSTOM,
-					label: 'Custom JSON',
+					label: 'chat.settings.field.custom_json',
 					type: SettingsFieldType.TEXTAREA
 				}
 			]
@@ -289,11 +315,9 @@
 		// }
 	];
 
-	let activeSection = $derived<SettingsSectionTitle>(
-		initialSection ?? SETTINGS_SECTION_TITLES.GENERAL
-	);
+	let activeSection = $state(initialSection ?? 'general');
 	let currentSection = $derived(
-		settingSections.find((section) => section.title === activeSection) || settingSections[0]
+		settingSections.find((section) => section.id === activeSection) || settingSections[0]
 	);
 	let localConfig: SettingsConfigType = $state({ ...config() });
 
@@ -328,7 +352,7 @@
 			try {
 				JSON.parse(localConfig.custom);
 			} catch (error) {
-				alert('Invalid JSON in custom parameters. Please check the format and try again.');
+				alert(t('chat.settings.error.invalid_custom_json'));
 				console.error(error);
 				return;
 			}
@@ -347,7 +371,7 @@
 						processedConfig[field] = numValue;
 					}
 				} else {
-					alert(`Invalid numeric value for ${field}. Please enter a valid number.`);
+					alert(t('chat.settings.error.invalid_numeric', { field }));
 					return;
 				}
 			}
@@ -407,17 +431,17 @@
 	<!-- Desktop Sidebar -->
 	<div class="hidden w-64 border-r border-border/30 p-6 md:block">
 		<nav class="space-y-1 py-2">
-			{#each settingSections as section (section.title)}
+			{#each settingSections as section (section.id)}
 				<button
 					class="flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-accent {activeSection ===
-					section.title
+					section.id
 						? 'bg-accent text-accent-foreground'
 						: 'text-muted-foreground'}"
-					onclick={() => (activeSection = section.title)}
+					onclick={() => (activeSection = section.id)}
 				>
 					<section.icon class="h-4 w-4" />
 
-					<span class="ml-2">{section.title}</span>
+					<span class="ml-2">{t(section.titleKey)}</span>
 				</button>
 			{/each}
 		</nav>
@@ -433,7 +457,7 @@
 						? 'opacity-100'
 						: 'pointer-events-none opacity-0'}"
 					onclick={scrollLeft}
-					aria-label="Scroll left"
+					aria-label={t('chat.settings.scroll_left')}
 				>
 					<ChevronLeft class="h-4 w-4" />
 				</button>
@@ -444,19 +468,19 @@
 					onscroll={updateScrollButtons}
 				>
 					<div class="flex min-w-max gap-2">
-						{#each settingSections as section (section.title)}
+						{#each settingSections as section (section.id)}
 							<button
 								class="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm whitespace-nowrap transition-colors first:ml-4 last:mr-4 hover:bg-accent {activeSection ===
-								section.title
+								section.id
 									? 'bg-accent text-accent-foreground'
 									: 'text-muted-foreground'}"
 								onclick={(e: MouseEvent) => {
-									activeSection = section.title;
+									activeSection = section.id;
 									scrollToCenter(e.currentTarget as HTMLElement);
 								}}
 							>
 								<section.icon class="h-4 w-4 flex-shrink-0" />
-								<span>{section.title}</span>
+								<span>{t(section.titleKey)}</span>
 							</button>
 						{/each}
 					</div>
@@ -467,7 +491,7 @@
 						? 'opacity-100'
 						: 'pointer-events-none opacity-0'}"
 					onclick={scrollRight}
-					aria-label="Scroll right"
+					aria-label={t('chat.settings.scroll_right')}
 				>
 					<ChevronRight class="h-4 w-4" />
 				</button>
@@ -481,10 +505,10 @@
 				<div class="mb-6 flex hidden items-center gap-2 border-b border-border/30 pb-6 md:flex">
 					<currentSection.icon class="h-5 w-5" />
 
-					<h3 class="text-lg font-semibold">{currentSection.title}</h3>
+					<h3 class="text-lg font-semibold">{t(currentSection.titleKey)}</h3>
 				</div>
 
-				{#if currentSection.title === SETTINGS_SECTION_TITLES.IMPORT_EXPORT}
+				{#if currentSection.id === SETTINGS_SECTION_TITLES.IMPORT_EXPORT}
 					<ChatSettingsImportExportTab />
 				{:else}
 					<div class="space-y-6">
@@ -499,7 +523,7 @@
 			</div>
 
 			<div class="mt-8 border-t pt-6">
-				<p class="text-xs text-muted-foreground">Settings are saved in browser's localStorage</p>
+				<p class="text-xs text-muted-foreground">{t('chat.settings.saved_notice')}</p>
 			</div>
 		</div>
 	</ScrollArea>

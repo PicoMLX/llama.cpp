@@ -212,3 +212,4 @@ export { PropsService } from './props.service';
  * @see ChatSettingsParameterSourceIndicator — displays parameter source badges in UI
  */
 export { ParameterSyncService } from './parameter-sync.service';
+export { OpenResponsesService } from './open-responses';

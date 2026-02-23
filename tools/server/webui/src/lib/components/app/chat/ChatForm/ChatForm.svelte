@@ -15,6 +15,7 @@
 	import { chatStore } from '$lib/stores/chat.svelte';
 	import { activeMessages } from '$lib/stores/conversations.svelte';
 	import { isIMEComposing, parseClipboardContent } from '$lib/utils';
+	import { t } from '$lib/i18n';
 	import {
 		AudioRecorder,
 		convertToWav,
@@ -269,7 +270,7 @@
 		) {
 			event.preventDefault();
 
-			const textFile = new File([text], 'Pasted', {
+			const textFile = new File([text], t('chat.attachments.pasted_filename'), {
 				type: MimeTypeText.PLAIN
 			});
 

@@ -32,9 +32,9 @@
 	}: Props = $props();
 
 	let chatFormRef: ChatForm | undefined = $state(undefined);
-	let message = $derived(initialMessage);
-	let previousIsLoading = $derived(isLoading);
-	let previousInitialMessage = $derived(initialMessage);
+	let message = $state(initialMessage);
+	let previousIsLoading = $state(isLoading);
+	let previousInitialMessage = $state(initialMessage);
 
 	// Sync message when initialMessage prop changes (e.g., after draft restoration)
 	$effect(() => {
@@ -69,7 +69,13 @@
 
 		chatFormRef?.resetTextareaHeight();
 
-		const success = await onSend?.(messageToSend, filesToSend);
+		let success = false;
+		try {
+			success = (await onSend?.(messageToSend, filesToSend)) ?? false;
+		} catch (error) {
+			console.error('Failed to submit chat form:', error);
+			success = false;
+		}
 
 		if (!success) {
 			message = messageToSend;
