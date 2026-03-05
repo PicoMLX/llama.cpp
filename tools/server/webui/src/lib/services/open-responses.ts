@@ -1,5 +1,6 @@
 import { getJsonHeaders } from '$lib/utils';
 import { AttachmentType } from '$lib/enums';
+import { REASONING_TAGS } from '$lib/constants/agentic';
 
 /**
  * OpenResponsesService - API communication layer for Open Responses API
@@ -185,6 +186,28 @@ export class OpenResponsesService {
 		let modelEmitted = false;
 		let reasoningSummarySeen = false;
 		let reasoningTextSeen = false;
+		let reasoningBlockOpen = false;
+		const { START: reasoningStartTag, END: reasoningEndTag } = REASONING_TAGS;
+
+		const emitContentChunk = (chunk: string): void => {
+			if (!chunk) return;
+			aggregatedContent += chunk;
+			if (!abortSignal?.aborted) {
+				onChunk?.(chunk);
+			}
+		};
+
+		const openReasoningBlockIfNeeded = (): void => {
+			if (reasoningBlockOpen) return;
+			reasoningBlockOpen = true;
+			emitContentChunk(reasoningStartTag);
+		};
+
+		const closeReasoningBlockIfNeeded = (): void => {
+			if (!reasoningBlockOpen) return;
+			reasoningBlockOpen = false;
+			emitContentChunk(reasoningEndTag);
+		};
 
 		try {
 			let buffer = '';
@@ -222,36 +245,38 @@ export class OpenResponsesService {
 								onModel?.(parsed.model);
 							}
 
-							if (eventType === 'response.output_text.delta') {
-								const delta = parsed.delta || '';
-								if (delta) {
-									aggregatedContent += delta;
-									if (!abortSignal?.aborted) {
-										onChunk?.(delta);
+								if (eventType === 'response.output_text.delta') {
+									const delta = parsed.delta || '';
+									if (delta) {
+										closeReasoningBlockIfNeeded();
+										emitContentChunk(delta);
 									}
 								}
-							}
 
-							if (eventType === 'response.reasoning_summary_text.delta') {
-								const delta = parsed.delta || '';
-								if (delta) {
-									reasoningSummarySeen = true;
-									fullReasoningContent += delta;
-									if (!abortSignal?.aborted) {
-										onReasoningChunk?.(delta);
+								if (eventType === 'response.reasoning_summary_text.delta') {
+									const delta = parsed.delta || '';
+									if (delta) {
+										reasoningSummarySeen = true;
+										fullReasoningContent += delta;
+										openReasoningBlockIfNeeded();
+										emitContentChunk(delta);
+										if (!abortSignal?.aborted) {
+											onReasoningChunk?.(delta);
+										}
 									}
 								}
-							}
-							if (eventType === 'response.reasoning.delta') {
-								const delta = parsed.delta || '';
-								// Prefer summaries when available; many local models only emit reasoning deltas.
-								if (delta && !reasoningSummarySeen) {
-									fullReasoningContent += delta;
-									if (!abortSignal?.aborted) {
-										onReasoningChunk?.(delta);
+								if (eventType === 'response.reasoning.delta') {
+									const delta = parsed.delta || '';
+									// Prefer summaries when available; many local models only emit reasoning deltas.
+									if (delta && !reasoningSummarySeen) {
+										fullReasoningContent += delta;
+										openReasoningBlockIfNeeded();
+										emitContentChunk(delta);
+										if (!abortSignal?.aborted) {
+											onReasoningChunk?.(delta);
+										}
 									}
 								}
-							}
 							if (eventType === 'response.reasoning_text.delta') {
 								if (!reasoningTextSeen) {
 									reasoningTextSeen = true;
@@ -268,12 +293,13 @@ export class OpenResponsesService {
 								}
 							}
 
-							if (eventType === 'response.completed' || eventType === 'response.done') {
-								const responseData = parsed.response || parsed;
-								if (responseData.usage) {
-									lastTimings = OpenResponsesService.convertUsageToTimings(responseData.usage);
-									onTimings?.(lastTimings, undefined);
-								}
+								if (eventType === 'response.completed' || eventType === 'response.done') {
+									closeReasoningBlockIfNeeded();
+									const responseData = parsed.response || parsed;
+									if (responseData.usage) {
+										lastTimings = OpenResponsesService.convertUsageToTimings(responseData.usage);
+										onTimings?.(lastTimings, undefined);
+									}
 								if (responseData.model && !modelEmitted) {
 									modelEmitted = true;
 									onModel?.(responseData.model);
@@ -288,9 +314,10 @@ export class OpenResponsesService {
 				if (abortSignal?.aborted) break;
 			}
 
-			if (abortSignal?.aborted) return;
+				if (abortSignal?.aborted) return;
 
-			onComplete?.(aggregatedContent, fullReasoningContent || undefined, lastTimings, undefined);
+				closeReasoningBlockIfNeeded();
+				onComplete?.(aggregatedContent, fullReasoningContent || undefined, lastTimings, undefined);
 		} catch (error) {
 			const err = error instanceof Error ? error : new Error('Stream error');
 			onError?.(err);
