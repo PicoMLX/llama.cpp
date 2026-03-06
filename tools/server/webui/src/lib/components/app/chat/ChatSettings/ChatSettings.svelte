@@ -149,8 +149,7 @@
 					key: SETTINGS_KEYS.TEMPERATURE,
 					label: 'chat.settings.field.temperature',
 					type: SettingsFieldType.INPUT
-				}
-				/*
+				},
 				{
 					key: SETTINGS_KEYS.DYNATEMP_RANGE,
 					label: 'chat.settings.field.dynamic_temperature_range',
@@ -206,10 +205,8 @@
 					label: 'chat.settings.field.backend_sampling',
 					type: SettingsFieldType.CHECKBOX
 				}
-				*/
 			]
 		},
-		/*
 		{
 			id: SETTINGS_SECTION_TITLES.PENALTIES,
 			titleKey: 'chat.settings.section.penalties',
@@ -257,7 +254,6 @@
 				}
 			]
 		},
-		*/
 		{
 			id: SETTINGS_SECTION_TITLES.IMPORT_EXPORT,
 			titleKey: 'chat.settings.section.import_export',
