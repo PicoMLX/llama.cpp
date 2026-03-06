@@ -1,6 +1,6 @@
 import { getJsonHeaders } from '$lib/utils';
 import { AttachmentType } from '$lib/enums';
-import { REASONING_TAGS } from '$lib/constants/agentic';
+import { REASONING_TAGS, AGENTIC_REGEX } from '$lib/constants/agentic';
 
 /**
  * OpenResponsesService - API communication layer for Open Responses API
@@ -446,7 +446,13 @@ export class OpenResponsesService {
 				}
 
 				if (!dbMsg.extra || dbMsg.extra.length === 0) {
-					content = dbMsg.content;
+					if (dbMsg.role === 'assistant' && typeof dbMsg.content === 'string') {
+						content = dbMsg.content
+							.replace(AGENTIC_REGEX.REASONING_BLOCK, '')
+							.replace(AGENTIC_REGEX.REASONING_OPEN, '');
+					} else {
+						content = dbMsg.content;
+					}
 				} else {
 					content = OpenResponsesService.convertExtrasToContent(dbMsg);
 				}
