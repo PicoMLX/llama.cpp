@@ -34,6 +34,7 @@
 import { browser } from '$app/environment';
 import {
 	CONFIG_LOCALSTORAGE_KEY,
+	SIDEBAR_SETTINGS_MIGRATION_LOCALSTORAGE_KEY,
 	SETTING_CONFIG_DEFAULT,
 	USER_OVERRIDES_LOCALSTORAGE_KEY
 } from '$lib/constants';
@@ -115,6 +116,17 @@ class SettingsStore {
 		try {
 			const storedConfigRaw = localStorage.getItem(CONFIG_LOCALSTORAGE_KEY);
 			const savedVal = JSON.parse(storedConfigRaw || '{}');
+			const sidebarSettingsMigrated =
+				localStorage.getItem(SIDEBAR_SETTINGS_MIGRATION_LOCALSTORAGE_KEY) === '1';
+
+			if (!sidebarSettingsMigrated) {
+				if (savedVal.autoShowSidebarOnNewChat === true) {
+					savedVal.autoShowSidebarOnNewChat = false;
+					localStorage.setItem(CONFIG_LOCALSTORAGE_KEY, JSON.stringify(savedVal));
+				}
+
+				localStorage.setItem(SIDEBAR_SETTINGS_MIGRATION_LOCALSTORAGE_KEY, '1');
+			}
 
 			// Merge with defaults to prevent breaking changes
 			this.config = {

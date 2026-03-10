@@ -96,7 +96,7 @@
 		if (isHomeRoute && !isNewChatMode) {
 			sidebarOpen = false;
 		} else if (isHomeRoute && isNewChatMode) {
-			sidebarOpen = true;
+			sidebarOpen = autoShowSidebarOnNewChat;
 		} else if (isChatRoute) {
 			if (autoShowSidebarOnNewChat) {
 				sidebarOpen = true;

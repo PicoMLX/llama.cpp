@@ -21,7 +21,7 @@ export const SETTING_CONFIG_DEFAULT: Record<string, string | number | boolean> =
 	disableAutoScroll: false,
 	renderUserContentAsMarkdown: false,
 	alwaysShowSidebarOnDesktop: false,
-	autoShowSidebarOnNewChat: true,
+	autoShowSidebarOnNewChat: false,
 	autoMicOnEmpty: false,
 	fullHeightCodeBlocks: false,
 	showRawModelNames: false,
