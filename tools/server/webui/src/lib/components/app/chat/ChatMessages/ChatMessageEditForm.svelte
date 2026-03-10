@@ -78,6 +78,10 @@
 		editCtx.setUploadedFiles([...editCtx.editedUploadedFiles, ...processed]);
 	}
 
+	function handleUploadedFilesChange(files: ChatUploadedFile[]) {
+		editCtx.setUploadedFiles(files);
+	}
+
 	$effect(() => {
 		chatStore.setEditModeActive(handleFilesAdd);
 
@@ -96,9 +100,11 @@
 		attachments={editCtx.editedExtras}
 		uploadedFiles={editCtx.editedUploadedFiles}
 		placeholder="Edit your message..."
+		showMcpPromptButton
 		onValueChange={editCtx.setContent}
 		onAttachmentRemove={handleAttachmentRemove}
 		onUploadedFileRemove={handleUploadedFileRemove}
+		onUploadedFilesChange={handleUploadedFilesChange}
 		onFilesAdd={handleFilesAdd}
 		onSubmit={handleSubmit}
 	/>

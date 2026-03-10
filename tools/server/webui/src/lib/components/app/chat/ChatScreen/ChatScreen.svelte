@@ -12,7 +12,7 @@
 	} from '$lib/components/app';
 	import * as Alert from '$lib/components/ui/alert';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
-	import { INITIAL_SCROLL_DELAY } from '$lib/constants/auto-scroll';
+	import { INITIAL_SCROLL_DELAY } from '$lib/constants';
 	import { KeyboardKey } from '$lib/enums';
 	import { createAutoScrollController } from '$lib/hooks/use-auto-scroll.svelte';
 	import {
@@ -440,11 +440,9 @@
 	>
 		<div class="w-full max-w-[48rem] px-4">
 			<div class="mb-10 text-center" in:fade={{ duration: 300 }}>
-				<h1 class="mb-2 text-3xl font-semibold tracking-tight">
-					{serverName()}
-				</h1>
+				<h1 class="mb-2 text-2xl font-semibold tracking-tight md:text-3xl">{serverName()}</h1>
 
-				<p class="text-lg text-muted-foreground">
+				<p class="text-muted-foreground md:text-lg">
 					{serverStore.props?.modalities?.audio
 						? t('chat.landing.prompt_with_audio')
 						: t('chat.landing.prompt_no_audio')}
@@ -455,6 +453,7 @@
 				<div class="mb-4" in:fly={{ y: 10, duration: 250 }}>
 					<Alert.Root variant="destructive">
 						<AlertTriangle class="h-4 w-4" />
+
 						<Alert.Title class="flex items-center justify-between">
 							<span>{t('chat.server.unavailable')}</span>
 							<button
@@ -481,7 +480,7 @@
 					onSend={handleSendMessage}
 					onStop={() => chatStore.stopGeneration()}
 					onSystemPromptAdd={handleSystemPromptAdd}
-					showHelperText={true}
+					showHelperText
 					bind:uploadedFiles
 				/>
 			</div>

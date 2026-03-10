@@ -10,7 +10,7 @@
 </script>
 
 {#if show}
-	<div class="mt-4 flex items-center justify-center {className}">
+	<div class="mt-6 items-center justify-center {className} hidden md:flex">
 		<p class="text-xs text-muted-foreground">
 			{t('chat.form.helper.press')}{' '}
 			<kbd class="rounded bg-muted px-1 py-0.5 font-mono text-xs">

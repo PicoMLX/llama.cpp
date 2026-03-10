@@ -1,10 +1,12 @@
 <script lang="ts">
 	import '../app.css';
 	import { base } from '$app/paths';
+	import { browser } from '$app/environment';
 	import { page } from '$app/state';
 	import { untrack } from 'svelte';
 	import { ChatSidebar, DialogConversationTitleUpdate } from '$lib/components/app';
-	import { conversationsStore } from '$lib/stores/conversations.svelte';
+	import { isLoading } from '$lib/stores/chat.svelte';
+	import { conversationsStore, activeMessages } from '$lib/stores/conversations.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { isRouterMode, serverStore } from '$lib/stores/server.svelte';
@@ -13,8 +15,9 @@
 	import { Toaster } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
 	import { modelsStore } from '$lib/stores/models.svelte';
-	import { TOOLTIP_DELAY_DURATION } from '$lib/constants/tooltip-config';
 	import { i18n } from '$lib/i18n';
+	import { mcpStore } from '$lib/stores/mcp.svelte';
+	import { TOOLTIP_DELAY_DURATION } from '$lib/constants';
 	import { KeyboardKey } from '$lib/enums';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 
@@ -22,6 +25,14 @@
 
 	i18n.init();
 
+	let isChatRoute = $derived(page.route.id === '/chat/[id]');
+	let isHomeRoute = $derived(page.route.id === '/');
+	let isNewChatMode = $derived(page.url.searchParams.get('new_chat') === 'true');
+	let showSidebarByDefault = $derived(activeMessages().length > 0 || isLoading());
+	let alwaysShowSidebarOnDesktop = $derived(config().alwaysShowSidebarOnDesktop);
+	let autoShowSidebarOnNewChat = $derived(config().autoShowSidebarOnNewChat);
+	let isMobile = new IsMobile();
+	let isDesktop = $derived(!isMobile.current);
 	let sidebarOpen = $state(false);
 	let innerHeight = $state<number | undefined>();
 	let chatSidebar:
@@ -42,6 +53,7 @@
 			event.preventDefault();
 			if (chatSidebar?.activateSearchMode) {
 				chatSidebar.activateSearchMode();
+				sidebarOpen = true;
 			}
 		}
 
@@ -75,6 +87,25 @@
 		}
 	}
 
+	$effect(() => {
+		if (alwaysShowSidebarOnDesktop && isDesktop) {
+			sidebarOpen = true;
+			return;
+		}
+
+		if (isHomeRoute && !isNewChatMode) {
+			sidebarOpen = false;
+		} else if (isHomeRoute && isNewChatMode) {
+			sidebarOpen = true;
+		} else if (isChatRoute) {
+			if (autoShowSidebarOnNewChat) {
+				sidebarOpen = true;
+			}
+		} else {
+			sidebarOpen = showSidebarByDefault;
+		}
+	});
+
 	// Initialize server properties on app load (run once)
 	$effect(() => {
 		// Only fetch if we don't already have props
@@ -107,6 +138,26 @@
 			routerModelsFetched = true;
 			untrack(() => {
 				modelsStore.fetchRouterModels();
+			});
+		}
+	});
+
+	// Background MCP server health checks on app load
+	// Fetch enabled servers from settings and run health checks in background
+	$effect(() => {
+		if (!browser) return;
+
+		const mcpServers = mcpStore.getServers();
+
+		// Only run health checks if we have enabled servers with URLs
+		const enabledServers = mcpServers.filter((s) => s.enabled && s.url.trim());
+
+		if (enabledServers.length > 0) {
+			untrack(() => {
+				// Run health checks in background (don't await)
+				mcpStore.runHealthChecksForServers(enabledServers, false).catch((error) => {
+					console.warn('[layout] MCP health checks failed:', error);
+				});
 			});
 		}
 	});
@@ -174,12 +225,14 @@
 				<ChatSidebar bind:this={chatSidebar} />
 			</Sidebar.Root>
 
-			<Sidebar.Trigger
-				class="transition-left absolute left-0 z-[900] h-8 w-8 duration-200 ease-linear {sidebarOpen
-					? 'md:left-[var(--sidebar-width)]'
-					: ''}"
-				style="translate: 1rem 1rem;"
-			/>
+			{#if !(alwaysShowSidebarOnDesktop && isDesktop)}
+				<Sidebar.Trigger
+					class="transition-left absolute left-0 z-[900] duration-200 ease-linear {sidebarOpen
+						? 'md:left-[var(--sidebar-width)]'
+						: ''}"
+					style="translate: 1rem 1rem;"
+				/>
+			{/if}
 
 			<Sidebar.Inset class="flex flex-1 flex-col overflow-hidden">
 				{@render children?.()}

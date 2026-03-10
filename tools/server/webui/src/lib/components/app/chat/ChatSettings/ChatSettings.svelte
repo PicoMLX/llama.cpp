@@ -12,22 +12,25 @@
 	import {
 		ChatSettingsFooter,
 		ChatSettingsImportExportTab,
-		ChatSettingsFields
+		ChatSettingsFields,
+		McpLogo,
+		McpServersSettings
 	} from '$lib/components/app';
 	import { ScrollArea } from '$lib/components/ui/scroll-area';
 	import { config, settingsStore } from '$lib/stores/settings.svelte';
 	import {
 		SETTINGS_SECTION_TITLES,
-		type SettingsSectionTitle
-	} from '$lib/constants/settings-sections';
+		type SettingsSectionTitle,
+		NUMERIC_FIELDS,
+		POSITIVE_INTEGER_FIELDS,
+		SETTINGS_COLOR_MODES_CONFIG,
+		SETTINGS_KEYS
+	} from '$lib/constants';
 	import { setMode } from 'mode-watcher';
 	import { t } from '$lib/i18n';
 	import { ColorMode } from '$lib/enums/ui';
 	import { SettingsFieldType } from '$lib/enums/settings';
 	import type { Component } from 'svelte';
-	import { NUMERIC_FIELDS, POSITIVE_INTEGER_FIELDS } from '$lib/constants/settings-fields';
-	import { SETTINGS_COLOR_MODES_CONFIG } from '$lib/constants/settings-config';
-	import { SETTINGS_KEYS } from '$lib/constants/settings-keys';
 
 	interface Props {
 		onSave?: () => void;
@@ -136,6 +139,11 @@
 				{
 					key: SETTINGS_KEYS.AUTO_SHOW_SIDEBAR_ON_NEW_CHAT,
 					label: 'chat.settings.field.auto_show_sidebar_on_new_chat',
+					type: SettingsFieldType.CHECKBOX
+				},
+				{
+					key: SETTINGS_KEYS.SHOW_RAW_MODEL_NAMES,
+					label: 'Show raw model names',
 					type: SettingsFieldType.CHECKBOX
 				}
 			]
@@ -259,6 +267,33 @@
 			titleKey: 'chat.settings.section.import_export',
 			icon: Database,
 			fields: []
+		},
+		{
+			id: SETTINGS_SECTION_TITLES.MCP,
+			titleKey: 'MCP',
+			icon: McpLogo,
+			fields: [
+				{
+					key: SETTINGS_KEYS.AGENTIC_MAX_TURNS,
+					label: 'Agentic loop max turns',
+					type: SettingsFieldType.INPUT
+				},
+				{
+					key: SETTINGS_KEYS.ALWAYS_SHOW_AGENTIC_TURNS,
+					label: 'Always show agentic turns in conversation',
+					type: SettingsFieldType.CHECKBOX
+				},
+				{
+					key: SETTINGS_KEYS.AGENTIC_MAX_TOOL_PREVIEW_LINES,
+					label: 'Max lines per tool preview',
+					type: SettingsFieldType.INPUT
+				},
+				{
+					key: SETTINGS_KEYS.SHOW_TOOL_CALL_IN_PROGRESS,
+					label: 'Show tool call in progress',
+					type: SettingsFieldType.CHECKBOX
+				}
+			]
 		},
 		{
 			id: SETTINGS_SECTION_TITLES.DEVELOPER,
@@ -445,7 +480,7 @@
 
 	<!-- Mobile Header with Horizontal Scrollable Menu -->
 	<div class="flex flex-col pt-6 md:hidden">
-		<div class="border-b border-border/30 py-4">
+		<div class="border-b border-border/30 pt-4 md:py-4">
 			<!-- Horizontal Scrollable Category Menu with Navigation -->
 			<div class="relative flex items-center" style="scroll-padding: 1rem;">
 				<button
@@ -506,6 +541,19 @@
 
 				{#if currentSection.id === SETTINGS_SECTION_TITLES.IMPORT_EXPORT}
 					<ChatSettingsImportExportTab />
+				{:else if currentSection.id === SETTINGS_SECTION_TITLES.MCP}
+					<div class="space-y-6">
+						<ChatSettingsFields
+							fields={currentSection.fields}
+							{localConfig}
+							onConfigChange={handleConfigChange}
+							onThemeChange={handleThemeChange}
+						/>
+
+						<div class="border-t border-border/30 pt-6">
+							<McpServersSettings />
+						</div>
+					</div>
 				{:else}
 					<div class="space-y-6">
 						<ChatSettingsFields

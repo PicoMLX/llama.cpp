@@ -24,6 +24,13 @@ export const SETTING_CONFIG_DEFAULT: Record<string, string | number | boolean> =
 	autoShowSidebarOnNewChat: true,
 	autoMicOnEmpty: false,
 	fullHeightCodeBlocks: false,
+	showRawModelNames: false,
+	mcpServers: '[]',
+	mcpServerUsageStats: '{}', // JSON object: { [serverId]: usageCount }
+	agenticMaxTurns: 10,
+	agenticMaxToolPreviewLines: 25,
+	showToolCallInProgress: false,
+	alwaysShowAgenticTurns: false,
 	// make sure these default values are in sync with `common.h`
 	samplers: 'top_k;typ_p;top_p;min_p;temperature',
 	backend_sampling: false,
@@ -94,6 +101,19 @@ export const SETTING_CONFIG_INFO: Record<string, string> = {
 	autoShowSidebarOnNewChat: 'chat.settings.help.auto_show_sidebar_on_new_chat',
 	autoMicOnEmpty: 'chat.settings.help.show_microphone_on_empty',
 	fullHeightCodeBlocks: 'chat.settings.help.full_height_code_blocks',
+	showRawModelNames:
+		'Display full raw model identifiers (e.g. "unsloth/Qwen3.5-27B-GGUF:BF16") instead of parsed names with badges.',
+	mcpServers:
+		'Configure MCP servers as a JSON list. Use the form in the MCP Client settings section to edit.',
+	mcpServerUsageStats:
+		'Usage statistics for MCP servers. Tracks how many times tools from each server have been used.',
+	agenticMaxTurns:
+		'Maximum number of tool execution cycles before stopping (prevents infinite loops).',
+	agenticMaxToolPreviewLines:
+		'Number of lines shown in tool output previews (last N lines). Only these previews and the final LLM response persist after the agentic loop completes.',
+	showToolCallInProgress:
+		'Automatically expand tool call details while executing and keep them expanded after completion.',
+	alwaysShowAgenticTurns: 'Always keep agentic turn content expanded in conversation history.',
 	pyInterpreterEnabled: 'chat.settings.help.py_interpreter_enabled',
 	enableContinueGeneration: 'chat.settings.help.enable_continue_generation'
 };
