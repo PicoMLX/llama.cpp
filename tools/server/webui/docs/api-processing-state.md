@@ -99,8 +99,11 @@ The UI does not call a dedicated "processing state" endpoint. Instead, it derive
 - Responses API: `POST /v1/responses`
   - The UI updates processing state when it receives `response.completed` / `response.done`
     and converts `usage` to timings.
+  - In Pico AI Server's Responses contract, `usage` includes token counts plus
+    `prompt_time_ms` and `generation_time_ms`, which the WebUI maps to
+    `prompt_ms` and `predicted_ms` for final message statistics.
   - There is no per-chunk prompt progress handling in this path today.
-  - See `src/lib/services/responses.ts` and `src/lib/stores/chat.svelte.ts`.
+  - See `src/lib/services/open-responses.ts` and `src/lib/stores/chat.svelte.ts`.
 
 ## Example payload
 

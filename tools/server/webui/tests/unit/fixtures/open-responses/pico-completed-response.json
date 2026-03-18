@@ -1,0 +1,67 @@
+{
+	"id": "resp_123",
+	"object": "response",
+	"created_at": 1700000000,
+	"completed_at": 1700000001,
+	"model": "Ministral-3-8B",
+	"status": "completed",
+	"incomplete_details": null,
+	"usage": {
+		"input_tokens": 18,
+		"output_tokens": 9,
+		"total_tokens": 27,
+		"generation_time_ms": 40704.0079832077,
+		"prompt_time_ms": 16188.945889472961,
+		"input_tokens_details": {
+			"cached_tokens": 2
+		},
+		"output_tokens_details": {
+			"reasoning_tokens": 0
+		}
+	},
+	"instructions": null,
+	"reasoning": null,
+	"max_output_tokens": null,
+	"max_tool_calls": null,
+	"previous_response_id": null,
+	"safety_identifier": null,
+	"prompt_cache_key": null,
+	"tools": [],
+	"tool_choice": "auto",
+	"truncation": "disabled",
+	"parallel_tool_calls": false,
+	"text": {
+		"format": {
+			"type": "text"
+		},
+		"verbosity": "medium"
+	},
+	"output": [
+		{
+			"id": "msg_123",
+			"type": "message",
+			"role": "assistant",
+			"content": [
+				{
+					"type": "output_text",
+					"annotations": [],
+					"logprobs": [],
+					"text": "Because they don't have the guts!"
+				}
+			],
+			"status": "completed"
+		}
+	],
+	"metadata": {
+		"server_stage": "completed"
+	},
+	"temperature": 1,
+	"top_p": 1,
+	"frequency_penalty": 0,
+	"presence_penalty": 0,
+	"top_logprobs": 0,
+	"store": false,
+	"background": false,
+	"service_tier": "auto",
+	"error": null
+}

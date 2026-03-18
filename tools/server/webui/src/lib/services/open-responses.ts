@@ -298,6 +298,10 @@ export class OpenResponsesService {
 									const responseData = parsed.response || parsed;
 									if (responseData.usage) {
 										lastTimings = OpenResponsesService.convertUsageToTimings(responseData.usage);
+										if (import.meta.env.DEV) {
+											console.log('[OpenResponses] response.completed usage:', responseData.usage);
+											console.log('[OpenResponses] mapped timings:', lastTimings);
+										}
 										onTimings?.(lastTimings, undefined);
 									}
 								if (responseData.model && !modelEmitted) {
@@ -383,11 +387,15 @@ export class OpenResponsesService {
 				throw noResponseError;
 			}
 
-			const timings = data.usage
-				? OpenResponsesService.convertUsageToTimings(data.usage)
-				: undefined;
+				const timings = data.usage
+					? OpenResponsesService.convertUsageToTimings(data.usage)
+					: undefined;
+				if (data.usage && import.meta.env.DEV) {
+					console.log('[OpenResponses] response usage:', data.usage);
+					console.log('[OpenResponses] mapped timings:', timings);
+				}
 
-			onComplete?.(content, reasoningContent || undefined, timings, undefined);
+				onComplete?.(content, reasoningContent || undefined, timings, undefined);
 
 			return content;
 		} catch (error) {
@@ -585,11 +593,15 @@ export class OpenResponsesService {
 		total_tokens?: number;
 		input_tokens_details?: { cached_tokens?: number };
 		output_tokens_details?: { reasoning_tokens?: number };
+		prompt_time_ms?: number;
+		generation_time_ms?: number;
 	}): ChatMessageTimings {
 		return {
 			prompt_n: usage.input_tokens || 0,
 			predicted_n: usage.output_tokens || 0,
-			cache_n: usage.input_tokens_details?.cached_tokens || 0
+			cache_n: usage.input_tokens_details?.cached_tokens || 0,
+			prompt_ms: usage.prompt_time_ms,
+			predicted_ms: usage.generation_time_ms
 		};
 	}
 
