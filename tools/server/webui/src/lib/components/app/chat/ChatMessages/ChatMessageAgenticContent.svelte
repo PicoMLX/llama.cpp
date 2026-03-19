@@ -168,7 +168,7 @@
 				</div>
 				{#if section.toolArgs}
 					<SyntaxHighlightedCode
-						code={formatJsonPretty(section.toolArgs)}
+						code={formatJsonPretty(section.toolArgs!)}
 						language={FileTypeText.JSON}
 						maxHeight="20rem"
 						class="text-xs"
@@ -206,7 +206,7 @@
 					<div class="my-3 text-xs text-muted-foreground">Arguments:</div>
 
 					<SyntaxHighlightedCode
-						code={formatJsonPretty(section.toolArgs)}
+						code={formatJsonPretty(section.toolArgs!)}
 						language={FileTypeText.JSON}
 						maxHeight="20rem"
 						class="text-xs"

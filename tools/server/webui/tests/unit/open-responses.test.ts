@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { OpenResponsesService } from '$lib/services/open-responses';
+import { AGENTIC_TAGS, REASONING_TAGS } from '$lib/constants/agentic';
 import type { ChatMessageTimings } from '$lib/types/chat';
 
 // Fixtures mirror the current Pico AI Server Open Responses contract from:
@@ -22,6 +23,60 @@ const completedStreamFixture = readFileSync(
 	resolve(fixturesDir, 'pico-completed-response.sse'),
 	'utf8'
 );
+
+const toolInvocationStreamFixture = `event: response.reasoning.delta
+data: {"type":"response.reasoning.delta","delta":"Inspecting whether a tool is needed."}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","item":{"id":"fc_123","type":"function_call","callId":"call_123","name":"web_search"},"output_index":1}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","item_id":"fc_123","output_index":1,"delta":"{\\"query\\":\\"weather sf\\"}"}
+
+event: response.function_call_arguments.done
+data: {"type":"response.function_call_arguments.done","item_id":"fc_123","output_index":1,"arguments":"{\\"query\\":\\"weather sf\\"}"}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","item":{"id":"fc_123","type":"function_call","callId":"call_123","name":"web_search"},"output_index":1}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","item":{"id":"fco_123","type":"function_call_output","callId":"call_123","output":"{\\"forecast\\":\\"sunny\\"}"},"output_index":2}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","item":{"id":"fco_123","type":"function_call_output","callId":"call_123","output":"{\\"forecast\\":\\"sunny\\"}"},"output_index":2}
+
+event: response.reasoning.delta
+data: {"type":"response.reasoning.delta","delta":"Using the tool result to answer."}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","delta":"It is sunny."}
+
+event: response.completed
+data: {"type":"response.completed","response":{"model":"Ministral-3-8B","usage":{"input_tokens":12,"output_tokens":7,"input_tokens_details":{"cached_tokens":0},"prompt_time_ms":100,"generation_time_ms":200}}}
+
+data: [DONE]
+`;
+
+const externalToolCallPendingStreamFixture = `event: response.reasoning.delta
+data: {"type":"response.reasoning.delta","delta":"I should look this up."}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","item":{"id":"fc_456","type":"function_call","callId":"call_456","name":"web_search"},"output_index":1}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","item_id":"fc_456","output_index":1,"delta":"{\\"query\\":\\"weather sf\\"}"}
+
+event: response.function_call_arguments.done
+data: {"type":"response.function_call_arguments.done","item_id":"fc_456","output_index":1,"arguments":"{\\"query\\":\\"weather sf\\"}"}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","item":{"id":"fc_456","type":"function_call","callId":"call_456","name":"web_search"},"output_index":1}
+
+event: response.completed
+data: {"type":"response.completed","response":{"model":"Ministral-3-8B","usage":{"input_tokens":12,"output_tokens":3,"input_tokens_details":{"cached_tokens":0},"prompt_time_ms":100,"generation_time_ms":200}}}
+
+data: [DONE]
+`;
 
 function createStreamResponse(body: string): Response {
 	const encoder = new TextEncoder();
@@ -118,5 +173,101 @@ describe('OpenResponsesService', () => {
 			prompt_ms: 16188.945889472961,
 			predicted_ms: 40704.0079832077
 		});
+	});
+
+	it('interleaves reasoning and completed tool output for streamed internal Responses tools', async () => {
+		const fetchMock = vi.fn().mockResolvedValue(createStreamResponse(toolInvocationStreamFixture));
+		vi.stubGlobal('fetch', fetchMock);
+
+		let streamedContent = '';
+		let completedContent = '';
+
+		await OpenResponsesService.sendMessage([{ role: 'user', content: 'Hi' }], {
+			stream: true,
+			onChunk: (chunk: string) => {
+				streamedContent += chunk;
+			},
+			onComplete: (response: string) => {
+				completedContent = response;
+			}
+		});
+
+		const expectedContent =
+			`${REASONING_TAGS.START}Inspecting whether a tool is needed.${REASONING_TAGS.END}` +
+			`${AGENTIC_TAGS.TOOL_CALL_START}\n<<<TOOL_NAME:web_search>>>\n${AGENTIC_TAGS.TOOL_ARGS_START}{"query":"weather sf"}${AGENTIC_TAGS.TOOL_ARGS_END}\n{"forecast":"sunny"}\n${AGENTIC_TAGS.TOOL_CALL_END}\n` +
+			`${REASONING_TAGS.START}Using the tool result to answer.${REASONING_TAGS.END}` +
+			'It is sunny.';
+
+		expect(streamedContent).toBe(expectedContent);
+		expect(completedContent).toBe(expectedContent);
+	});
+
+	it('keeps unmatched streamed Responses function calls pending for external tool handoff', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(createStreamResponse(externalToolCallPendingStreamFixture));
+		vi.stubGlobal('fetch', fetchMock);
+
+		let streamedContent = '';
+		let completedContent = '';
+
+		await OpenResponsesService.sendMessage([{ role: 'user', content: 'Hi' }], {
+			stream: true,
+			onChunk: (chunk: string) => {
+				streamedContent += chunk;
+			},
+			onComplete: (response: string) => {
+				completedContent = response;
+			}
+		});
+
+		const expectedContent =
+			`${REASONING_TAGS.START}I should look this up.${REASONING_TAGS.END}` +
+			`${AGENTIC_TAGS.TOOL_CALL_START}\n<<<TOOL_NAME:web_search>>>\n${AGENTIC_TAGS.TOOL_ARGS_START}{"query":"weather sf"}${AGENTIC_TAGS.TOOL_ARGS_END}`;
+
+		expect(streamedContent).toBe(expectedContent);
+		expect(completedContent).toBe(expectedContent);
+	});
+
+	it('maps non-stream Responses function_call items into agentic content instead of throwing', async () => {
+		const fetchMock = vi.fn().mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					model: 'Ministral-3-8B',
+					output: [
+						{
+							id: 'fc_123',
+							type: 'function_call',
+							name: 'web_search',
+							arguments: {
+								query: 'weather sf'
+							}
+						}
+					],
+					usage: {
+						input_tokens: 12,
+						output_tokens: 0,
+						input_tokens_details: {
+							cached_tokens: 0
+						},
+						prompt_time_ms: 100,
+						generation_time_ms: 200
+					}
+				}),
+				{ status: 200 }
+			)
+		);
+		vi.stubGlobal('fetch', fetchMock);
+
+		const content = await OpenResponsesService.sendMessage(
+			[{ role: 'user', content: 'Hi' }],
+			{
+				stream: false
+			}
+		);
+
+		expect(content).toBe(
+			`${AGENTIC_TAGS.TOOL_CALL_START}\n<<<TOOL_NAME:web_search>>>\n${AGENTIC_TAGS.TOOL_ARGS_START}{"query":"weather sf"}${AGENTIC_TAGS.TOOL_ARGS_END}${AGENTIC_TAGS.TOOL_CALL_END}`
+		);
 	});
 });

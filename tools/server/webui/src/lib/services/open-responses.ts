@@ -1,6 +1,28 @@
 import { getJsonHeaders } from '$lib/utils';
 import { AttachmentType } from '$lib/enums';
-import { REASONING_TAGS, AGENTIC_REGEX } from '$lib/constants/agentic';
+import { AGENTIC_REGEX, AGENTIC_TAGS, REASONING_TAGS } from '$lib/constants/agentic';
+
+type OpenResponsesOutputItem = {
+	id?: string;
+	type?: string;
+	callId?: string;
+	call_id?: string;
+	name?: string;
+	arguments?: unknown;
+	output?: unknown;
+	function?: {
+		name?: string;
+		arguments?: unknown;
+	};
+};
+
+type StreamingFunctionCallState = {
+	callId: string;
+	itemId: string;
+	hasArguments: boolean;
+	argumentsClosed: boolean;
+	hasOutput: boolean;
+};
 
 /**
  * OpenResponsesService - API communication layer for Open Responses API
@@ -19,6 +41,77 @@ import { REASONING_TAGS, AGENTIC_REGEX } from '$lib/constants/agentic';
  * - Response content in `output[].content[].text` instead of `choices[].message.content`
  */
 export class OpenResponsesService {
+	private static sanitizeToolName(name?: string): string {
+		return name?.replaceAll(AGENTIC_TAGS.TAG_SUFFIX, '') || 'Tool';
+	}
+
+	private static stringifyToolArguments(argumentsValue: unknown): string {
+		if (typeof argumentsValue === 'string') {
+			return argumentsValue;
+		}
+
+		if (argumentsValue == null) {
+			return '';
+		}
+
+		try {
+			return JSON.stringify(argumentsValue);
+		} catch {
+			return String(argumentsValue);
+		}
+	}
+
+	private static functionCallName(item?: OpenResponsesOutputItem): string {
+		return OpenResponsesService.sanitizeToolName(item?.name || item?.function?.name);
+	}
+
+	private static isFunctionCallItem(item: unknown): item is OpenResponsesOutputItem {
+		return Boolean(
+			item &&
+				typeof item === 'object' &&
+				(item as OpenResponsesOutputItem).type === 'function_call'
+		);
+	}
+
+	private static isFunctionCallOutputItem(item: unknown): item is OpenResponsesOutputItem {
+		return Boolean(
+			item &&
+				typeof item === 'object' &&
+				(item as OpenResponsesOutputItem).type === 'function_call_output'
+		);
+	}
+
+	private static outputItemCallId(item?: OpenResponsesOutputItem): string | undefined {
+		return item?.callId || item?.call_id;
+	}
+
+	private static stringifyToolOutput(outputValue: unknown): string {
+		if (typeof outputValue === 'string') {
+			return outputValue;
+		}
+
+		if (outputValue == null) {
+			return '';
+		}
+
+		try {
+			return JSON.stringify(outputValue);
+		} catch {
+			return String(outputValue);
+		}
+	}
+
+	private static buildToolCallStart(name: string): string {
+		return `${AGENTIC_TAGS.TOOL_CALL_START}\n${AGENTIC_TAGS.TOOL_NAME_PREFIX}${name}${AGENTIC_TAGS.TAG_SUFFIX}\n${AGENTIC_TAGS.TOOL_ARGS_START}`;
+	}
+
+	private static buildCompletedToolCallContent(
+		name: string,
+		argumentsText = ''
+	): string {
+		return `${OpenResponsesService.buildToolCallStart(name)}${argumentsText}${AGENTIC_TAGS.TOOL_ARGS_END}${AGENTIC_TAGS.TOOL_CALL_END}`;
+	}
+
 	/**
 	 * Sends a message using the Responses API.
 	 * Normalizes the response to match ChatService callback signatures.
@@ -187,6 +280,9 @@ export class OpenResponsesService {
 		let reasoningSummarySeen = false;
 		let reasoningTextSeen = false;
 		let reasoningBlockOpen = false;
+		const functionCalls = new Map<string, StreamingFunctionCallState>();
+		const functionCallIdsByItemId = new Map<string, string>();
+		let currentFunctionCallId: string | null = null;
 		const { START: reasoningStartTag, END: reasoningEndTag } = REASONING_TAGS;
 
 		const emitContentChunk = (chunk: string): void => {
@@ -207,6 +303,65 @@ export class OpenResponsesService {
 			if (!reasoningBlockOpen) return;
 			reasoningBlockOpen = false;
 			emitContentChunk(reasoningEndTag);
+		};
+
+		const closeFunctionCallArgumentsIfNeeded = (callId: string | null): void => {
+			if (!callId) return;
+
+			const functionCall = functionCalls.get(callId);
+			if (!functionCall || functionCall.argumentsClosed) {
+				return;
+			}
+
+			functionCall.argumentsClosed = true;
+			emitContentChunk(AGENTIC_TAGS.TOOL_ARGS_END);
+		};
+
+		const closeFunctionCallIfNeeded = (callId: string | null): void => {
+			if (!callId) return;
+
+			const functionCall = functionCalls.get(callId);
+			if (!functionCall) {
+				return;
+			}
+
+			closeFunctionCallArgumentsIfNeeded(callId);
+			emitContentChunk(`\n${AGENTIC_TAGS.TOOL_CALL_END}\n`);
+			functionCalls.delete(callId);
+			functionCallIdsByItemId.delete(functionCall.itemId);
+
+			if (currentFunctionCallId === callId) {
+				currentFunctionCallId = null;
+			}
+		};
+
+		const closeOpenFunctionCallsForNextContentIfNeeded = (): void => {
+			if (!currentFunctionCallId) {
+				return;
+			}
+
+			closeFunctionCallIfNeeded(currentFunctionCallId);
+		};
+
+		const closeOpenFunctionCallsAtTerminalIfNeeded = (): void => {
+			if (!currentFunctionCallId) {
+				return;
+			}
+
+			const functionCall = functionCalls.get(currentFunctionCallId);
+			if (!functionCall) {
+				currentFunctionCallId = null;
+				return;
+			}
+
+			closeFunctionCallArgumentsIfNeeded(currentFunctionCallId);
+
+			if (functionCall.hasOutput) {
+				closeFunctionCallIfNeeded(currentFunctionCallId);
+				return;
+			}
+
+			currentFunctionCallId = null;
 		};
 
 		try {
@@ -245,38 +400,43 @@ export class OpenResponsesService {
 								onModel?.(parsed.model);
 							}
 
-								if (eventType === 'response.output_text.delta') {
-									const delta = parsed.delta || '';
-									if (delta) {
-										closeReasoningBlockIfNeeded();
-										emitContentChunk(delta);
-									}
+							if (eventType === 'response.output_text.delta') {
+								const delta = parsed.delta || '';
+								if (delta) {
+									closeOpenFunctionCallsForNextContentIfNeeded();
+									closeReasoningBlockIfNeeded();
+									emitContentChunk(delta);
 								}
+							}
 
-								if (eventType === 'response.reasoning_summary_text.delta') {
-									const delta = parsed.delta || '';
-									if (delta) {
-										reasoningSummarySeen = true;
-										fullReasoningContent += delta;
-										openReasoningBlockIfNeeded();
-										emitContentChunk(delta);
-										if (!abortSignal?.aborted) {
-											onReasoningChunk?.(delta);
-										}
+							if (eventType === 'response.reasoning_summary_text.delta') {
+								const delta = parsed.delta || '';
+								if (delta) {
+									closeOpenFunctionCallsForNextContentIfNeeded();
+									reasoningSummarySeen = true;
+									fullReasoningContent += delta;
+									openReasoningBlockIfNeeded();
+									emitContentChunk(delta);
+									if (!abortSignal?.aborted) {
+										onReasoningChunk?.(delta);
 									}
 								}
-								if (eventType === 'response.reasoning.delta') {
-									const delta = parsed.delta || '';
-									// Prefer summaries when available; many local models only emit reasoning deltas.
-									if (delta && !reasoningSummarySeen) {
-										fullReasoningContent += delta;
-										openReasoningBlockIfNeeded();
-										emitContentChunk(delta);
-										if (!abortSignal?.aborted) {
-											onReasoningChunk?.(delta);
-										}
+							}
+
+							if (eventType === 'response.reasoning.delta') {
+								const delta = parsed.delta || '';
+								// Prefer summaries when available; many local models only emit reasoning deltas.
+								if (delta && !reasoningSummarySeen) {
+									closeOpenFunctionCallsForNextContentIfNeeded();
+									fullReasoningContent += delta;
+									openReasoningBlockIfNeeded();
+									emitContentChunk(delta);
+									if (!abortSignal?.aborted) {
+										onReasoningChunk?.(delta);
 									}
 								}
+							}
+
 							if (eventType === 'response.reasoning_text.delta') {
 								if (!reasoningTextSeen) {
 									reasoningTextSeen = true;
@@ -286,24 +446,115 @@ export class OpenResponsesService {
 								}
 							}
 
-							if (eventType === 'response.function_call_arguments.delta') {
-								const delta = parsed.delta || '';
-								if (delta && !abortSignal?.aborted) {
-									onToolCallChunk?.(delta);
+							if (eventType === 'response.output_item.added') {
+								const item = parsed.item;
+								if (OpenResponsesService.isFunctionCallItem(item)) {
+									const callId =
+										OpenResponsesService.outputItemCallId(item) ||
+										(typeof item.id === 'string' ? item.id : `call_${functionCalls.size}`);
+									const itemId =
+										typeof item.id === 'string' && item.id.length > 0
+											? item.id
+											: `fc_${functionCalls.size}`;
+									closeReasoningBlockIfNeeded();
+									closeOpenFunctionCallsForNextContentIfNeeded();
+									functionCalls.set(callId, {
+										callId,
+										itemId,
+										hasArguments: false,
+										argumentsClosed: false,
+										hasOutput: false
+									});
+									functionCallIdsByItemId.set(itemId, callId);
+									currentFunctionCallId = callId;
+									emitContentChunk(
+										OpenResponsesService.buildToolCallStart(
+											OpenResponsesService.functionCallName(item)
+										)
+									);
+								}
+
+								if (OpenResponsesService.isFunctionCallOutputItem(item)) {
+									const callId: string | null =
+										OpenResponsesService.outputItemCallId(item) || currentFunctionCallId;
+									if (callId) {
+										const functionCall = functionCalls.get(callId);
+										if (functionCall) {
+											functionCall.hasOutput = true;
+											currentFunctionCallId = callId;
+											closeReasoningBlockIfNeeded();
+											closeFunctionCallArgumentsIfNeeded(callId);
+
+											const outputText = OpenResponsesService.stringifyToolOutput(item.output);
+											if (outputText) {
+												emitContentChunk(`\n${outputText}`);
+											}
+										}
+									}
 								}
 							}
 
-								if (eventType === 'response.completed' || eventType === 'response.done') {
-									closeReasoningBlockIfNeeded();
-									const responseData = parsed.response || parsed;
-									if (responseData.usage) {
-										lastTimings = OpenResponsesService.convertUsageToTimings(responseData.usage);
-										if (import.meta.env.DEV) {
-											console.log('[OpenResponses] response.completed usage:', responseData.usage);
-											console.log('[OpenResponses] mapped timings:', lastTimings);
-										}
-										onTimings?.(lastTimings, undefined);
+							if (eventType === 'response.function_call_arguments.delta') {
+								const delta = parsed.delta || '';
+								const itemId = typeof parsed.item_id === 'string' ? parsed.item_id : undefined;
+								const callId =
+									(itemId ? functionCallIdsByItemId.get(itemId) : undefined) ||
+									currentFunctionCallId;
+								if (delta && callId) {
+									const functionCall = functionCalls.get(callId);
+									if (functionCall) {
+										functionCall.hasArguments = true;
 									}
+									closeReasoningBlockIfNeeded();
+									emitContentChunk(delta);
+								}
+							}
+
+							if (eventType === 'response.function_call_arguments.done') {
+								const itemId = typeof parsed.item_id === 'string' ? parsed.item_id : undefined;
+								const callId =
+									(itemId ? functionCallIdsByItemId.get(itemId) : undefined) ||
+									currentFunctionCallId;
+								if (callId) {
+									const functionCall = functionCalls.get(callId);
+									const argumentsText = OpenResponsesService.stringifyToolArguments(
+										parsed.arguments
+									);
+									if (functionCall && !functionCall.hasArguments && argumentsText) {
+										functionCall.hasArguments = true;
+										closeReasoningBlockIfNeeded();
+										emitContentChunk(argumentsText);
+									}
+									closeFunctionCallArgumentsIfNeeded(callId);
+								}
+							}
+
+							if (eventType === 'response.output_item.done') {
+								const item = parsed.item;
+								if (OpenResponsesService.isFunctionCallItem(item)) {
+									closeReasoningBlockIfNeeded();
+								}
+
+								if (OpenResponsesService.isFunctionCallOutputItem(item)) {
+									const callId =
+										OpenResponsesService.outputItemCallId(item) || currentFunctionCallId;
+									closeReasoningBlockIfNeeded();
+									closeFunctionCallIfNeeded(callId);
+								}
+							}
+
+							if (eventType === 'response.completed' || eventType === 'response.done') {
+								closeOpenFunctionCallsAtTerminalIfNeeded();
+								closeReasoningBlockIfNeeded();
+								const responseData = parsed.response || parsed;
+								if (responseData.usage) {
+									lastTimings = OpenResponsesService.convertUsageToTimings(responseData.usage);
+									if (import.meta.env.DEV) {
+										console.log('[OpenResponses] response.completed usage:', responseData.usage);
+										console.log('[OpenResponses] mapped timings:', lastTimings);
+									}
+									onTimings?.(lastTimings, undefined);
+								}
 								if (responseData.model && !modelEmitted) {
 									modelEmitted = true;
 									onModel?.(responseData.model);
@@ -318,10 +569,11 @@ export class OpenResponsesService {
 				if (abortSignal?.aborted) break;
 			}
 
-				if (abortSignal?.aborted) return;
+			if (abortSignal?.aborted) return;
 
-				closeReasoningBlockIfNeeded();
-				onComplete?.(aggregatedContent, fullReasoningContent || undefined, lastTimings, undefined);
+			closeOpenFunctionCallsAtTerminalIfNeeded();
+			closeReasoningBlockIfNeeded();
+			onComplete?.(aggregatedContent, fullReasoningContent || undefined, lastTimings, undefined);
 		} catch (error) {
 			const err = error instanceof Error ? error : new Error('Stream error');
 			onError?.(err);
@@ -365,6 +617,14 @@ export class OpenResponsesService {
 
 			if (data.output && Array.isArray(data.output)) {
 				for (const item of data.output) {
+					if (item.type === 'function_call') {
+						const toolName = OpenResponsesService.functionCallName(item);
+						const argumentsText = OpenResponsesService.stringifyToolArguments(item.arguments);
+						content += OpenResponsesService.buildCompletedToolCallContent(
+							toolName,
+							argumentsText
+						);
+					}
 					if (item.type === 'message' && item.content) {
 						for (const contentItem of item.content) {
 							if (contentItem.type === 'output_text') {
@@ -373,10 +633,15 @@ export class OpenResponsesService {
 						}
 					}
 					if (item.type === 'reasoning') {
+						let reasoningText = '';
 						for (const contentItem of item.content || []) {
 							if (contentItem.type === 'reasoning_summary_text') {
-								reasoningContent += contentItem.text || '';
+								reasoningText += contentItem.text || '';
 							}
+						}
+						if (reasoningText) {
+							reasoningContent += reasoningText;
+							content += `${REASONING_TAGS.START}${reasoningText}${REASONING_TAGS.END}`;
 						}
 					}
 				}
@@ -387,15 +652,15 @@ export class OpenResponsesService {
 				throw noResponseError;
 			}
 
-				const timings = data.usage
-					? OpenResponsesService.convertUsageToTimings(data.usage)
-					: undefined;
-				if (data.usage && import.meta.env.DEV) {
-					console.log('[OpenResponses] response usage:', data.usage);
-					console.log('[OpenResponses] mapped timings:', timings);
-				}
+			const timings = data.usage
+				? OpenResponsesService.convertUsageToTimings(data.usage)
+				: undefined;
+			if (data.usage && import.meta.env.DEV) {
+				console.log('[OpenResponses] response usage:', data.usage);
+				console.log('[OpenResponses] mapped timings:', timings);
+			}
 
-				onComplete?.(content, reasoningContent || undefined, timings, undefined);
+			onComplete?.(content, reasoningContent || undefined, timings, undefined);
 
 			return content;
 		} catch (error) {
@@ -457,7 +722,9 @@ export class OpenResponsesService {
 					if (dbMsg.role === 'assistant' && typeof dbMsg.content === 'string') {
 						content = dbMsg.content
 							.replace(AGENTIC_REGEX.REASONING_BLOCK, '')
-							.replace(AGENTIC_REGEX.REASONING_OPEN, '');
+							.replace(AGENTIC_REGEX.REASONING_OPEN, '')
+							.replace(AGENTIC_REGEX.AGENTIC_TOOL_CALL_BLOCK, '')
+							.replace(AGENTIC_REGEX.AGENTIC_TOOL_CALL_OPEN, '');
 					} else {
 						content = dbMsg.content;
 					}
