@@ -166,13 +166,13 @@
 						<Loader2 class="h-3 w-3 animate-spin" />
 					{/if}
 				</div>
-				{#if section.toolArgs}
-					<SyntaxHighlightedCode
-						code={formatJsonPretty(section.toolArgs!)}
-						language={FileTypeText.JSON}
-						maxHeight="20rem"
-						class="text-xs"
-					/>
+					{#if section.toolArgs}
+						<SyntaxHighlightedCode
+							code={formatJsonPretty(section.toolArgs)}
+							language={FileTypeText.JSON}
+							maxHeight="20rem"
+							class="text-xs"
+						/>
 				{:else if isStreaming}
 					<div class="rounded bg-muted/30 p-2 text-xs text-muted-foreground italic">
 						Receiving arguments...
@@ -206,7 +206,7 @@
 					<div class="my-3 text-xs text-muted-foreground">Arguments:</div>
 
 					<SyntaxHighlightedCode
-						code={formatJsonPretty(section.toolArgs!)}
+						code={formatJsonPretty(section.toolArgs)}
 						language={FileTypeText.JSON}
 						maxHeight="20rem"
 						class="text-xs"
