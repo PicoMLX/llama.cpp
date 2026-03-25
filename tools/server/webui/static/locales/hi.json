@@ -92,7 +92,7 @@
   "chat.form.submit.tooltip_select_model": "कृपया पहले एक मॉडल चुनें।",
   "chat.landing.prompt_no_audio": "शरू करने के लिए, एक संदेश लिखें या फ़इल अपलोड करें।",
   "chat.landing.prompt_with_audio": "शरू करने के लिए, ऑडियो रिकॉर्ड करें, कोई संदेश टाइप करें, या फ़इल अपलोड करें।",
-  "chat.landing.title": "लामा.cpp (Llama.cpp)",
+  "chat.landing.title": "लामा.cpp (Pico)",
   "chat.message.actions.continue": "आगे बढ़।",
   "chat.message.actions.copy": "प्रतिलिपि।",
   "chat.message.actions.delete": "हटाएँ",

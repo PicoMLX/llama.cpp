@@ -92,7 +92,7 @@
   "chat.form.submit.tooltip_select_model": "الرجاء اختيار نموذج أولاً",
   "chat.landing.prompt_no_audio": "اكتب رسالة أو ارفع ملفات للبدء",
   "chat.landing.prompt_with_audio": "ابدأ بتسجيل صوتي، أو كتابة رسالة نصية، أو رفع ملفات",
-  "chat.landing.title": "لاما.سي‌بي‌بي. (Llama.cpp)",
+  "chat.landing.title": "لاما.سي‌بي‌بي. (Pico)",
   "chat.message.actions.continue": "استمر",
   "chat.message.actions.copy": "نسخ",
   "chat.message.actions.delete": "احذف",
