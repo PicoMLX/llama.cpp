@@ -4,7 +4,7 @@ import type { OpenAIToolDefinition } from './mcp';
 import type { DatabaseMessageExtra } from './database';
 import type { ParameterSource, SyncableParameterType, SettingsFieldType } from '$lib/enums';
 
-export type SettingsConfigValue = string | number | boolean;
+export type SettingsConfigValue = string | number | boolean | undefined;
 
 export interface SettingsFieldConfig {
 	key: string;

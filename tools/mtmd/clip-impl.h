@@ -38,6 +38,8 @@
 #define KEY_IMAGE_SIZE          "clip.vision.image_size"
 #define KEY_IMAGE_MIN_PIXELS    "clip.vision.image_min_pixels"
 #define KEY_IMAGE_MAX_PIXELS    "clip.vision.image_max_pixels"
+#define KEY_PREPROC_MIN_TILES   "clip.vision.preproc_min_tiles"
+#define KEY_PREPROC_MAX_TILES   "clip.vision.preproc_max_tiles"
 #define KEY_PREPROC_IMAGE_SIZE  "clip.vision.preproc_image_size"
 #define KEY_PATCH_SIZE          "clip.vision.patch_size"
 #define KEY_IMAGE_MEAN          "clip.vision.image_mean"
@@ -579,10 +581,9 @@ static void print_tensor_data(ggml_tensor * t, uint8_t * data, int64_t n) {
     }
 }
 
-void clip_debug_encode(clip_ctx * ctx, int h, int w, float fill_value);
-
 //
 // API used internally with mtmd
 //
 
 projector_type clip_get_projector_type(const struct clip_ctx * ctx);
+void clip_set_debug_output_embeddings(struct clip_ctx * ctx, bool debug);
