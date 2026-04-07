@@ -78,6 +78,30 @@ data: {"type":"response.completed","response":{"model":"Ministral-3-8B","usage":
 data: [DONE]
 `;
 
+const streamedTopLevelErrorFixture = `event: error
+data: {"type":"error","code":"not_found","message":"Model not found"}
+
+data: [DONE]
+`;
+
+const streamedNestedErrorFixture = `event: error
+data: {"type":"error","error":{"code":"server_error","message":"Nested stream failure"}}
+
+data: [DONE]
+`;
+
+const streamedFailedResponseFixture = `event: response.failed
+data: {"type":"response.failed","response":{"error":{"code":"conflict","message":"Model download is incomplete."}}}
+
+data: [DONE]
+`;
+
+const streamedIncompleteCancellationFixture = `event: response.incomplete
+data: {"type":"response.incomplete","response":{"incomplete_details":{"reason":"cancelled"}}}
+
+data: [DONE]
+`;
+
 function createStreamResponse(body: string): Response {
 	const encoder = new TextEncoder();
 
@@ -269,5 +293,112 @@ describe('OpenResponsesService', () => {
 		expect(content).toBe(
 			`${AGENTIC_TAGS.TOOL_CALL_START}\n<<<TOOL_NAME:web_search>>>\n${AGENTIC_TAGS.TOOL_ARGS_START}{"query":"weather sf"}${AGENTIC_TAGS.TOOL_ARGS_END}${AGENTIC_TAGS.TOOL_CALL_END}`
 		);
+	});
+
+	it('preserves pre-stream non-200 JSON errors', async () => {
+		const fetchMock = vi.fn().mockResolvedValue(
+			new Response(JSON.stringify({ error: { message: 'Bad request before streaming' } }), {
+				status: 400
+			})
+		);
+		vi.stubGlobal('fetch', fetchMock);
+
+		const onError = vi.fn();
+		const onComplete = vi.fn();
+
+		await expect(
+			OpenResponsesService.sendMessage([{ role: 'user', content: 'Hi' }], {
+				stream: true,
+				onError,
+				onComplete
+			})
+		).rejects.toThrow('Bad request before streaming');
+
+		expect(onError).toHaveBeenCalledTimes(1);
+		expect(onComplete).not.toHaveBeenCalled();
+	});
+
+	it('surfaces top-level streamed error events and does not complete', async () => {
+		const fetchMock = vi.fn().mockResolvedValue(createStreamResponse(streamedTopLevelErrorFixture));
+		vi.stubGlobal('fetch', fetchMock);
+
+		const onError = vi.fn();
+		const onComplete = vi.fn();
+
+		await expect(
+			OpenResponsesService.sendMessage([{ role: 'user', content: 'Hi' }], {
+				stream: true,
+				onError,
+				onComplete
+			})
+		).rejects.toThrow('Model not found');
+
+		expect(onError).toHaveBeenCalledTimes(1);
+		expect(onError.mock.calls[0]?.[0]).toBeInstanceOf(Error);
+		expect((onError.mock.calls[0]?.[0] as Error).message).toBe('Model not found');
+		expect(onComplete).not.toHaveBeenCalled();
+	});
+
+	it('accepts nested streamed error payloads during rollout and does not complete', async () => {
+		const fetchMock = vi.fn().mockResolvedValue(createStreamResponse(streamedNestedErrorFixture));
+		vi.stubGlobal('fetch', fetchMock);
+
+		const onError = vi.fn();
+		const onComplete = vi.fn();
+
+		await expect(
+			OpenResponsesService.sendMessage([{ role: 'user', content: 'Hi' }], {
+				stream: true,
+				onError,
+				onComplete
+			})
+		).rejects.toThrow('Nested stream failure');
+
+		expect(onError).toHaveBeenCalledTimes(1);
+		expect((onError.mock.calls[0]?.[0] as Error).message).toBe('Nested stream failure');
+		expect(onComplete).not.toHaveBeenCalled();
+	});
+
+	it('surfaces response.failed terminal errors and does not complete', async () => {
+		const fetchMock = vi.fn().mockResolvedValue(createStreamResponse(streamedFailedResponseFixture));
+		vi.stubGlobal('fetch', fetchMock);
+
+		const onError = vi.fn();
+		const onComplete = vi.fn();
+
+		await expect(
+			OpenResponsesService.sendMessage([{ role: 'user', content: 'Hi' }], {
+				stream: true,
+				onError,
+				onComplete
+			})
+		).rejects.toThrow('Model download is incomplete.');
+
+		expect(onError).toHaveBeenCalledTimes(1);
+		expect((onError.mock.calls[0]?.[0] as Error).message).toBe(
+			'Model download is incomplete.'
+		);
+		expect(onComplete).not.toHaveBeenCalled();
+	});
+
+	it('treats response.incomplete cancellations as non-success without surfacing an error', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(createStreamResponse(streamedIncompleteCancellationFixture));
+		vi.stubGlobal('fetch', fetchMock);
+
+		const onError = vi.fn();
+		const onComplete = vi.fn();
+
+		await expect(
+			OpenResponsesService.sendMessage([{ role: 'user', content: 'Hi' }], {
+				stream: true,
+				onError,
+				onComplete
+			})
+		).resolves.toBeUndefined();
+
+		expect(onError).not.toHaveBeenCalled();
+		expect(onComplete).not.toHaveBeenCalled();
 	});
 });

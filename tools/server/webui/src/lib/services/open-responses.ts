@@ -24,6 +24,10 @@ type StreamingFunctionCallState = {
 	hasOutput: boolean;
 };
 
+type ReportedOpenResponsesError = Error & {
+	__openResponsesHandled?: boolean;
+};
+
 /**
  * OpenResponsesService - API communication layer for Open Responses API
  *
@@ -110,6 +114,75 @@ export class OpenResponsesService {
 		argumentsText = ''
 	): string {
 		return `${OpenResponsesService.buildToolCallStart(name)}${argumentsText}${AGENTIC_TAGS.TOOL_ARGS_END}${AGENTIC_TAGS.TOOL_CALL_END}`;
+	}
+
+	private static isRecord(value: unknown): value is Record<string, unknown> {
+		return typeof value === 'object' && value !== null && !Array.isArray(value);
+	}
+
+	private static stringField(
+		record: Record<string, unknown> | null | undefined,
+		key: string
+	): string | undefined {
+		const value = record?.[key];
+		return typeof value === 'string' && value.length > 0 ? value : undefined;
+	}
+
+	private static markErrorHandled(error: Error): ReportedOpenResponsesError {
+		const handledError = error as ReportedOpenResponsesError;
+		handledError.__openResponsesHandled = true;
+		return handledError;
+	}
+
+	private static isHandledError(error: unknown): error is ReportedOpenResponsesError {
+		return (
+			error instanceof Error &&
+			(error as ReportedOpenResponsesError).__openResponsesHandled === true
+		);
+	}
+
+	private static abortError(message: string): Error {
+		const error = new Error(message);
+		error.name = 'AbortError';
+		return error;
+	}
+
+	private static streamTerminalError(parsed: Record<string, unknown>): Error {
+		const nestedError = OpenResponsesService.isRecord(parsed.error) ? parsed.error : undefined;
+		const response = OpenResponsesService.isRecord(parsed.response) ? parsed.response : undefined;
+		const responseError = OpenResponsesService.isRecord(response?.error)
+			? response.error
+			: undefined;
+
+		const message =
+			OpenResponsesService.stringField(responseError, 'message') ||
+			OpenResponsesService.stringField(nestedError, 'message') ||
+			OpenResponsesService.stringField(parsed, 'message') ||
+			'Unknown server error';
+		const code =
+			OpenResponsesService.stringField(responseError, 'code') ||
+			OpenResponsesService.stringField(nestedError, 'code') ||
+			OpenResponsesService.stringField(parsed, 'code');
+
+		const error = new Error(message);
+		if (code) {
+			error.name = code;
+		}
+		return error;
+	}
+
+	private static incompleteReason(parsed: Record<string, unknown>): string | undefined {
+		const response = OpenResponsesService.isRecord(parsed.response) ? parsed.response : undefined;
+		const details = OpenResponsesService.isRecord(response?.incomplete_details)
+			? response.incomplete_details
+			: OpenResponsesService.isRecord(parsed.incomplete_details)
+				? parsed.incomplete_details
+				: undefined;
+
+		return (
+			OpenResponsesService.stringField(details, 'reason') ||
+			OpenResponsesService.stringField(details, 'type')
+		);
 	}
 
 	/**
@@ -217,6 +290,8 @@ export class OpenResponsesService {
 				return;
 			}
 
+			const errorAlreadyHandled = OpenResponsesService.isHandledError(error);
+
 			let userFriendlyError: Error;
 
 			if (error instanceof Error) {
@@ -239,7 +314,7 @@ export class OpenResponsesService {
 			}
 
 			console.error('Error in OpenResponsesService.sendMessage:', error);
-			if (onError) {
+			if (onError && !errorAlreadyHandled) {
 				onError(userFriendlyError);
 			}
 			throw userFriendlyError;
@@ -398,6 +473,24 @@ export class OpenResponsesService {
 							if (parsed.model && !modelEmitted) {
 								modelEmitted = true;
 								onModel?.(parsed.model);
+							}
+
+							if (eventType === 'error' || eventType === 'response.failed') {
+								closeOpenFunctionCallsAtTerminalIfNeeded();
+								closeReasoningBlockIfNeeded();
+								const handledError = OpenResponsesService.markErrorHandled(
+									OpenResponsesService.streamTerminalError(parsed)
+								);
+								onError?.(handledError);
+								throw handledError;
+							}
+
+							if (eventType === 'response.incomplete') {
+								closeOpenFunctionCallsAtTerminalIfNeeded();
+								closeReasoningBlockIfNeeded();
+								if (OpenResponsesService.incompleteReason(parsed) === 'cancelled') {
+									throw OpenResponsesService.abortError('Generation cancelled');
+								}
 							}
 
 							if (eventType === 'response.output_text.delta') {
@@ -561,6 +654,12 @@ export class OpenResponsesService {
 								}
 							}
 						} catch (e) {
+							if (
+								(e instanceof Error && OpenResponsesService.isHandledError(e)) ||
+								(e instanceof Error && e.name === 'AbortError')
+							) {
+								throw e;
+							}
 							console.error('Error parsing Responses API JSON chunk:', e);
 						}
 					}
@@ -575,9 +674,7 @@ export class OpenResponsesService {
 			closeReasoningBlockIfNeeded();
 			onComplete?.(aggregatedContent, fullReasoningContent || undefined, lastTimings, undefined);
 		} catch (error) {
-			const err = error instanceof Error ? error : new Error('Stream error');
-			onError?.(err);
-			throw err;
+			throw error instanceof Error ? error : new Error('Stream error');
 		} finally {
 			reader.releaseLock();
 		}
