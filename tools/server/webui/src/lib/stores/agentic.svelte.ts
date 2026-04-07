@@ -339,6 +339,7 @@ class AgenticStore {
 			}
 
 			let turnContent = '';
+			let turnReasoningContent = '';
 			let turnToolCalls: ApiChatCompletionToolCall[] = [];
 			let lastStreamingToolCallName = '';
 			let lastStreamingToolCallArgsLength = 0;
@@ -366,7 +367,10 @@ class AgenticStore {
 							turnContent += chunk;
 							onChunk?.(chunk);
 						},
-						onReasoningChunk,
+						onReasoningChunk: (chunk: string) => {
+							turnReasoningContent += chunk;
+							onReasoningChunk?.(chunk);
+						},
 						onToolCallChunk: (serialized: string) => {
 							try {
 								turnToolCalls = JSON.parse(serialized) as ApiChatCompletionToolCall[];
