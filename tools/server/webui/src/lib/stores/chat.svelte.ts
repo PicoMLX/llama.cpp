@@ -11,7 +11,8 @@ import {
 	normalizeModelName,
 	filterByLeafNodeId,
 	findDescendantMessages,
-	findLeafNode
+	findLeafNode,
+	findMessageById
 } from '$lib/utils';
 import { SvelteMap } from 'svelte/reactivity';
 import { t } from '$lib/i18n';
@@ -602,7 +603,7 @@ class ChatStore {
 
 		try {
 			const allMessages = await conversationsStore.getConversationMessages(activeConv.id);
-			const systemMessage = allMessages.find((m) => m.id === messageId);
+			const systemMessage = findMessageById(allMessages, messageId);
 			if (!systemMessage || systemMessage.role !== 'system') return false;
 
 			const rootMessage = allMessages.find((m) => m.type === 'root' && m.parent === null);
@@ -1132,7 +1133,7 @@ class ChatStore {
 		if (!activeConv)
 			return { totalCount: 0, userMessages: 0, assistantMessages: 0, messageTypes: [] };
 		const allMessages = await conversationsStore.getConversationMessages(activeConv.id);
-		const messageToDelete = allMessages.find((m) => m.id === messageId);
+		const messageToDelete = findMessageById(allMessages, messageId);
 
 		// For system messages, don't count descendants as they will be preserved (reparented to root)
 		if (messageToDelete?.role === 'system') {
@@ -1177,7 +1178,7 @@ class ChatStore {
 		if (!activeConv) return;
 		try {
 			const allMessages = await conversationsStore.getConversationMessages(activeConv.id);
-			const messageToDelete = allMessages.find((m) => m.id === messageId);
+			const messageToDelete = findMessageById(allMessages, messageId);
 			if (!messageToDelete) return;
 
 			const currentPath = filterByLeafNodeId(allMessages, activeConv.currNode || '', false);
@@ -1233,7 +1234,7 @@ class ChatStore {
 			this.clearChatStreaming(activeConv.id);
 
 			const allMessages = await conversationsStore.getConversationMessages(activeConv.id);
-			const dbMessage = allMessages.find((m) => m.id === messageId);
+			const dbMessage = findMessageById(allMessages, messageId);
 
 			if (!dbMessage) {
 				this.setChatLoading(activeConv.id, false);
@@ -1528,7 +1529,7 @@ class ChatStore {
 			if (msg.role !== 'assistant') return;
 
 			const allMessages = await conversationsStore.getConversationMessages(activeConv.id);
-			const parentMessage = allMessages.find((m) => m.id === msg.parent);
+			const parentMessage = findMessageById(allMessages, msg.parent);
 			if (!parentMessage) return;
 
 			this.setChatLoading(activeConv.id, true);
