@@ -162,6 +162,58 @@
 		}
 	});
 
+	// Ingest an API key supplied via the URL (?apikey=… or hash payload like
+	// #/?apikey=…). Used by Pico AI Server's invite links so opening the link
+	// auto-fills the credential. Placed before the API-key-monitoring effect so
+	// the freshly-ingested key is what gets validated below.
+	$effect(() => {
+		if (!browser) return;
+
+		// Returns the query string portion of the hash, irrespective of which
+		// of these shapes is used: #apikey=…, #?apikey=…, #/?apikey=…, #/route?apikey=…
+		function extractHashQuery(hash: string): string {
+			const qIndex = hash.indexOf('?');
+			return qIndex >= 0 ? hash.slice(qIndex + 1) : hash.replace(/^#\/?/, '');
+		}
+
+		function stripParam(query: string, name: string): string {
+			return query
+				.split('&')
+				.filter((p) => p && !p.startsWith(`${name}=`) && p !== name)
+				.join('&');
+		}
+
+		const searchParams = new URLSearchParams(window.location.search);
+		const hash = window.location.hash;
+		const hashQuery = extractHashQuery(hash);
+		const hashParams = new URLSearchParams(hashQuery);
+
+		const token = (searchParams.get('apikey') ?? hashParams.get('apikey') ?? '').trim();
+		if (!token) return;
+
+		settingsStore.updateConfig('apiKey', token);
+
+		// Rebuild the URL without the apikey param. Build strings rather than
+		// mutating URLSearchParams instances so eslint-svelte's reactivity
+		// rules don't flag a non-reactive helper.
+		const newSearchRaw = stripParam(window.location.search.replace(/^\?/, ''), 'apikey');
+		const newSearch = newSearchRaw ? `?${newSearchRaw}` : '';
+
+		let newHash = hash;
+		if (hashParams.has('apikey')) {
+			const qIndex = hash.indexOf('?');
+			const rest = stripParam(hashQuery, 'apikey');
+			if (qIndex >= 0) {
+				const route = hash.slice(0, qIndex);
+				newHash = rest ? `${route}?${rest}` : route;
+			} else {
+				newHash = rest ? `#${rest}` : '';
+			}
+		}
+
+		window.history.replaceState(null, '', window.location.pathname + newSearch + newHash);
+	});
+
 	// Monitor API key changes and redirect to error page if removed or changed when required
 	$effect(() => {
 		const apiKey = config().apiKey;
