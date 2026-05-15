@@ -245,9 +245,12 @@
             }
 
             try {
-                const response = await fetch("/api/download-status?" + query.toString(), {
+                const headers = { "Accept": "application/json" };
+                if (apiKey) headers["Authorization"] = "Bearer " + apiKey;
+
+                const response = await fetch("api/download-status?" + query.toString(), {
                     cache: "no-store",
-                    headers: { "Accept": "application/json" }
+                    headers
                 });
 
                 if (!response.ok) {
