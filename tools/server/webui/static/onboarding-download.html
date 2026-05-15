@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pico AI Server</title>
+    <style>
+        :root {
+            color-scheme: light dark;
+            --bg-top: #081224;
+            --bg-bottom: #18284d;
+            --card: rgba(12, 20, 38, 0.72);
+            --card-border: rgba(255, 255, 255, 0.12);
+            --text: #f6f7fb;
+            --muted: rgba(246, 247, 251, 0.72);
+            --track: rgba(255, 255, 255, 0.12);
+            --fill-start: #76b8ff;
+            --fill-end: #8f7dff;
+            --button-bg: rgba(255, 255, 255, 0.12);
+            --button-border: rgba(255, 255, 255, 0.16);
+            --shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(118, 184, 255, 0.22), transparent 35%),
+                radial-gradient(circle at bottom right, rgba(143, 125, 255, 0.22), transparent 40%),
+                linear-gradient(160deg, var(--bg-top), var(--bg-bottom));
+            color: var(--text);
+        }
+
+        .card {
+            width: min(100%, 560px);
+            padding: 32px;
+            border-radius: 28px;
+            border: 1px solid var(--card-border);
+            background: var(--card);
+            backdrop-filter: blur(18px);
+            box-shadow: var(--shadow);
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 18px;
+            color: var(--muted);
+            font-size: 13px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, var(--fill-start), var(--fill-end));
+            box-shadow: 0 0 18px rgba(118, 184, 255, 0.9);
+        }
+
+        h1 {
+            margin: 0 0 14px;
+            font-size: clamp(28px, 5vw, 38px);
+            line-height: 1.05;
+        }
+
+        p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        .panel {
+            margin-top: 28px;
+            padding: 20px;
+            border-radius: 22px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+
+        .model-name {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .progress-label {
+            font-variant-numeric: tabular-nums;
+            color: var(--muted);
+        }
+
+        .track {
+            width: 100%;
+            height: 12px;
+            border-radius: 999px;
+            background: var(--track);
+            overflow: hidden;
+        }
+
+        .fill {
+            width: 0%;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, var(--fill-start), var(--fill-end));
+            transition: width 0.25s ease;
+        }
+
+        .status {
+            margin-top: 14px;
+            min-height: 24px;
+            color: var(--muted);
+        }
+
+        .status.error {
+            color: #ffb4b4;
+        }
+
+        .actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 28px;
+            flex-wrap: wrap;
+        }
+
+        .button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 44px;
+            padding: 0 18px;
+            border-radius: 999px;
+            border: 1px solid var(--button-border);
+            background: var(--button-bg);
+            color: var(--text);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .button.primary {
+            background: linear-gradient(90deg, rgba(118, 184, 255, 0.28), rgba(143, 125, 255, 0.28));
+        }
+
+        .meta {
+            margin-top: 18px;
+            color: var(--muted);
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <main class="card">
+        <div class="eyebrow">
+            <span class="dot"></span>
+            <span>Pico AI Server</span>
+        </div>
+        <h1>Your model is still downloading.</h1>
+        <p>Pico is almost ready. Keep this page open while the selected model finishes downloading.</p>
+
+        <section class="panel">
+            <div class="row">
+                <div class="model-name" id="model-name">Preparing download...</div>
+                <div class="progress-label" id="progress-label">0%</div>
+            </div>
+            <div class="track" aria-hidden="true">
+                <div class="fill" id="progress-fill"></div>
+            </div>
+            <div class="status" id="status-text">Waiting for download status...</div>
+        </section>
+
+        <div class="actions">
+            <a class="button primary" href="./" id="open-chat">Open Pico Web</a>
+        </div>
+
+        <div class="meta" id="meta-text">This page will forward automatically when the selected model is ready.</div>
+    </main>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const requestedModelIds = urlParams.getAll("modelId");
+        const apiKey = urlParams.get("apikey");
+        const progressFill = document.getElementById("progress-fill");
+        const progressLabel = document.getElementById("progress-label");
+        const modelName = document.getElementById("model-name");
+        const statusText = document.getElementById("status-text");
+        const metaText = document.getElementById("meta-text");
+        let redirectScheduled = false;
+
+        if (apiKey) {
+            const openChat = document.getElementById("open-chat");
+            const target = new URL("./", window.location.href);
+            target.searchParams.set("apikey", apiKey);
+            openChat.href = target.toString();
+        }
+
+        function setProgress(value) {
+            const percent = Math.round(Math.max(0, Math.min(1, value)) * 100);
+            progressFill.style.width = percent + "%";
+            progressLabel.textContent = percent + "%";
+        }
+
+        function modelIdValue(model) {
+            return model.modelName || model.model_name || model.modelId || model.model_id || "model";
+        }
+
+        function currentModel(models) {
+            return models.find((model) => model.state !== "available") || models[models.length - 1] || null;
+        }
+
+        function scheduleRedirect() {
+            if (redirectScheduled) {
+                return;
+            }
+            redirectScheduled = true;
+            window.setTimeout(() => {
+                const target = new URL("./", window.location.href);
+                if (apiKey) target.searchParams.set("apikey", apiKey);
+                window.location.replace(target.toString());
+            }, 1200);
+        }
+
+        async function refreshStatus() {
+            if (requestedModelIds.length === 0) {
+                modelName.textContent = "No model selected";
+                statusText.textContent = "Pico is ready.";
+                metaText.textContent = "Opening Pico Web now.";
+                setProgress(1);
+                scheduleRedirect();
+                return;
+            }
+
+            const query = new URLSearchParams();
+            for (const modelId of requestedModelIds) {
+                query.append("modelId", modelId);
+            }
+
+            try {
+                const headers = { "Accept": "application/json" };
+                if (apiKey) headers["Authorization"] = "Bearer " + apiKey;
+
+                const response = await fetch("api/download-status?" + query.toString(), {
+                    cache: "no-store",
+                    headers
+                });
+
+                if (!response.ok) {
+                    throw new Error("Status request failed with " + response.status);
+                }
+
+                const payload = await response.json();
+                const model = currentModel(payload.models || []);
+
+                if (model) {
+                    modelName.textContent = modelIdValue(model);
+                    setProgress(model.progress || 0);
+                }
+
+                const hasError = (payload.models || []).some((entry) => entry.state === "error");
+                if (hasError) {
+                    statusText.textContent = "A download error was detected. You can still open Pico Web and retry from Settings.";
+                    statusText.classList.add("error");
+                    metaText.textContent = "Automatic forwarding is paused until the model becomes available.";
+                    return;
+                }
+
+                statusText.classList.remove("error");
+
+                if (payload.allComplete || payload.all_complete) {
+                    modelName.textContent = model ? modelIdValue(model) : "Download complete";
+                    setProgress(1);
+                    statusText.textContent = "Your selected model is ready.";
+                    metaText.textContent = "Opening Pico Web now.";
+                    scheduleRedirect();
+                    return;
+                }
+
+                if (model && model.state === "downloading") {
+                    statusText.textContent = "Downloading " + modelIdValue(model) + ".";
+                } else {
+                    statusText.textContent = "Preparing the next model download.";
+                }
+                metaText.textContent = "This page will forward automatically when the selected model is ready.";
+            } catch (error) {
+                statusText.classList.remove("error");
+                statusText.textContent = "Still preparing Pico. Waiting for the local server to respond.";
+                metaText.textContent = "If this takes too long, you can open Pico Web manually.";
+            }
+        }
+
+        refreshStatus();
+        window.setInterval(refreshStatus, 1000);
+    </script>
+</body>
+</html>
