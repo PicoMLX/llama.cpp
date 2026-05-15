@@ -163,12 +163,16 @@
 	});
 
 	// Ingest an API key supplied via the URL (?apikey=… or hash payload like
-	// #/?apikey=…). Used by Pico AI Server's invite links so opening the link
-	// auto-fills the credential. Placed before the API-key-monitoring effect so
-	// the freshly-ingested key is what gets validated below.
-	$effect(() => {
-		if (!browser) return;
+	// #?apikey=…). Used by Pico AI Server's invite links so opening the link
+	// auto-fills the credential. Runs synchronously during component init —
+	// must happen before the serverStore.fetch effect below, otherwise the
+	// first /props request goes out unauthenticated and the user sees the
+	// "Access denied" splash before the URL is ever read.
+	if (browser) {
+		ingestApiKeyFromUrl();
+	}
 
+	function ingestApiKeyFromUrl() {
 		// Returns the query string portion of the hash, irrespective of which
 		// of these shapes is used: #apikey=…, #?apikey=…, #/?apikey=…, #/route?apikey=…
 		function extractHashQuery(hash: string): string {
@@ -212,7 +216,7 @@
 		}
 
 		window.history.replaceState(null, '', window.location.pathname + newSearch + newHash);
-	});
+	}
 
 	// Monitor API key changes and redirect to error page if removed or changed when required
 	$effect(() => {
