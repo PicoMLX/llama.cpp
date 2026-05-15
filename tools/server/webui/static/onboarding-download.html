@@ -203,6 +203,13 @@
         const metaText = document.getElementById("meta-text");
         let redirectScheduled = false;
 
+        if (apiKey) {
+            const openChat = document.getElementById("open-chat");
+            const target = new URL("./", window.location.href);
+            target.searchParams.set("apikey", apiKey);
+            openChat.href = target.toString();
+        }
+
         function setProgress(value) {
             const percent = Math.round(Math.max(0, Math.min(1, value)) * 100);
             progressFill.style.width = percent + "%";
