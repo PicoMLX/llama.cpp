@@ -1,7 +1,8 @@
 import { base } from '$app/paths';
 import { error } from '@sveltejs/kit';
 import { browser } from '$app/environment';
-import { config } from '$lib/stores/settings.svelte';
+import { config, settingsStore } from '$lib/stores/settings.svelte';
+import { consumeInviteApiKeyFromUrl } from './invite-api-key';
 
 /**
  * Validates API key by making a request to the server props endpoint
@@ -13,7 +14,12 @@ export async function validateApiKey(fetch: typeof globalThis.fetch): Promise<vo
 	}
 
 	try {
-		const apiKey = config().apiKey;
+		const inviteApiKey = consumeInviteApiKeyFromUrl();
+		if (inviteApiKey) {
+			settingsStore.updateConfig('apiKey', inviteApiKey);
+		}
+
+		const apiKey = inviteApiKey ?? config().apiKey?.toString().trim();
 
 		const headers: Record<string, string> = {
 			'Content-Type': 'application/json'
