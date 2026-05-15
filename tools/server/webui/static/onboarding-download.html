@@ -223,7 +223,9 @@
             }
             redirectScheduled = true;
             window.setTimeout(() => {
-                window.location.replace("/");
+                const target = new URL("./", window.location.href);
+                if (apiKey) target.searchParams.set("apikey", apiKey);
+                window.location.replace(target.toString());
             }, 1200);
         }
 
