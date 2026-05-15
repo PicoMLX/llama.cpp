@@ -1,5 +1,4 @@
 import { config } from '$lib/stores/settings.svelte';
-import { getInviteApiKeyFromLocation } from './invite-api-key';
 
 /**
  * Get authorization headers for API requests
@@ -7,7 +6,7 @@ import { getInviteApiKeyFromLocation } from './invite-api-key';
  */
 export function getAuthHeaders(): Record<string, string> {
 	const currentConfig = config();
-const apiKey = currentConfig.apiKey?.toString().trim();
+	const apiKey = currentConfig.apiKey?.toString().trim();
 
 	return apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
 }

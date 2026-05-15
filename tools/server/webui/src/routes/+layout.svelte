@@ -171,12 +171,6 @@
 		}
 	});
 
-	// Keep a lightweight fallback here for routes that do not run page-level validation.
-	$effect(() => {
-		if (!browser) return;
-		ingestInviteApiKey();
-	});
-
 	// Monitor API key changes and redirect to error page if removed or changed when required
 	$effect(() => {
 		const apiKey = config().apiKey;
