@@ -7,9 +7,7 @@ import { getInviteApiKeyFromLocation } from './invite-api-key';
  */
 export function getAuthHeaders(): Record<string, string> {
 	const currentConfig = config();
-	const inviteApiKey =
-		typeof window === 'undefined' ? null : getInviteApiKeyFromLocation(window.location);
-	const apiKey = (inviteApiKey ?? currentConfig.apiKey?.toString() ?? '').trim();
+const apiKey = currentConfig.apiKey?.toString().trim();
 
 	return apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
 }
