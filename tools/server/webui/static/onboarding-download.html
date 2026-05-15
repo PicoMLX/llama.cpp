@@ -193,7 +193,9 @@
     </main>
 
     <script>
-        const requestedModelIds = Array.from(new URLSearchParams(window.location.search).getAll("modelId"));
+        const urlParams = new URLSearchParams(window.location.search);
+        const requestedModelIds = urlParams.getAll("modelId");
+        const apiKey = urlParams.get("apikey");
         const progressFill = document.getElementById("progress-fill");
         const progressLabel = document.getElementById("progress-label");
         const modelName = document.getElementById("model-name");
