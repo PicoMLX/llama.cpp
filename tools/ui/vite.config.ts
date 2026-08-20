@@ -13,6 +13,7 @@ import { fileURLToPath } from 'url';
 import { defineConfig, loadEnv, searchForWorkspaceRoot } from 'vite';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const isPicoBuild = process.env.LLAMA_UI_PICO_BUILD === '1';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const browserBaseConfig: any = {
 	enabled: true,
@@ -38,8 +39,12 @@ export default defineConfig(({ mode }) => {
 		plugins: [
 			tailwindcss(),
 			sveltekit(),
-			SvelteKitPWA(SVELTEKIT_PWA_OPTIONS),
-			splashScreenPlugin(),
+			SvelteKitPWA({
+				...SVELTEKIT_PWA_OPTIONS,
+				disable: isPicoBuild,
+				pwaAssets: isPicoBuild ? { disabled: true } : SVELTEKIT_PWA_OPTIONS.pwaAssets
+			}),
+			...(!isPicoBuild ? [splashScreenPlugin()] : []),
 			buildInfoPlugin(),
 			nerdamerPlugin(),
 			relativizeBasePlugin()

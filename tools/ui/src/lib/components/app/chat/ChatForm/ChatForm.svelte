@@ -25,6 +25,7 @@
 		SpecialFileType
 	} from '$lib/enums';
 	import { useChatFormPickers } from '$lib/hooks/use-chat-form-pickers.svelte';
+	import { t } from '$lib/i18n';
 	import {
 		chatStore,
 		conversationsStore,
@@ -101,7 +102,7 @@
 		onUploadedFileRemove,
 		onUploadedFilesChange,
 		onValueChange,
-		placeholder = 'Type a message...',
+		placeholder,
 		showAddButton = true,
 		showMcpPromptButton = false,
 		showModelSelector = true,
@@ -182,6 +183,7 @@
 	let preSelectedResourceUri = $state<string | undefined>(undefined);
 
 	let currentConfig = $derived(settingsStore.config);
+	let inputPlaceholder = $derived(placeholder ?? t('chat.form.placeholder'));
 
 	let pasteLongTextToFileLength = $derived.by(() => {
 		const n = Number(currentConfig.pasteLongTextToFileLen);
@@ -591,7 +593,7 @@
 				}}
 				onPaste={handlePaste}
 				{disabled}
-				{placeholder}
+				placeholder={inputPlaceholder}
 				{useRichInput}
 			/>
 

@@ -13,6 +13,7 @@
 	import { ICON_CLASS_DEFAULT, ROUTES } from '$lib/constants';
 	import { setChatFormActionsContext } from '$lib/contexts';
 	import { FileTypeCategory, MessageRole } from '$lib/enums';
+	import { t } from '$lib/i18n';
 	import { ChatService } from '$lib/services';
 	import { chatStore, conversationsStore, mcpStore, settingsStore } from '$lib/stores';
 	import { getFileTypeCategory } from '$lib/utils';
@@ -226,7 +227,7 @@
 			onclick={onStop}
 			class="group h-8 w-8 rounded-full p-0 hover:bg-destructive/10!"
 		>
-			<span class="sr-only">Stop</span>
+			<span class="sr-only">{t('chat.form.stop')}</span>
 
 			<Square
 				class="h-8 w-8 fill-muted-foreground stroke-muted-foreground group-hover:fill-destructive group-hover:stroke-destructive hover:fill-destructive hover:stroke-destructive"

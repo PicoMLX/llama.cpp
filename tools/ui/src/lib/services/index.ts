@@ -58,6 +58,7 @@
  * @see conversationsStore in stores/conversations.svelte.ts — provides message context
  */
 export { ChatService } from './chat.service';
+export { OpenResponsesService } from './open-responses';
 
 /**
  * **DatabaseService** - IndexedDB persistence layer via Dexie ORM

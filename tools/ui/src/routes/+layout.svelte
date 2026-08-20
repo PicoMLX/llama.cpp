@@ -17,6 +17,7 @@
 	} from '$lib/constants';
 	import { useKeyboardShortcuts } from '$lib/hooks/use-keyboard-shortcuts.svelte';
 	import { usePwa } from '$lib/hooks/use-pwa.svelte';
+	import { i18n } from '$lib/i18n';
 	import { RouterService } from '$lib/services/router.service';
 	import {
 		chatStore,
@@ -29,6 +30,7 @@
 		versionStore
 	} from '$lib/stores';
 	import { initStores } from '$lib/stores/init';
+	import { consumeInviteApiKeyFromUrl } from '$lib/utils/invite-api-key';
 	import { ModeWatcher } from 'mode-watcher';
 	import { untrack } from 'svelte';
 	import { onMount } from 'svelte';
@@ -37,8 +39,19 @@
 
 	let { children } = $props();
 
+	let storesInitialized = $state(false);
+
 	// migrations and store startup, ordered explicitly instead of import side effects
-	void initStores();
+	void initStores().then(() => {
+		const inviteApiKey = consumeInviteApiKeyFromUrl();
+
+		if (inviteApiKey) {
+			settingsStore.updateConfig(SETTINGS_KEYS.API_KEY, inviteApiKey);
+		}
+
+		storesInitialized = true;
+	});
+	i18n.init();
 
 	let innerHeight = $state<number | undefined>();
 	let innerWidth = $state(browser ? window.innerWidth : 0);
@@ -164,6 +177,8 @@
 
 	// Initialize server properties on app load (run once)
 	$effect(() => {
+		if (!storesInitialized) return;
+
 		// Only fetch if we don't already have props
 		if (!serverStore.props) {
 			untrack(() => {

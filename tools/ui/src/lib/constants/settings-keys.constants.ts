@@ -8,6 +8,7 @@ export const SETTINGS_KEYS = {
 	AGENTIC_MAX_TURNS: 'agenticMaxTurns',
 	ALWAYS_SHOW_SIDEBAR_ON_DESKTOP: 'alwaysShowSidebarOnDesktop',
 	ALWAYS_SHOW_TOOL_CALL_CONTENT: 'alwaysShowToolCallContent',
+	API_ENDPOINT: 'apiEndpoint',
 	API_KEY: 'apiKey',
 	AUTO_MIC_ON_EMPTY: 'autoMicOnEmpty',
 	BACKEND_SAMPLING: 'backend_sampling',

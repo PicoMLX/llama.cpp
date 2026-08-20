@@ -331,6 +331,18 @@ const SETTINGS_REGISTRY: Record<string, SettingsSectionEntry> = {
 				type: SettingsFieldType.INPUT
 			},
 			{
+				defaultValue: 'responses',
+				help: 'Choose Open Responses for the server-backed conversation flow, or Chat Completions for compatibility with legacy backends.',
+				key: SETTINGS_KEYS.API_ENDPOINT,
+				label: 'API Endpoint',
+				options: [
+					{ label: 'Open Responses (/v1/responses)', value: 'responses' },
+					{ label: 'Chat Completions (/v1/chat/completions)', value: 'chat_completions' }
+				],
+				section: SETTINGS_SECTION_SLUGS.GENERAL,
+				type: SettingsFieldType.SELECT
+			},
+			{
 				defaultValue: '',
 				help: 'The starting message that defines how model should behave.',
 				key: SETTINGS_KEYS.SYSTEM_MESSAGE,

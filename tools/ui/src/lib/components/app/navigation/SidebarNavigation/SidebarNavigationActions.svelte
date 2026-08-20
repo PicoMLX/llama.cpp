@@ -12,6 +12,7 @@
 		SIDEBAR_ACTIONS_ITEMS
 	} from '$lib/constants';
 	import { TooltipSide } from '$lib/enums';
+	import { t } from '$lib/i18n';
 	import { deviceStore } from '$lib/stores';
 	import type { Component } from 'svelte';
 	import { onMount } from 'svelte';
@@ -96,7 +97,7 @@
 			bind:ref={searchInputRef}
 			onClose={handleSearchModeDeactivate}
 			onKeyDown={(e) => e.key === 'Escape' && handleSearchModeDeactivate()}
-			placeholder="Search conversations..."
+			placeholder={t('chat.sidebar.search.placeholder')}
 		/>
 	</div>
 {:else if isExpandedMode || isOnMobile}

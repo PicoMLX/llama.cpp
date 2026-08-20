@@ -123,6 +123,12 @@ export class ChatService {
 		conversationId?: string,
 		signal?: AbortSignal
 	): Promise<string | void> {
+		if (settingsStore.getConfig(SETTINGS_KEYS.API_ENDPOINT) === 'responses') {
+			const { OpenResponsesService } = await import('./open-responses');
+
+			return OpenResponsesService.sendMessage(messages, options, conversationId, signal);
+		}
+
 		const {
 			backend_sampling,
 			continueFinalMessage,

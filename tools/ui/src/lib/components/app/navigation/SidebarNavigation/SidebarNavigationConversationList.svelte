@@ -3,6 +3,7 @@
 	import SidebarNavigationSearchResults from './SidebarNavigationSearchResults.svelte';
 	import SidebarNavigationSelectionBar from './SidebarNavigationSelectionBar.svelte';
 	import { Pin } from '@lucide/svelte';
+	import { t } from '$lib/i18n';
 	import { buildConversationTree } from '$lib/utils';
 
 	interface Props {
@@ -72,7 +73,9 @@
 	);
 
 	const recentEmptyMessage = $derived(
-		searchQuery.length > 0 ? 'No results found' : 'No conversations yet'
+		searchQuery.length > 0
+			? t('chat.sidebar.empty_no_results')
+			: t('chat.sidebar.empty_no_conversations')
 	);
 </script>
 

@@ -5,6 +5,7 @@ import { mdsvex } from 'mdsvex';
 // CMake sets LLAMA_UI_OUT_DIR to the staging dir under the build tree; manual
 // `npm run build` runs without the env var default to ./dist.
 const outDir = process.env.LLAMA_UI_OUT_DIR ?? './dist';
+const bundleStrategy = process.env.LLAMA_UI_BUNDLE_STRATEGY ?? 'single';
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
 	extensions: ['.svelte', '.svx'],
@@ -18,7 +19,7 @@ const config = {
 			strict: true
 		}),
 		output: {
-			bundleStrategy: 'single'
+			bundleStrategy
 		},
 		paths: {
 			relative: true
