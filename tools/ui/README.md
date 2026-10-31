@@ -103,7 +103,16 @@ npm ci
 npm run build:pico
 ```
 
-This writes a standalone `index.html.gz` and the locale files into the sibling `picoserver/PicoServer/HTTP Server/HTML` directory. Set `PICO_HTML_DIR` to use another destination. The build preserves Pico's Responses endpoint, invite-link authentication, browser-language translations, and inline assets.
+This writes the complete upstream `single` build into the sibling `picoserver/PicoServer/HTTP Server/HTML/webui` directory: HTML, JavaScript, CSS, fonts, icons, version metadata, and translations. `PICO_HTML_DIR` selects the HTML parent directory; the script always replaces only its `webui` child. The build preserves Pico's Responses endpoint, invite-link authentication, and browser-language translations, with PWA registration disabled.
+
+Use an explicit absolute destination when working with separate checkouts or worktrees:
+
+```bash
+PICO_HTML_DIR='/path/to/PicoServer/PicoServer/HTTP Server/HTML' npm run build:pico
+npm run test:pico-package
+```
+
+The script validates local HTML and stylesheet asset references before publishing the new directory, and keeps the previous package if validation fails. Loading and onboarding pages in the HTML parent stay untouched. PicoServer serves this directory at the public `/` URL; `/webui` is the resource folder name, not an API or navigation prefix.
 
 PicoServer is identified by its `/props` `server_name` field. Its model load/unload requests complete synchronously, without llama-server's `/models/sse` feed. The Models Manager keeps selection and load/unload available; GGUF downloads, discovery, and deletion are hidden because PicoServer manages MLX models separately.
 

@@ -1,0 +1,53 @@
+name: Pico WebUI
+
+on:
+  pull_request:
+    paths:
+      - 'tools/ui/**'
+      - '.github/workflows/pico-webui.yml'
+  push:
+    branches:
+      - 'codex/webui-**'
+    paths:
+      - 'tools/ui/**'
+      - '.github/workflows/pico-webui.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pico-webui-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: tools/ui
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: tools/ui/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm run lint
+      - run: npm run test:pico-package
+      - run: npm run test:unit -- --run
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:client -- --run --browser.headless
+      - name: Build and validate Pico resources
+        env:
+          PICO_HTML_DIR: ${{ runner.temp }}/pico-html
+        run: |
+          mkdir -p "$PICO_HTML_DIR"
+          npm run build:pico
+      - name: Smoke-test packaged UI
+        env:
+          PICO_WEB_ROOT: ${{ runner.temp }}/pico-html/webui
+        run: node scripts/smoke-pico.mjs
