@@ -90,163 +90,102 @@ type ReportedOpenResponsesError = Error & {
  * - Response content in `output[].content[].text` instead of `choices[].message.content`
  */
 export class OpenResponsesService {
-	private static sanitizeToolName(name?: string): string {
-		return name?.trim() || 'Tool';
-	}
+	/**
+	 * Converts database messages to Responses API input format.
+	 */
+	static convertMessagesToInput(
+		messages: ApiChatMessageData[] | (DatabaseMessage & { extra?: DatabaseMessageExtra[] })[],
+		excludeReasoningContent = false
+	): ResponsesInputItem[] {
+		const input: ResponsesInputItem[] = [];
 
-	private static stringifyToolArguments(argumentsValue: unknown): string {
-		if (typeof argumentsValue === 'string') {
-			return argumentsValue;
+		for (const msg of messages) {
+			let role: string;
+			let content: string | ResponsesInputContentPart[];
+			let reasoningContent: string | undefined;
+			let toolCalls: ApiChatCompletionToolCall[] = [];
+			let toolCallId: string | undefined;
+
+			if ('id' in msg && 'convId' in msg && 'timestamp' in msg) {
+				const dbMsg = msg as DatabaseMessage & { extra?: DatabaseMessageExtra[] };
+
+				role = dbMsg.role === MessageRole.SYSTEM ? 'developer' : dbMsg.role;
+				reasoningContent = dbMsg.reasoningContent;
+				toolCalls = OpenResponsesService.parseToolCalls(dbMsg.toolCalls);
+				toolCallId = dbMsg.toolCallId;
+
+				if (!dbMsg.extra || dbMsg.extra.length === 0) {
+					content = dbMsg.content;
+				} else {
+					content = OpenResponsesService.convertExtrasToContent(dbMsg);
+				}
+			} else {
+				const apiMsg = msg as ApiChatMessageData;
+
+				role = apiMsg.role === MessageRole.SYSTEM ? 'developer' : apiMsg.role;
+				reasoningContent = apiMsg.reasoning_content;
+				toolCalls = OpenResponsesService.parseToolCalls(apiMsg.tool_calls);
+				toolCallId = apiMsg.tool_call_id;
+
+				if (typeof apiMsg.content === 'string') {
+					content = apiMsg.content;
+				} else {
+					content = OpenResponsesService.convertApiContentParts(apiMsg.content);
+				}
+			}
+
+			if (role === MessageRole.TOOL) {
+				if (toolCallId) {
+					input.push({
+						call_id: toolCallId,
+						output: OpenResponsesService.contentToText(content),
+						type: 'function_call_output'
+					});
+				}
+
+				continue;
+			}
+
+			if (role === MessageRole.ASSISTANT) {
+				const assistantContent = OpenResponsesService.convertAssistantContent(content);
+
+				input.push({
+					content: assistantContent,
+					role: 'assistant',
+					status: 'completed',
+					type: 'message'
+				});
+
+				if (!excludeReasoningContent && reasoningContent?.trim()) {
+					input.push({
+						content: [{ text: reasoningContent, type: 'reasoning_text' }],
+						summary: [],
+						type: 'reasoning'
+					});
+				}
+
+				for (const [index, toolCall] of toolCalls.entries()) {
+					const callId = toolCall.id || `call_${input.length}_${index}`;
+
+					input.push({
+						arguments: OpenResponsesService.stringifyToolArguments(toolCall.function?.arguments),
+						call_id: callId,
+						name: OpenResponsesService.sanitizeToolName(toolCall.function?.name),
+						type: 'function_call'
+					});
+				}
+
+				continue;
+			}
+
+			if (role === 'developer' && typeof content === 'string' && !content.trim()) {
+				continue;
+			}
+
+			input.push({ content, role: role === 'developer' ? 'developer' : 'user' });
 		}
 
-		if (argumentsValue == null) {
-			return '';
-		}
-
-		try {
-			return JSON.stringify(argumentsValue);
-		} catch {
-			return String(argumentsValue);
-		}
-	}
-
-	private static functionCallName(item?: OpenResponsesOutputItem): string {
-		return OpenResponsesService.sanitizeToolName(item?.name || item?.function?.name);
-	}
-
-	private static isFunctionCallItem(item: unknown): item is OpenResponsesOutputItem {
-		return Boolean(
-			item && typeof item === 'object' && (item as OpenResponsesOutputItem).type === 'function_call'
-		);
-	}
-
-	private static isFunctionCallOutputItem(item: unknown): item is OpenResponsesOutputItem {
-		return Boolean(
-			item &&
-			typeof item === 'object' &&
-			(item as OpenResponsesOutputItem).type === 'function_call_output'
-		);
-	}
-
-	private static outputItemCallId(item?: OpenResponsesOutputItem): string | undefined {
-		return item?.callId || item?.call_id;
-	}
-
-	private static serializeToolCalls(
-		functionCalls: Map<string, StreamingFunctionCallState>,
-		pendingOnly = false
-	): string {
-		const toolCalls: ApiChatCompletionToolCall[] = Array.from(functionCalls.values())
-			.filter((call) => !pendingOnly || !call.hasOutput)
-			.sort((a, b) => a.index - b.index)
-			.map((call) => ({
-				function: { arguments: call.arguments, name: call.name },
-				id: call.callId,
-				index: call.index,
-				type: 'function'
-			}));
-
-		return JSON.stringify(toolCalls);
-	}
-
-	private static parseToolCalls(value: unknown): ApiChatCompletionToolCall[] {
-		if (Array.isArray(value)) {
-			return value as ApiChatCompletionToolCall[];
-		}
-
-		if (typeof value !== 'string' || !value.trim()) {
-			return [];
-		}
-
-		try {
-			const parsed = JSON.parse(value);
-
-			return Array.isArray(parsed) ? (parsed as ApiChatCompletionToolCall[]) : [];
-		} catch {
-			return [];
-		}
-	}
-
-	private static stripLegacyAgenticMarkers(content: string): string {
-		return content
-			.replace(AGENTIC_REGEX.REASONING_BLOCK, '')
-			.replace(AGENTIC_REGEX.REASONING_OPEN, '')
-			.replace(AGENTIC_REGEX.AGENTIC_TOOL_CALL_BLOCK, '')
-			.replace(AGENTIC_REGEX.AGENTIC_TOOL_CALL_OPEN, '');
-	}
-
-	private static isRecord(value: unknown): value is Record<string, unknown> {
-		return typeof value === 'object' && value !== null && !Array.isArray(value);
-	}
-
-	private static stringField(
-		record: Record<string, unknown> | null | undefined,
-		key: string
-	): string | undefined {
-		const value = record?.[key];
-
-		return typeof value === 'string' && value.length > 0 ? value : undefined;
-	}
-
-	private static markErrorHandled(error: Error): ReportedOpenResponsesError {
-		const handledError = error as ReportedOpenResponsesError;
-
-		handledError.__openResponsesHandled = true;
-
-		return handledError;
-	}
-
-	private static isHandledError(error: unknown): error is ReportedOpenResponsesError {
-		return (
-			error instanceof Error &&
-			(error as ReportedOpenResponsesError).__openResponsesHandled === true
-		);
-	}
-
-	private static abortError(message: string): Error {
-		const error = new Error(message);
-
-		error.name = 'AbortError';
-
-		return error;
-	}
-
-	private static streamTerminalError(parsed: Record<string, unknown>): Error {
-		const nestedError = OpenResponsesService.isRecord(parsed.error) ? parsed.error : undefined;
-		const response = OpenResponsesService.isRecord(parsed.response) ? parsed.response : undefined;
-		const responseError = OpenResponsesService.isRecord(response?.error)
-			? response.error
-			: undefined;
-		const message =
-			OpenResponsesService.stringField(responseError, 'message') ||
-			OpenResponsesService.stringField(nestedError, 'message') ||
-			OpenResponsesService.stringField(parsed, 'message') ||
-			'Unknown server error';
-		const code =
-			OpenResponsesService.stringField(responseError, 'code') ||
-			OpenResponsesService.stringField(nestedError, 'code') ||
-			OpenResponsesService.stringField(parsed, 'code');
-		const error = new Error(message);
-
-		if (code) {
-			error.name = code;
-		}
-
-		return error;
-	}
-
-	private static incompleteReason(parsed: Record<string, unknown>): string | undefined {
-		const response = OpenResponsesService.isRecord(parsed.response) ? parsed.response : undefined;
-		const details = OpenResponsesService.isRecord(response?.incomplete_details)
-			? response.incomplete_details
-			: OpenResponsesService.isRecord(parsed.incomplete_details)
-				? parsed.incomplete_details
-				: undefined;
-
-		return (
-			OpenResponsesService.stringField(details, 'reason') ||
-			OpenResponsesService.stringField(details, 'type')
-		);
+		return input;
 	}
 
 	/**
@@ -291,6 +230,7 @@ export class OpenResponsesService {
 			samplers,
 			stream,
 			temperature,
+			thinkingBudgetTokens,
 			timings_per_token,
 			tools,
 			top_k,
@@ -363,6 +303,9 @@ export class OpenResponsesService {
 		if (backend_sampling !== undefined) requestBody.backend_sampling = backend_sampling;
 
 		if (timings_per_token !== undefined) requestBody.timings_per_token = timings_per_token;
+
+		if (thinkingBudgetTokens !== undefined)
+			requestBody.thinking_budget_tokens = thinkingBudgetTokens;
 
 		if (shouldStream) {
 			requestBody.return_progress = true;
@@ -488,6 +431,338 @@ export class OpenResponsesService {
 		}
 	}
 
+	private static abortError(message: string): Error {
+		const error = new Error(message);
+
+		error.name = 'AbortError';
+
+		return error;
+	}
+
+	private static completionReason(response: Record<string, unknown>, toolCalls?: string): string {
+		const reason = OpenResponsesService.incompleteReason(response);
+
+		if (reason === 'max_output_tokens') return 'length';
+
+		return reason ?? (toolCalls ? 'tool_calls' : 'stop');
+	}
+
+	private static contentToText(content: string | ResponsesInputContentPart[]): string {
+		if (typeof content === 'string') {
+			return content;
+		}
+
+		return content.map((part) => part.text || '').join('');
+	}
+
+	/**
+	 * Converts API content parts to Responses API format.
+	 */
+	private static convertApiContentParts(parts: ApiChatMessageContentPart[]): Array<{
+		type: string;
+		text?: string;
+		image_url?: string;
+		input_audio?: { data: string; format: string };
+		input_video?: { data: string; format: string };
+	}> {
+		return parts.map((part) => {
+			if (part.type === 'text') {
+				return { text: part.text, type: 'input_text' };
+			} else if (part.type === 'image_url') {
+				return { image_url: part.image_url?.url, type: 'input_image' };
+			} else if (part.type === 'input_audio') {
+				return {
+					input_audio: {
+						data: part.input_audio?.data || '',
+						format: part.input_audio?.format || 'wav'
+					},
+					type: 'input_audio'
+				};
+			} else if (part.type === 'input_video') {
+				return {
+					input_video: {
+						data: part.input_video?.data || '',
+						format: part.input_video?.format || 'auto'
+					},
+					type: 'input_video'
+				};
+			}
+
+			return { text: '', type: 'input_text' };
+		});
+	}
+
+	private static convertAssistantContent(
+		content: string | ResponsesInputContentPart[]
+	): string | ResponsesInputContentPart[] {
+		if (typeof content === 'string') {
+			return OpenResponsesService.stripLegacyAgenticMarkers(content);
+		}
+
+		return content
+			.filter((part) => typeof part.text === 'string')
+			.map((part) => ({
+				text: OpenResponsesService.stripLegacyAgenticMarkers(part.text || ''),
+				type: 'output_text'
+			}));
+	}
+
+	/**
+	 * Converts database message extras to Responses API content format.
+	 */
+	private static convertExtrasToContent(
+		message: DatabaseMessage & { extra?: DatabaseMessageExtra[] }
+	): ResponsesInputContentPart[] {
+		const contentParts: ResponsesInputContentPart[] = [];
+
+		if (message.content) {
+			contentParts.push({ text: message.content, type: 'input_text' });
+		}
+
+		if (!message.extra) return contentParts;
+
+		for (const extra of message.extra) {
+			if (extra.type === AttachmentType.IMAGE) {
+				const imageExtra = extra as DatabaseMessageExtraImageFile;
+
+				contentParts.push({ image_url: imageExtra.base64Url, type: 'input_image' });
+			} else if (extra.type === AttachmentType.TEXT) {
+				const textExtra = extra as DatabaseMessageExtraTextFile;
+
+				contentParts.push({
+					text: `\n\n--- File: ${textExtra.name} ---\n${textExtra.content}`,
+					type: 'input_text'
+				});
+			} else if (extra.type === AttachmentType.LEGACY_CONTEXT) {
+				const legacyExtra = extra as DatabaseMessageExtraLegacyContext;
+
+				contentParts.push({
+					text: `\n\n--- File: ${legacyExtra.name} ---\n${legacyExtra.content}`,
+					type: 'input_text'
+				});
+			} else if (extra.type === AttachmentType.AUDIO) {
+				const audioExtra = extra as DatabaseMessageExtraAudioFile;
+
+				contentParts.push({
+					input_audio: {
+						data: audioExtra.base64Data,
+						format: audioExtra.mimeType.includes('wav') ? 'wav' : 'mp3'
+					},
+					type: 'input_audio'
+				});
+			} else if (extra.type === AttachmentType.VIDEO) {
+				const videoExtra = extra as DatabaseMessageExtraVideoFile;
+
+				contentParts.push({
+					input_video: {
+						data: videoExtra.base64Data,
+						format: videoExtra.mimeType.includes('mp4')
+							? 'mp4'
+							: videoExtra.mimeType.includes('ogg')
+								? 'ogg'
+								: 'auto'
+					},
+					type: 'input_video'
+				});
+			} else if (extra.type === AttachmentType.PDF) {
+				const pdfExtra = extra as DatabaseMessageExtraPdfFile;
+
+				if (pdfExtra.processedAsImages && pdfExtra.images) {
+					for (const imageUrl of pdfExtra.images) {
+						contentParts.push({ image_url: imageUrl, type: 'input_image' });
+					}
+				} else {
+					contentParts.push({
+						text: `\n\n--- PDF File: ${pdfExtra.name} ---\n${pdfExtra.content}`,
+						type: 'input_text'
+					});
+				}
+			} else if (extra.type === AttachmentType.MCP_PROMPT) {
+				const promptExtra = extra as DatabaseMessageExtraMcpPrompt;
+
+				contentParts.push({
+					text: `\n\n--- MCP Prompt: ${promptExtra.name} (${promptExtra.serverName}) ---\n${promptExtra.content}`,
+					type: 'input_text'
+				});
+			} else if (extra.type === AttachmentType.MCP_RESOURCE) {
+				const resourceExtra = extra as DatabaseMessageExtraMcpResource;
+
+				contentParts.push({
+					text: `\n\n--- MCP Resource: ${resourceExtra.name} (${resourceExtra.serverName}) ---\n${resourceExtra.content}`,
+					type: 'input_text'
+				});
+			}
+		}
+
+		return contentParts;
+	}
+
+	/**
+	 * Converts Responses API usage to ChatMessageTimings format.
+	 */
+	private static convertUsageToTimings(usage: {
+		input_tokens?: number;
+		output_tokens?: number;
+		total_tokens?: number;
+		input_tokens_details?: { cached_tokens?: number };
+		output_tokens_details?: { reasoning_tokens?: number };
+		prompt_time_ms?: number;
+		generation_time_ms?: number;
+	}): ChatMessageTimings {
+		return {
+			cache_n: usage.input_tokens_details?.cached_tokens || 0,
+			predicted_ms: usage.generation_time_ms,
+			predicted_n: usage.output_tokens || 0,
+			prompt_ms: usage.prompt_time_ms,
+			prompt_n: usage.input_tokens || 0
+		};
+	}
+
+	private static functionCallName(item?: OpenResponsesOutputItem): string {
+		return OpenResponsesService.sanitizeToolName(item?.name || item?.function?.name);
+	}
+
+	/**
+	 * Handles non-streaming response from the Responses API.
+	 */
+	private static async handleNonStreamResponse(
+		response: Response,
+		onComplete?: (
+			response: string,
+			reasoningContent?: string,
+			timings?: ChatMessageTimings,
+			toolCalls?: string,
+			finishReason?: string
+		) => void,
+		onToolCallChunk?: (chunk: string) => void,
+		onModel?: (model: string) => void,
+		onCompletionId?: (id: string) => void,
+		onTimings?: (timings?: ChatMessageTimings, promptProgress?: ChatMessagePromptProgress) => void
+	): Promise<string> {
+		try {
+			const responseText = await response.text();
+
+			if (!responseText.trim()) {
+				const noResponseError = new Error('No response received from server. Please try again.');
+
+				throw noResponseError;
+			}
+
+			const data = JSON.parse(responseText);
+
+			if (data.model) {
+				onModel?.(data.model);
+			}
+
+			if (data.id) {
+				onCompletionId?.(data.id);
+			}
+
+			let content = '';
+			let reasoningContent = '';
+
+			const toolCalls: ApiChatCompletionToolCall[] = [];
+			const completedToolCallIds = new Set<string>();
+
+			if (data.output && Array.isArray(data.output)) {
+				for (const item of data.output) {
+					if (item.type === 'function_call') {
+						toolCalls.push({
+							function: {
+								arguments: OpenResponsesService.stringifyToolArguments(item.arguments),
+								name: OpenResponsesService.functionCallName(item)
+							},
+							id: OpenResponsesService.outputItemCallId(item) || item.id,
+							index: toolCalls.length,
+							type: 'function'
+						});
+					}
+
+					if (item.type === 'function_call_output') {
+						const callId = OpenResponsesService.outputItemCallId(item);
+
+						if (callId) completedToolCallIds.add(callId);
+					}
+
+					if (item.type === 'message' && item.content) {
+						for (const contentItem of item.content) {
+							if (contentItem.type === 'output_text') {
+								content += contentItem.text || '';
+							}
+						}
+					}
+
+					if (item.type === 'reasoning') {
+						let summaryText = '';
+						let rawReasoningText = '';
+
+						for (const summaryItem of item.summary || []) {
+							if (
+								summaryItem.type === 'summary_text' ||
+								summaryItem.type === 'reasoning_summary_text'
+							) {
+								summaryText += summaryItem.text || '';
+							}
+						}
+						for (const contentItem of item.content || []) {
+							if (
+								contentItem.type === 'reasoning_text' ||
+								contentItem.type === 'reasoning_summary_text'
+							) {
+								rawReasoningText += contentItem.text || '';
+							}
+						}
+						const reasoningText = summaryText || rawReasoningText;
+
+						if (reasoningText) {
+							reasoningContent += reasoningText;
+						}
+					}
+				}
+			}
+
+			if (!content.trim() && toolCalls.length === 0 && !reasoningContent.trim()) {
+				const noResponseError = new Error('No response received from server. Please try again.');
+
+				throw noResponseError;
+			}
+
+			const timings = data.timings
+				? (data.timings as ChatMessageTimings)
+				: data.usage
+					? OpenResponsesService.convertUsageToTimings(data.usage)
+					: undefined;
+
+			if (data.usage && import.meta.env.DEV) {
+				console.log('[OpenResponses] response usage:', data.usage);
+				console.log('[OpenResponses] mapped timings:', timings);
+			}
+
+			const pendingToolCalls = toolCalls.filter(
+				(toolCall) => !toolCall.id || !completedToolCallIds.has(toolCall.id)
+			);
+			const serializedToolCalls = pendingToolCalls.length
+				? JSON.stringify(pendingToolCalls)
+				: undefined;
+
+			if (serializedToolCalls) onToolCallChunk?.(serializedToolCalls);
+
+			if (timings) onTimings?.(timings, undefined);
+
+			onComplete?.(
+				content,
+				reasoningContent || undefined,
+				timings,
+				serializedToolCalls,
+				OpenResponsesService.completionReason(data, serializedToolCalls)
+			);
+
+			return content;
+		} catch (error) {
+			throw error instanceof Error ? error : new Error('Parse error');
+		}
+	}
+
 	/**
 	 * Handles streaming response from the Responses API.
 	 * Parses SSE events and normalizes to ChatService callback format.
@@ -499,7 +774,8 @@ export class OpenResponsesService {
 			response: string,
 			reasoningContent?: string,
 			timings?: ChatMessageTimings,
-			toolCalls?: string
+			toolCalls?: string,
+			finishReason?: string
 		) => void,
 		onError?: (error: Error) => void,
 		onReasoningChunk?: (chunk: string) => void,
@@ -520,6 +796,7 @@ export class OpenResponsesService {
 		let aggregatedContent = '';
 		let fullReasoningContent = '';
 		let lastTimings: ChatMessageTimings | undefined;
+		let terminalResponse: Record<string, unknown> = {};
 		let modelEmitted = false;
 		let idEmitted = false;
 		let reasoningSummarySeen = false;
@@ -666,6 +943,7 @@ export class OpenResponsesService {
 							}
 
 							if (eventType === 'response.incomplete') {
+								terminalResponse = responseData;
 								closeOpenFunctionCallsAtTerminalIfNeeded();
 
 								if (OpenResponsesService.incompleteReason(parsed) === 'cancelled') {
@@ -851,6 +1129,8 @@ export class OpenResponsesService {
 								closeOpenFunctionCallsAtTerminalIfNeeded();
 								const responseData = parsed.response || parsed;
 
+								terminalResponse = responseData;
+
 								if (!parsed.timings && responseData.usage) {
 									lastTimings = OpenResponsesService.convertUsageToTimings(responseData.usage);
 
@@ -893,7 +1173,8 @@ export class OpenResponsesService {
 				aggregatedContent,
 				fullReasoningContent || undefined,
 				lastTimings,
-				serializedToolCalls
+				serializedToolCalls,
+				OpenResponsesService.completionReason(terminalResponse, serializedToolCalls)
 			);
 		} catch (error) {
 			throw error instanceof Error ? error : new Error('Stream error');
@@ -902,407 +1183,55 @@ export class OpenResponsesService {
 		}
 	}
 
-	/**
-	 * Handles non-streaming response from the Responses API.
-	 */
-	private static async handleNonStreamResponse(
-		response: Response,
-		onComplete?: (
-			response: string,
-			reasoningContent?: string,
-			timings?: ChatMessageTimings,
-			toolCalls?: string
-		) => void,
-		onToolCallChunk?: (chunk: string) => void,
-		onModel?: (model: string) => void,
-		onCompletionId?: (id: string) => void,
-		onTimings?: (timings?: ChatMessageTimings, promptProgress?: ChatMessagePromptProgress) => void
-	): Promise<string> {
-		try {
-			const responseText = await response.text();
-
-			if (!responseText.trim()) {
-				const noResponseError = new Error('No response received from server. Please try again.');
-
-				throw noResponseError;
-			}
-
-			const data = JSON.parse(responseText);
-
-			if (data.model) {
-				onModel?.(data.model);
-			}
-
-			if (data.id) {
-				onCompletionId?.(data.id);
-			}
-
-			let content = '';
-			let reasoningContent = '';
-
-			const toolCalls: ApiChatCompletionToolCall[] = [];
-			const completedToolCallIds = new Set<string>();
-
-			if (data.output && Array.isArray(data.output)) {
-				for (const item of data.output) {
-					if (item.type === 'function_call') {
-						toolCalls.push({
-							function: {
-								arguments: OpenResponsesService.stringifyToolArguments(item.arguments),
-								name: OpenResponsesService.functionCallName(item)
-							},
-							id: OpenResponsesService.outputItemCallId(item) || item.id,
-							index: toolCalls.length,
-							type: 'function'
-						});
-					}
-
-					if (item.type === 'function_call_output') {
-						const callId = OpenResponsesService.outputItemCallId(item);
-
-						if (callId) completedToolCallIds.add(callId);
-					}
-
-					if (item.type === 'message' && item.content) {
-						for (const contentItem of item.content) {
-							if (contentItem.type === 'output_text') {
-								content += contentItem.text || '';
-							}
-						}
-					}
-
-					if (item.type === 'reasoning') {
-						let summaryText = '';
-						let rawReasoningText = '';
-
-						for (const summaryItem of item.summary || []) {
-							if (
-								summaryItem.type === 'summary_text' ||
-								summaryItem.type === 'reasoning_summary_text'
-							) {
-								summaryText += summaryItem.text || '';
-							}
-						}
-						for (const contentItem of item.content || []) {
-							if (
-								contentItem.type === 'reasoning_text' ||
-								contentItem.type === 'reasoning_summary_text'
-							) {
-								rawReasoningText += contentItem.text || '';
-							}
-						}
-						const reasoningText = summaryText || rawReasoningText;
-
-						if (reasoningText) {
-							reasoningContent += reasoningText;
-						}
-					}
-				}
-			}
-
-			if (!content.trim() && toolCalls.length === 0 && !reasoningContent.trim()) {
-				const noResponseError = new Error('No response received from server. Please try again.');
-
-				throw noResponseError;
-			}
-
-			const timings = data.timings
-				? (data.timings as ChatMessageTimings)
-				: data.usage
-					? OpenResponsesService.convertUsageToTimings(data.usage)
-					: undefined;
-
-			if (data.usage && import.meta.env.DEV) {
-				console.log('[OpenResponses] response usage:', data.usage);
-				console.log('[OpenResponses] mapped timings:', timings);
-			}
-
-			const pendingToolCalls = toolCalls.filter(
-				(toolCall) => !toolCall.id || !completedToolCallIds.has(toolCall.id)
-			);
-			const serializedToolCalls = pendingToolCalls.length
-				? JSON.stringify(pendingToolCalls)
+	private static incompleteReason(parsed: Record<string, unknown>): string | undefined {
+		const response = OpenResponsesService.isRecord(parsed.response) ? parsed.response : undefined;
+		const details = OpenResponsesService.isRecord(response?.incomplete_details)
+			? response.incomplete_details
+			: OpenResponsesService.isRecord(parsed.incomplete_details)
+				? parsed.incomplete_details
 				: undefined;
 
-			if (serializedToolCalls) onToolCallChunk?.(serializedToolCalls);
-
-			if (timings) onTimings?.(timings, undefined);
-
-			onComplete?.(content, reasoningContent || undefined, timings, serializedToolCalls);
-
-			return content;
-		} catch (error) {
-			throw error instanceof Error ? error : new Error('Parse error');
-		}
+		return (
+			OpenResponsesService.stringField(details, 'reason') ||
+			OpenResponsesService.stringField(details, 'type')
+		);
 	}
 
-	/**
-	 * Converts database messages to Responses API input format.
-	 */
-	static convertMessagesToInput(
-		messages: ApiChatMessageData[] | (DatabaseMessage & { extra?: DatabaseMessageExtra[] })[],
-		excludeReasoningContent = false
-	): ResponsesInputItem[] {
-		const input: ResponsesInputItem[] = [];
-
-		for (const msg of messages) {
-			let role: string;
-			let content: string | ResponsesInputContentPart[];
-			let reasoningContent: string | undefined;
-			let toolCalls: ApiChatCompletionToolCall[] = [];
-			let toolCallId: string | undefined;
-
-			if ('id' in msg && 'convId' in msg && 'timestamp' in msg) {
-				const dbMsg = msg as DatabaseMessage & { extra?: DatabaseMessageExtra[] };
-
-				role = dbMsg.role === MessageRole.SYSTEM ? 'developer' : dbMsg.role;
-				reasoningContent = dbMsg.reasoningContent;
-				toolCalls = OpenResponsesService.parseToolCalls(dbMsg.toolCalls);
-				toolCallId = dbMsg.toolCallId;
-
-				if (!dbMsg.extra || dbMsg.extra.length === 0) {
-					content = dbMsg.content;
-				} else {
-					content = OpenResponsesService.convertExtrasToContent(dbMsg);
-				}
-			} else {
-				const apiMsg = msg as ApiChatMessageData;
-
-				role = apiMsg.role === MessageRole.SYSTEM ? 'developer' : apiMsg.role;
-				reasoningContent = apiMsg.reasoning_content;
-				toolCalls = OpenResponsesService.parseToolCalls(apiMsg.tool_calls);
-				toolCallId = apiMsg.tool_call_id;
-
-				if (typeof apiMsg.content === 'string') {
-					content = apiMsg.content;
-				} else {
-					content = OpenResponsesService.convertApiContentParts(apiMsg.content);
-				}
-			}
-
-			if (role === MessageRole.TOOL) {
-				if (toolCallId) {
-					input.push({
-						call_id: toolCallId,
-						output: OpenResponsesService.contentToText(content),
-						type: 'function_call_output'
-					});
-				}
-
-				continue;
-			}
-
-			if (role === MessageRole.ASSISTANT) {
-				const assistantContent = OpenResponsesService.convertAssistantContent(content);
-
-				input.push({
-					content: assistantContent,
-					role: 'assistant',
-					status: 'completed',
-					type: 'message'
-				});
-
-				if (!excludeReasoningContent && reasoningContent?.trim()) {
-					input.push({
-						content: [{ text: reasoningContent, type: 'reasoning_text' }],
-						summary: [],
-						type: 'reasoning'
-					});
-				}
-
-				for (const [index, toolCall] of toolCalls.entries()) {
-					const callId = toolCall.id || `call_${input.length}_${index}`;
-
-					input.push({
-						arguments: OpenResponsesService.stringifyToolArguments(toolCall.function?.arguments),
-						call_id: callId,
-						name: OpenResponsesService.sanitizeToolName(toolCall.function?.name),
-						type: 'function_call'
-					});
-				}
-
-				continue;
-			}
-
-			if (role === 'developer' && typeof content === 'string' && !content.trim()) {
-				continue;
-			}
-
-			input.push({ content, role: role === 'developer' ? 'developer' : 'user' });
-		}
-
-		return input;
+	private static isFunctionCallItem(item: unknown): item is OpenResponsesOutputItem {
+		return Boolean(
+			item && typeof item === 'object' && (item as OpenResponsesOutputItem).type === 'function_call'
+		);
 	}
 
-	private static contentToText(content: string | ResponsesInputContentPart[]): string {
-		if (typeof content === 'string') {
-			return content;
-		}
-
-		return content.map((part) => part.text || '').join('');
+	private static isFunctionCallOutputItem(item: unknown): item is OpenResponsesOutputItem {
+		return Boolean(
+			item &&
+			typeof item === 'object' &&
+			(item as OpenResponsesOutputItem).type === 'function_call_output'
+		);
 	}
 
-	private static convertAssistantContent(
-		content: string | ResponsesInputContentPart[]
-	): string | ResponsesInputContentPart[] {
-		if (typeof content === 'string') {
-			return OpenResponsesService.stripLegacyAgenticMarkers(content);
-		}
-
-		return content
-			.filter((part) => typeof part.text === 'string')
-			.map((part) => ({
-				text: OpenResponsesService.stripLegacyAgenticMarkers(part.text || ''),
-				type: 'output_text'
-			}));
+	private static isHandledError(error: unknown): error is ReportedOpenResponsesError {
+		return (
+			error instanceof Error &&
+			(error as ReportedOpenResponsesError).__openResponsesHandled === true
+		);
 	}
 
-	/**
-	 * Converts database message extras to Responses API content format.
-	 */
-	private static convertExtrasToContent(
-		message: DatabaseMessage & { extra?: DatabaseMessageExtra[] }
-	): ResponsesInputContentPart[] {
-		const contentParts: ResponsesInputContentPart[] = [];
-
-		if (message.content) {
-			contentParts.push({ text: message.content, type: 'input_text' });
-		}
-
-		if (!message.extra) return contentParts;
-
-		for (const extra of message.extra) {
-			if (extra.type === AttachmentType.IMAGE) {
-				const imageExtra = extra as DatabaseMessageExtraImageFile;
-
-				contentParts.push({ image_url: imageExtra.base64Url, type: 'input_image' });
-			} else if (extra.type === AttachmentType.TEXT) {
-				const textExtra = extra as DatabaseMessageExtraTextFile;
-
-				contentParts.push({
-					text: `\n\n--- File: ${textExtra.name} ---\n${textExtra.content}`,
-					type: 'input_text'
-				});
-			} else if (extra.type === AttachmentType.LEGACY_CONTEXT) {
-				const legacyExtra = extra as DatabaseMessageExtraLegacyContext;
-
-				contentParts.push({
-					text: `\n\n--- File: ${legacyExtra.name} ---\n${legacyExtra.content}`,
-					type: 'input_text'
-				});
-			} else if (extra.type === AttachmentType.AUDIO) {
-				const audioExtra = extra as DatabaseMessageExtraAudioFile;
-
-				contentParts.push({
-					input_audio: {
-						data: audioExtra.base64Data,
-						format: audioExtra.mimeType.includes('wav') ? 'wav' : 'mp3'
-					},
-					type: 'input_audio'
-				});
-			} else if (extra.type === AttachmentType.VIDEO) {
-				const videoExtra = extra as DatabaseMessageExtraVideoFile;
-
-				contentParts.push({
-					input_video: {
-						data: videoExtra.base64Data,
-						format: videoExtra.mimeType.includes('mp4')
-							? 'mp4'
-							: videoExtra.mimeType.includes('ogg')
-								? 'ogg'
-								: 'auto'
-					},
-					type: 'input_video'
-				});
-			} else if (extra.type === AttachmentType.PDF) {
-				const pdfExtra = extra as DatabaseMessageExtraPdfFile;
-
-				if (pdfExtra.processedAsImages && pdfExtra.images) {
-					for (const imageUrl of pdfExtra.images) {
-						contentParts.push({ image_url: imageUrl, type: 'input_image' });
-					}
-				} else {
-					contentParts.push({
-						text: `\n\n--- PDF File: ${pdfExtra.name} ---\n${pdfExtra.content}`,
-						type: 'input_text'
-					});
-				}
-			} else if (extra.type === AttachmentType.MCP_PROMPT) {
-				const promptExtra = extra as DatabaseMessageExtraMcpPrompt;
-
-				contentParts.push({
-					text: `\n\n--- MCP Prompt: ${promptExtra.name} (${promptExtra.serverName}) ---\n${promptExtra.content}`,
-					type: 'input_text'
-				});
-			} else if (extra.type === AttachmentType.MCP_RESOURCE) {
-				const resourceExtra = extra as DatabaseMessageExtraMcpResource;
-
-				contentParts.push({
-					text: `\n\n--- MCP Resource: ${resourceExtra.name} (${resourceExtra.serverName}) ---\n${resourceExtra.content}`,
-					type: 'input_text'
-				});
-			}
-		}
-
-		return contentParts;
+	private static isRecord(value: unknown): value is Record<string, unknown> {
+		return typeof value === 'object' && value !== null && !Array.isArray(value);
 	}
 
-	/**
-	 * Converts API content parts to Responses API format.
-	 */
-	private static convertApiContentParts(parts: ApiChatMessageContentPart[]): Array<{
-		type: string;
-		text?: string;
-		image_url?: string;
-		input_audio?: { data: string; format: string };
-		input_video?: { data: string; format: string };
-	}> {
-		return parts.map((part) => {
-			if (part.type === 'text') {
-				return { text: part.text, type: 'input_text' };
-			} else if (part.type === 'image_url') {
-				return { image_url: part.image_url?.url, type: 'input_image' };
-			} else if (part.type === 'input_audio') {
-				return {
-					input_audio: {
-						data: part.input_audio?.data || '',
-						format: part.input_audio?.format || 'wav'
-					},
-					type: 'input_audio'
-				};
-			} else if (part.type === 'input_video') {
-				return {
-					input_video: {
-						data: part.input_video?.data || '',
-						format: part.input_video?.format || 'auto'
-					},
-					type: 'input_video'
-				};
-			}
+	private static markErrorHandled(error: Error): ReportedOpenResponsesError {
+		const handledError = error as ReportedOpenResponsesError;
 
-			return { text: '', type: 'input_text' };
-		});
+		handledError.__openResponsesHandled = true;
+
+		return handledError;
 	}
 
-	/**
-	 * Converts Responses API usage to ChatMessageTimings format.
-	 */
-	private static convertUsageToTimings(usage: {
-		input_tokens?: number;
-		output_tokens?: number;
-		total_tokens?: number;
-		input_tokens_details?: { cached_tokens?: number };
-		output_tokens_details?: { reasoning_tokens?: number };
-		prompt_time_ms?: number;
-		generation_time_ms?: number;
-	}): ChatMessageTimings {
-		return {
-			cache_n: usage.input_tokens_details?.cached_tokens || 0,
-			predicted_ms: usage.generation_time_ms,
-			predicted_n: usage.output_tokens || 0,
-			prompt_ms: usage.prompt_time_ms,
-			prompt_n: usage.input_tokens || 0
-		};
+	private static outputItemCallId(item?: OpenResponsesOutputItem): string | undefined {
+		return item?.callId || item?.call_id;
 	}
 
 	/**
@@ -1325,5 +1254,101 @@ export class OpenResponsesService {
 
 			return fallback;
 		}
+	}
+
+	private static parseToolCalls(value: unknown): ApiChatCompletionToolCall[] {
+		if (Array.isArray(value)) {
+			return value as ApiChatCompletionToolCall[];
+		}
+
+		if (typeof value !== 'string' || !value.trim()) {
+			return [];
+		}
+
+		try {
+			const parsed = JSON.parse(value);
+
+			return Array.isArray(parsed) ? (parsed as ApiChatCompletionToolCall[]) : [];
+		} catch {
+			return [];
+		}
+	}
+
+	private static sanitizeToolName(name?: string): string {
+		return name?.trim() || 'Tool';
+	}
+
+	private static serializeToolCalls(
+		functionCalls: Map<string, StreamingFunctionCallState>,
+		pendingOnly = false
+	): string {
+		const toolCalls: ApiChatCompletionToolCall[] = Array.from(functionCalls.values())
+			.filter((call) => !pendingOnly || !call.hasOutput)
+			.sort((a, b) => a.index - b.index)
+			.map((call) => ({
+				function: { arguments: call.arguments, name: call.name },
+				id: call.callId,
+				index: call.index,
+				type: 'function'
+			}));
+
+		return JSON.stringify(toolCalls);
+	}
+
+	private static streamTerminalError(parsed: Record<string, unknown>): Error {
+		const nestedError = OpenResponsesService.isRecord(parsed.error) ? parsed.error : undefined;
+		const response = OpenResponsesService.isRecord(parsed.response) ? parsed.response : undefined;
+		const responseError = OpenResponsesService.isRecord(response?.error)
+			? response.error
+			: undefined;
+		const message =
+			OpenResponsesService.stringField(responseError, 'message') ||
+			OpenResponsesService.stringField(nestedError, 'message') ||
+			OpenResponsesService.stringField(parsed, 'message') ||
+			'Unknown server error';
+		const code =
+			OpenResponsesService.stringField(responseError, 'code') ||
+			OpenResponsesService.stringField(nestedError, 'code') ||
+			OpenResponsesService.stringField(parsed, 'code');
+		const error = new Error(message);
+
+		if (code) {
+			error.name = code;
+		}
+
+		return error;
+	}
+
+	private static stringField(
+		record: Record<string, unknown> | null | undefined,
+		key: string
+	): string | undefined {
+		const value = record?.[key];
+
+		return typeof value === 'string' && value.length > 0 ? value : undefined;
+	}
+
+	private static stringifyToolArguments(argumentsValue: unknown): string {
+		if (typeof argumentsValue === 'string') {
+			return argumentsValue;
+		}
+
+		if (argumentsValue == null) {
+			return '';
+		}
+
+		try {
+			return JSON.stringify(argumentsValue);
+		} catch {
+			return String(argumentsValue);
+		}
+	}
+
+	private static stripLegacyAgenticMarkers(content: string): string {
+		return content
+			.replace(AGENTIC_REGEX.REASONING_BLOCK, '')
+			.replace(AGENTIC_REGEX.REASONING_OPEN, '')
+			.replace(AGENTIC_REGEX.AGENTIC_TOOL_CALL_BLOCK, '')
+			.replace(AGENTIC_REGEX.AGENTIC_TOOL_CALL_OPEN, '');
 	}
 }

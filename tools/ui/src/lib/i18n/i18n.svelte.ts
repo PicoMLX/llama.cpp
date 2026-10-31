@@ -10,40 +10,40 @@ type Messages = Record<string, string>;
 type Catalog = Record<string, Messages>;
 
 const CORE_ENGLISH_MESSAGES: Messages = {
-	'chat.form.placeholder': 'Type a message...',
+	'chat.form.placeholder': 'Message',
 	'chat.form.send': 'Send',
 	'chat.form.stop': 'Stop',
-	'chat.landing.prompt_no_audio': 'Type a message or upload files to get started',
-	'chat.landing.prompt_with_audio': 'Record audio, type a message, or upload files to get started',
+	'chat.landing.prompt_no_audio': 'Type a message or add files.',
+	'chat.landing.prompt_with_audio': 'Type a message, record audio, or add files.',
 	'chat.landing.title': 'Pico',
-	'chat.sidebar.empty_no_conversations': 'No conversations yet',
-	'chat.sidebar.empty_no_results': 'No results found',
-	'chat.sidebar.empty_start_typing': 'Start typing to see results',
-	'chat.sidebar.search.placeholder': 'Search conversations...',
+	'chat.sidebar.empty_no_conversations': 'No Conversations',
+	'chat.sidebar.empty_no_results': 'No Results',
+	'chat.sidebar.empty_start_typing': 'Type to search conversations.',
+	'chat.sidebar.search.placeholder': 'Search conversations',
 	'chat.sidebar.search_results': 'Search results',
 	'server.error.api_key.auth_failed': 'Authentication failed ({status})',
 	'server.error.api_key.cancel': 'Cancel',
-	'server.error.api_key.cannot_connect': 'Cannot connect to server - check if server is running',
-	'server.error.api_key.connection_error': 'Connection error - please try again',
+	'server.error.api_key.cannot_connect': 'Can\u2019t connect. Check that the server is running.',
+	'server.error.api_key.connection_error': 'Can\u2019t connect. Try again.',
 	'server.error.api_key.enter': 'Enter API Key',
 	'server.error.api_key.generic_error': 'Error: {message}',
-	'server.error.api_key.invalid': 'Invalid API key - please check and try again',
+	'server.error.api_key.invalid': 'The API key isn\u2019t valid. Check it and try again.',
 	'server.error.api_key.label': 'API Key',
-	'server.error.api_key.placeholder': 'Enter your API key...',
-	'server.error.api_key.save_retry': 'Save & Retry',
-	'server.error.api_key.success': 'API key validated successfully! Connecting...',
-	'server.error.api_key.success_button': 'Success!',
-	'server.error.api_key.validating': 'Validating...',
-	'server.error.retry.action': 'Retry Connection',
-	'server.error.retry.connecting': 'Connecting...',
+	'server.error.api_key.placeholder': 'Enter your API key\u2026',
+	'server.error.api_key.save_retry': 'Save and Reconnect',
+	'server.error.api_key.success': 'API key accepted. Connecting\u2026',
+	'server.error.api_key.success_button': 'Connected',
+	'server.error.api_key.validating': 'Checking API Key\u2026',
+	'server.error.retry.action': 'Reconnect',
+	'server.error.retry.connecting': 'Connecting\u2026',
 	'server.error.title': 'Server Connection Error',
 	'server.error.troubleshooting.or': 'or',
-	'server.error.troubleshooting.start': 'Start the llama-server:',
-	'server.error.troubleshooting.step_logs': 'Check server logs for any error messages',
-	'server.error.troubleshooting.step_network': 'Verify your network connection',
-	'server.error.troubleshooting.step_url': 'Check that the server is accessible at the correct URL',
+	'server.error.troubleshooting.start': 'Start the server:',
+	'server.error.troubleshooting.step_logs': 'Check the server logs for errors.',
+	'server.error.troubleshooting.step_network': 'Check your network connection.',
+	'server.error.troubleshooting.step_url': 'Check the server address.',
 	'server.error.troubleshooting.title': 'Troubleshooting',
-	'server.loading.message': 'Initializing connection to Pico server...',
+	'server.loading.message': 'Connecting to Pico\u2026',
 	'server.loading.title': 'Connecting to Server'
 };
 
@@ -58,10 +58,10 @@ function interpolate(value: string, params?: TranslationParams): string {
 }
 
 class I18nStore {
+	isLoading = $state(false);
+	isReady = $state(false);
 	locale = $state(DEFAULT_LOCALE);
 	messages = $state<Catalog>({ [DEFAULT_LOCALE]: CORE_ENGLISH_MESSAGES });
-	isReady = $state(false);
-	isLoading = $state(false);
 	private initialized = false;
 	private loadedLocales = new Set<string>();
 
@@ -101,20 +101,6 @@ class I18nStore {
 		return interpolate(value, params);
 	}
 
-	private async loadFirstAvailable(candidates: string[]): Promise<string> {
-		for (const locale of candidates) {
-			if (this.loadedLocales.has(locale)) {
-				return locale;
-			}
-
-			if (await this.fetchLocale(locale)) {
-				return locale;
-			}
-		}
-
-		return DEFAULT_LOCALE;
-	}
-
 	private async fetchLocale(locale: string): Promise<boolean> {
 		if (!browser) return false;
 
@@ -141,6 +127,20 @@ class I18nStore {
 		} finally {
 			this.isLoading = false;
 		}
+	}
+
+	private async loadFirstAvailable(candidates: string[]): Promise<string> {
+		for (const locale of candidates) {
+			if (this.loadedLocales.has(locale)) {
+				return locale;
+			}
+
+			if (await this.fetchLocale(locale)) {
+				return locale;
+			}
+		}
+
+		return DEFAULT_LOCALE;
 	}
 }
 

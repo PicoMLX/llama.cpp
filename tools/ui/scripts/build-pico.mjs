@@ -7,7 +7,7 @@ import { gzipSync } from 'node:zlib';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const uiDir = resolve(scriptDir, '..');
-const defaultPicoHtmlDir = resolve(uiDir, '../../../PicoServer/PicoServer/HTTP Server/HTML');
+const defaultPicoHtmlDir = resolve(uiDir, '../../../picoserver/PicoServer/HTTP Server/HTML');
 const picoHtmlDir = resolve(process.env.PICO_HTML_DIR ?? defaultPicoHtmlDir);
 const buildDir = await mkdtemp(join(tmpdir(), 'llama-ui-pico-'));
 const PICO_GUIDE = `
@@ -50,7 +50,12 @@ function dataUrl(content, mimeType) {
 async function makeStandaloneHtml() {
 	let html = await readFile(join(buildDir, 'index.html'), 'utf8');
 
-	const favicon = await readFile(join(uiDir, 'static/favicon.svg'));
+	const favicon = Buffer.from(
+		(await readFile(join(uiDir, 'src/lib/assets/logo.svg'), 'utf8')).replaceAll(
+			'currentColor',
+			'#111111'
+		)
+	);
 
 	html = html
 		.replace(/\s*<link[^>]+rel="(?:apple-touch-icon|manifest)"[^>]*>/g, '')

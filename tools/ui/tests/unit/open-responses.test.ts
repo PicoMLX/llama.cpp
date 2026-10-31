@@ -386,6 +386,7 @@ describe('OpenResponsesService', () => {
 		await OpenResponsesService.sendMessage([{ content: 'Hi', role: 'user' }], {
 			max_tokens: 0,
 			stream: false,
+			thinkingBudgetTokens: 256,
 			tools: [
 				{
 					function: {
@@ -406,6 +407,7 @@ describe('OpenResponsesService', () => {
 
 		expect(body.max_output_tokens).toBe(-1);
 		expect(body.top_k).toBe(40);
+		expect(body.thinking_budget_tokens).toBe(256);
 		expect(body.reasoning).toEqual({ effort: 'medium' });
 		expect(body.tools).toEqual([
 			{
@@ -523,6 +525,38 @@ describe('OpenResponsesService', () => {
 		expect((onError.mock.calls[0]?.[0] as Error).message).toBe('Model download is incomplete.');
 		expect(onComplete).not.toHaveBeenCalled();
 	});
+
+	it.each([false, true])(
+		'reports output-token truncation to the compaction callback (stream=%s)',
+		async (stream) => {
+			const responseData = {
+				incomplete_details: { reason: 'max_output_tokens' },
+				output: [{ content: [{ text: 'Partial summary', type: 'output_text' }], type: 'message' }],
+				status: 'incomplete'
+			};
+			const streamBody = `data: ${JSON.stringify({ delta: 'Partial summary', type: 'response.output_text.delta' })}\n\ndata: ${JSON.stringify({ response: responseData, type: 'response.incomplete' })}\n\ndata: [DONE]\n`;
+			const response = stream
+				? createStreamResponse(streamBody)
+				: new Response(JSON.stringify(responseData), { status: 200 });
+
+			vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
+
+			const onComplete = vi.fn();
+
+			await OpenResponsesService.sendMessage([{ content: 'Summarize', role: 'user' }], {
+				onComplete,
+				stream
+			});
+
+			expect(onComplete).toHaveBeenCalledExactlyOnceWith(
+				'Partial summary',
+				undefined,
+				undefined,
+				undefined,
+				'length'
+			);
+		}
+	);
 
 	it('treats response.incomplete cancellations as non-success without surfacing an error', async () => {
 		const fetchMock = vi

@@ -54,12 +54,15 @@ export function removeInviteApiKeyFromUrl(): void {
 	if (!browser) return;
 
 	const url = new URL(window.location.href);
+	const hashParts = splitHash(window.location.hash);
+
+	if (!url.searchParams.has('apikey') && !new URLSearchParams(hashParts?.query).has('apikey')) {
+		return;
+	}
 
 	url.searchParams.delete('apikey');
 
 	let hash = window.location.hash;
-
-	const hashParts = splitHash(hash);
 
 	if (hashParts) {
 		const params = new URLSearchParams(hashParts.query);
@@ -75,7 +78,7 @@ export function removeInviteApiKeyFromUrl(): void {
 		}
 	}
 
-	window.history.replaceState(null, '', `${url.pathname}${url.search}${hash}`);
+	window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${hash}`);
 }
 
 export function consumeInviteApiKeyFromUrl(): string | null {
