@@ -10,8 +10,8 @@ export function sanitizeVegaSvg(source: string): string {
 	)
 		return '';
 
-	return DOMPurify.sanitize(source, {
-		FORBID_ATTR: ['href', 'xlink:href'],
+	const clean = DOMPurify.sanitize(source, {
+		FORBID_ATTR: ['href', 'xlink:href', 'style', 'xml:base'],
 		FORBID_TAGS: [
 			'foreignObject',
 			'script',
@@ -23,6 +23,21 @@ export function sanitizeVegaSvg(source: string): string {
 			'animateMotion',
 			'animateTransform'
 		],
+		RETURN_DOM: true,
 		USE_PROFILES: { svg: true, svgFilters: true }
-	}) as string;
+	}) as HTMLElement;
+
+	for (const element of clean.querySelectorAll('*')) {
+		for (const attribute of Array.from(element.attributes)) {
+			const value = attribute.value.trim();
+
+			if (
+				/\\|\/\*|\*\//.test(value) ||
+				(/url\s*\(/i.test(value) && !/^url\(\s*(['"]?)#[a-z_][\w:.-]*\1\s*\)$/i.test(value))
+			)
+				element.removeAttributeNode(attribute);
+		}
+	}
+
+	return clean.innerHTML;
 }
