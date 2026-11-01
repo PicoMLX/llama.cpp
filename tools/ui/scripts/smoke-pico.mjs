@@ -211,6 +211,22 @@ try {
 						.frameLocator('iframe')
 						.getByText('Packaged OpenUI', { exact: true })
 						.waitFor({ timeout: 15000 });
+				if (kind === 'openui') {
+					const continuation = page.waitForRequest(
+						(request) =>
+							new URL(request.url()).pathname === '/v1/responses' &&
+							Boolean(request.postData()?.includes('Continue packaging'))
+					);
+					await card
+						.frameLocator('iframe')
+						.getByRole('button', { name: 'Continue packaging', exact: true })
+						.click();
+					const request = await continuation;
+					assert.ok(
+						request.postData()?.includes('packaging-smoke'),
+						'OpenUI action context must reach Responses'
+					);
+				}
 			}
 		}
 

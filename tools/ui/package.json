@@ -23,6 +23,7 @@
 		"test:client": "vitest --project=client",
 		"test:unit": "vitest --project=unit",
 		"test:unit:pwa": "vitest --project=unit --run tests/unit/pwa.spec.ts",
+		"test:pico-openui": "node tests/client/pico-openui.interactions.mjs",
 		"test:pico-package": "node --test scripts/pico-package.test.mjs",
 		"test:pwa": "npm run test:unit:pwa && npm run test:e2e:pwa",
 		"test:ui": "vitest --project=ui",
