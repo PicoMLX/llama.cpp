@@ -36,6 +36,8 @@ export default defineConfig(({ mode }) => {
 			minify: true
 		},
 
+		optimizeDeps: { include: ['vega', 'vega-interpreter', 'vega-lite'] },
+
 		plugins: [
 			tailwindcss(),
 			sveltekit(),

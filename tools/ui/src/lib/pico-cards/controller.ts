@@ -157,10 +157,35 @@ export class PicoCardController {
 		const preview = element.querySelector<HTMLElement>('[data-pico-preview]');
 		const sourceView = element.querySelector<HTMLElement>('[data-pico-source-view]');
 		const status = element.querySelector<HTMLElement>('[data-pico-status]');
-		const sourceButton = element.querySelector<HTMLButtonElement>('[data-pico-action="source"]');
-		const expandButton = element.querySelector<HTMLButtonElement>('[data-pico-action="expand"]');
+		const actions = element.querySelector<HTMLElement>('.pico-card-actions');
 
-		if (!preview || !sourceView || !status || !sourceButton || !expandButton) return;
+		if (!preview || !sourceView || !status || !actions) return;
+
+		// The allowHtml path sanitizes authored HTML and removes all buttons. Recreate
+		// these trusted controls in the DOM without expanding that HTML allowlist.
+		const control = (action: string, label: string): HTMLButtonElement => {
+			let button = actions.querySelector<HTMLButtonElement>(`[data-pico-action="${action}"]`);
+
+			if (!button) {
+				button = element.ownerDocument.createElement('button');
+				button.type = 'button';
+				button.className = 'pico-card-action';
+				button.dataset.picoAction = action;
+				button.textContent = label;
+				button.setAttribute('aria-label', action === 'copy' ? 'Copy exact source' : label);
+				actions.append(button);
+			}
+
+			return button;
+		};
+
+		control('copy', 'Copy');
+		const sourceButton = control('source', 'Source');
+		const expandButton = control('expand', 'Expand');
+
+		sourceButton.setAttribute('aria-pressed', 'false');
+		sourceButton.disabled = true;
+		expandButton.setAttribute('aria-expanded', 'false');
 
 		const abort = new AbortController();
 		const host = element.ownerDocument.createElement('div');

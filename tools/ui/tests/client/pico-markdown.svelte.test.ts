@@ -42,6 +42,31 @@ describe('Pico cards in the chat Markdown pipeline', () => {
 		expect(document.body.textContent).toContain('After');
 	}, 15000);
 
+	it('renders cards after HTML sanitization without allowing authored buttons', async () => {
+		render(MarkdownContent, {
+			allowHtml: true,
+			content:
+				'```vega-lite\n{"data":{"values":[{"x":"A","y":2}]},"mark":"bar","encoding":{"x":{"field":"x","type":"nominal"},"y":{"field":"y","type":"quantitative"}}}\n```\n\n<button onclick="alert(1)">Author control</button>'
+		});
+		await expect
+			.poll(() =>
+				document
+					.querySelector('[data-pico-card] .pico-card-render')
+					?.firstElementChild?.shadowRoot?.querySelector('svg')
+			)
+			.toBeTruthy();
+		const card = document.querySelector('[data-pico-card]')!;
+
+		expect(card.querySelector('[data-pico-action="source"]')).toBeInstanceOf(HTMLButtonElement);
+		expect(card.querySelector('[data-pico-action="expand"]')).toBeInstanceOf(HTMLButtonElement);
+		expect(
+			[...document.querySelectorAll('button')].some(
+				(button) => button.textContent === 'Author control'
+			)
+		).toBe(false);
+		expect(document.querySelector('[onclick]')).toBeNull();
+	}, 15000);
+
 	it('keeps an unfinished chart fence as readable streaming code', async () => {
 		render(MarkdownContent, { content: '```vega-lite\n{"mark":"bar"' });
 		await expect.poll(() => document.body.textContent).toContain('"mark"');
