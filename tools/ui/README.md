@@ -126,6 +126,8 @@ Static HTML previews recognize `html-preview` fences and raw CommonMark HTML blo
 
 Completed `openui` fences use the pinned native OpenUI runtime in isolated frames. Each occurrence keeps its own form state through resizing, theme changes, and subsequent streamed text. Explicit form/button actions can continue the current conversation; HTTP(S) links open separately. Runtime files and fonts are local, and authored network access is blocked.
 
+Mermaid.js handles its existing diagram families. The two additional native families (`usecase-beta` and `agentflow-beta`) use a pinned local Pele worker, retaining the existing source/copy/zoom/download controls. The shared native fixture suite covers 91 examples across 32 families; it checks successful rendering rather than pixel equivalence.
+
 ### 2. Start llama-server
 
 In a separate terminal, start the backend server:
