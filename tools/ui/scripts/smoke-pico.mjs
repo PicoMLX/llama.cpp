@@ -45,6 +45,7 @@ const fixture = originalFixture.replaceAll(
 	"Because they don't have the guts!",
 	JSON.stringify(reply).slice(1, -1)
 );
+const lanHTTP = process.env.PICO_SMOKE_LAN === '1';
 const token = 'pico-packaging-smoke';
 const requests = [];
 const pageErrors = [];
@@ -166,12 +167,18 @@ const server = http.createServer(async (request, response) => {
 });
 
 await new Promise((done) => server.listen(0, '127.0.0.1', done));
-const origin = `http://127.0.0.1:${server.address().port}`;
+const origin = `http://${lanHTTP ? 'pico.test' : '127.0.0.1'}:${server.address().port}`;
 
 let browser;
 
 try {
-	browser = await chromium.launch({ channel: process.env.PICO_BROWSER_CHANNEL, headless: true });
+	browser = await chromium.launch({
+		channel: process.env.PICO_BROWSER_CHANNEL,
+		headless: true,
+		...(lanHTTP
+			? { args: ['--host-resolver-rules=MAP pico.test 127.0.0.1', '--no-proxy-server'] }
+			: {})
+	});
 	for (const suffix of ['/#?apikey=', '/#/?apikey=', '/?apikey=']) {
 		const context = await browser.newContext({
 			locale: 'en-US',
@@ -182,6 +189,12 @@ try {
 
 		page.on('pageerror', (error) => pageErrors.push(String(error)));
 		await page.goto(`${origin}${suffix}${token}`, { waitUntil: 'networkidle' });
+
+		if (lanHTTP) {
+			assert.equal(await page.evaluate(() => window.isSecureContext), false);
+			assert.equal(await page.evaluate(() => typeof crypto.randomUUID), 'undefined');
+		}
+
 		await page.locator('textarea:visible,[contenteditable="true"]:visible').first().waitFor();
 		assert.equal(
 			requests.slice(first).find(({ path }) => path === '/props')?.auth,
@@ -260,7 +273,7 @@ try {
 	assert.deepEqual(pageErrors, []);
 	assert.deepEqual(missingAssets, []);
 	console.log(
-		'Pico packaged UI smoke passed: assets, invite authentication, Responses, model lifecycle.'
+		`Pico packaged UI smoke passed (${lanHTTP ? 'LAN HTTP' : 'loopback'}): assets, invite authentication, Responses, model lifecycle.`
 	);
 } finally {
 	await browser?.close();

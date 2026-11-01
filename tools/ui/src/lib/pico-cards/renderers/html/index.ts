@@ -221,13 +221,19 @@ function htmlRuntime() {
 	send('ready');
 }
 
+function secureToken(): string {
+	return Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
+		byte.toString(16).padStart(2, '0')
+	).join('');
+}
+
 export async function renderHtmlPreview(
 	host: HTMLElement,
 	source: string,
 	context: PicoCardContext
 ): Promise<PicoCardHandle> {
-	const channel = crypto.randomUUID();
-	const nonce = crypto.randomUUID();
+	const channel = secureToken();
+	const nonce = secureToken();
 	const frame = document.createElement('iframe');
 
 	frame.title = 'HTML preview';
