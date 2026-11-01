@@ -20,6 +20,7 @@ import { rehypeSvgPre } from './plugins/rehype/svg-pre';
 import { rehypeRestoreTableHtml } from './plugins/rehype/table-html-restorer';
 import { remarkLiteralHtml } from './plugins/remark/literal-html';
 import { FileTypeText } from '$lib/enums/files.enums';
+import { rehypePicoCards } from '$lib/pico-cards/plugin';
 import type { DatabaseMessageExtra } from '$lib/types/database';
 import type { Root as HastRoot } from 'hast';
 import { all as lowlightAll } from 'lowlight';
@@ -85,6 +86,7 @@ function buildPipeline({
 		.use(rehypeFileBadge) // Render file:// anchors as inline badge chips
 		.use(rehypeMermaidPre) // Convert mermaid blocks to <pre class="mermaid">
 		.use(rehypeSvgPre) // Convert svg blocks to <pre class="svg-block">
+		.use(rehypePicoCards)
 		.use(rehypeEnhanceCodeBlocks) // Wrap code blocks with header and actions
 		.use(rehypeEnhanceMermaidBlocks) // Wrap mermaid blocks with header and actions
 		.use(rehypeEnhanceSvgBlocks) // Wrap svg blocks with header and actions

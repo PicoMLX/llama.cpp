@@ -7,9 +7,43 @@ import { chromium } from 'playwright';
 
 const uiDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const webRoot = resolve(process.env.PICO_WEB_ROOT ?? resolve(uiDir, 'dist'));
-const fixture = await readFile(
+const originalFixture = await readFile(
 	resolve(uiDir, 'tests/unit/fixtures/open-responses/pico-completed-response.sse'),
 	'utf8'
+);
+const cardKinds = (process.env.PICO_SMOKE_CARDS ?? '').split(',').filter(Boolean);
+const cardSources = {
+	'html-preview':
+		'<section style="padding:20px"><h2>Packaged HTML</h2><p>Local static preview</p></section>',
+	openui:
+		'root = Stack([TextContent("Packaged OpenUI"), Button("Continue packaging", @ToAssistant("Continue packaging", {viewId: "packaging-smoke"}), "primary")])',
+	'vega-lite': JSON.stringify({
+		data: {
+			values: [
+				{ category: 'A', value: 2 },
+				{ category: 'B', value: 5 }
+			]
+		},
+		encoding: {
+			x: { field: 'category', type: 'nominal' },
+			y: { field: 'value', type: 'quantitative' }
+		},
+		mark: 'bar',
+		title: 'Packaged chart'
+	})
+};
+const reply =
+	"Because they don't have the guts!" +
+	cardKinds
+		.map((kind) => {
+			assert.ok(cardSources[kind], `Unknown card ${kind}`);
+
+			return `\n\n\`\`\`${kind}\n${cardSources[kind]}\n\`\`\``;
+		})
+		.join('');
+const fixture = originalFixture.replaceAll(
+	"Because they don't have the guts!",
+	JSON.stringify(reply).slice(1, -1)
 );
 const token = 'pico-packaging-smoke';
 const requests = [];
@@ -162,6 +196,22 @@ try {
 				.fill('Tell a joke.');
 			await page.getByRole('button', { exact: true, name: 'Send' }).click();
 			await page.getByText("Because they don't have the guts!", { exact: true }).waitFor();
+			for (const kind of cardKinds) {
+				const card = page.locator(`[data-pico-card="${kind}"]`);
+
+				if (kind === 'vega-lite')
+					await card.locator('.pico-card-render svg').waitFor({ timeout: 15000 });
+				else if (kind === 'html-preview')
+					await card
+						.frameLocator('iframe')
+						.getByText('Packaged HTML', { exact: true })
+						.waitFor({ timeout: 15000 });
+				else
+					await card
+						.frameLocator('iframe')
+						.getByText('Packaged OpenUI', { exact: true })
+						.waitFor({ timeout: 15000 });
+			}
 		}
 
 		await context.close();

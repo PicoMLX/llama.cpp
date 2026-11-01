@@ -1,5 +1,6 @@
 <script lang="ts">
 	import '$lib/styles/katex-custom.scss';
+	import '$lib/pico-cards/styles.css';
 	import { getMarkdownProcessor, type MarkdownProcessor } from './markdown-processor';
 	import {
 		getCodeInfoFromTarget,
@@ -33,6 +34,9 @@
 	} from '$lib/constants';
 	import { BooleanString, ColorMode, UrlProtocol } from '$lib/enums';
 	import { createStickToBottom } from '$lib/hooks/use-stick-to-bottom.svelte';
+	import { PicoCardController } from '$lib/pico-cards/controller';
+	import { picoCardRenderers } from '$lib/pico-cards/registry';
+	import type { PicoCardAction } from '$lib/pico-cards/types';
 	import { settingsStore } from '$lib/stores';
 	import type { DatabaseMessageExtra } from '$lib/types/database';
 	import {
@@ -61,6 +65,7 @@
 		disableMath?: boolean;
 		/** Render raw HTML found in the markdown (sanitized) instead of escaping it. */
 		allowHtml?: boolean;
+		onCardAction?: (action: PicoCardAction) => void;
 	}
 
 	interface MarkdownBlock {
@@ -74,10 +79,12 @@
 		attachments,
 		class: className = '',
 		content,
-		disableMath = false
+		disableMath = false,
+		onCardAction
 	}: Props = $props();
 
 	let containerRef = $state<HTMLDivElement>();
+	const picoCards = new PicoCardController(picoCardRenderers);
 	let renderedBlocks = $state<MarkdownBlock[]>([]);
 	let unstableBlockHtml = $state('');
 	let incompleteCodeBlock = $state<IncompleteCodeBlock | null>(null);
@@ -800,6 +807,18 @@
 		}
 	});
 
+	$effect(() => {
+		void renderedBlocks;
+		void unstableBlockHtml;
+
+		if (containerRef) {
+			picoCards.sync(containerRef, {
+				dark: mode.current === ColorMode.DARK,
+				onAction: onCardAction
+			});
+		}
+	});
+
 	// Follow the streaming code block while the reader stays at its bottom; the
 	// resize observer does the pinning, so no polling for a stable height.
 	$effect(() => {
@@ -809,6 +828,7 @@
 	});
 
 	onDestroy(() => {
+		picoCards.destroy();
 		cleanupEventListeners();
 	});
 </script>
