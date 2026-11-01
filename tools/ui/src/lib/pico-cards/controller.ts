@@ -205,6 +205,8 @@ export class PicoCardController {
 		};
 		host.className = 'pico-card-render pico-card-render--pending';
 		host.setAttribute('aria-busy', 'true');
+		host.setAttribute('aria-hidden', 'true');
+		host.inert = true;
 		preview.hidden = false;
 		sourceView.hidden = false;
 		sourceButton.disabled = true;
@@ -358,6 +360,8 @@ export class PicoCardController {
 			state.ready = true;
 			state.host.classList.remove('pico-card-render--pending');
 			state.host.removeAttribute('aria-busy');
+			state.host.removeAttribute('aria-hidden');
+			state.host.inert = false;
 			state.element.setAttribute('aria-busy', 'false');
 			state.status.hidden = true;
 			state.sourceView.hidden = !state.showSource;

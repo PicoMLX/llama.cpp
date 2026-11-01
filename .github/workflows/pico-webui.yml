@@ -50,5 +50,5 @@ jobs:
       - name: Smoke-test packaged UI
         env:
           PICO_WEB_ROOT: ${{ runner.temp }}/pico-html/webui
-          PICO_SMOKE_CARDS: vega-lite
+          PICO_SMOKE_CARDS: vega-lite,html-preview
         run: node scripts/smoke-pico.mjs

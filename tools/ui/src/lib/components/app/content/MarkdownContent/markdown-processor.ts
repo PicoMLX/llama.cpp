@@ -21,6 +21,7 @@ import { rehypeRestoreTableHtml } from './plugins/rehype/table-html-restorer';
 import { remarkLiteralHtml } from './plugins/remark/literal-html';
 import { FileTypeText } from '$lib/enums/files.enums';
 import { rehypePicoCards } from '$lib/pico-cards/plugin';
+import { remarkPicoHtml } from '$lib/pico-cards/renderers/html/remark-html';
 import type { DatabaseMessageExtra } from '$lib/types/database';
 import type { Root as HastRoot } from 'hast';
 import { all as lowlightAll } from 'lowlight';
@@ -66,7 +67,7 @@ function buildPipeline({
 
 	if (!allowHtml) {
 		// Treat raw HTML as literal text with preserved indentation
-		proc = proc.use(remarkLiteralHtml);
+		proc = proc.use(remarkPicoHtml).use(remarkLiteralHtml);
 	}
 
 	proc = proc.use(remarkRehype, allowHtml ? { allowDangerousHtml: true } : undefined);
