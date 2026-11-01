@@ -38,6 +38,8 @@ export async function renderPeleFallback(
 		throw new Error('Pele diagram source exceeds the native size limits');
 	}
 
+	source = source.replace(/^\uFEFF/, '').trimStart();
+
 	if (signal?.aborted) throw new DOMException('Diagram rendering cancelled', 'AbortError');
 
 	if (

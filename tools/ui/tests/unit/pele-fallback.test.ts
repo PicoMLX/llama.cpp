@@ -45,6 +45,15 @@ describe('Pele fallback selection', () => {
 		);
 	});
 
+	it('checks source limits before trimming accepted whitespace prefixes', async () => {
+		await expect(renderPeleFallback(`${' '.repeat(32_768)}usecase-beta`, false)).rejects.toThrow(
+			'size limits'
+		);
+		await expect(renderPeleFallback(`${'\n'.repeat(1_024)}agentflow-beta`, false)).rejects.toThrow(
+			'size limits'
+		);
+	});
+
 	it('keeps the runtime identical to the versioned native bundle', async () => {
 		const runtimeDirectory = new URL('../../static/pico-runtime/pele/', import.meta.url);
 		const bundle = await readFile(new URL('pele-bundle.js', runtimeDirectory));

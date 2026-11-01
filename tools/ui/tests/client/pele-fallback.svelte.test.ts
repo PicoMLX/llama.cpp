@@ -41,6 +41,22 @@ describe('offline Pele worker', () => {
 		svgRoot(await renderPeleFallback(source, false));
 	});
 
+	it.each(
+		['usecase', 'agentflow'].flatMap((family) =>
+			[
+				{ name: 'newline', prefix: '\n' },
+				{ name: 'spaces', prefix: '  ' },
+				{ name: 'BOM', prefix: '\uFEFF' }
+			].map((prefix) => ({ family, ...prefix }))
+		)
+	)('renders $family with $name before titled frontmatter', async ({ family, prefix }) => {
+		const fixture = fallbackExamples.find((example) => example.family === family)!;
+		const source = `${prefix}---\r\ntitle: Prefix regression\r\n---\r\n${fixture.source}`;
+		const root = svgRoot(await renderPeleFallback(source, false));
+
+		expect(root.classList.contains(`pele-${family}`)).toBe(true);
+	});
+
 	it('rejects malformed diagrams without returning partial markup', async () => {
 		await expect(renderPeleFallback('usecase-beta\n"unterminated', false)).rejects.toThrow();
 	});
