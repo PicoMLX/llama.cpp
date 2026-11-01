@@ -51,4 +51,6 @@ jobs:
         env:
           PICO_WEB_ROOT: ${{ runner.temp }}/pico-html/webui
           PICO_SMOKE_CARDS: vega-lite,html-preview
-        run: node scripts/smoke-pico.mjs
+        run: |
+          node scripts/smoke-pico.mjs
+          PICO_SMOKE_LAN=1 node scripts/smoke-pico.mjs
