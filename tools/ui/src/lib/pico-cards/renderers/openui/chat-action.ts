@@ -20,7 +20,13 @@ export function formatOpenUIContinuation(value: unknown): string | null {
 
 	const details: Record<string, unknown> = {};
 
-	if (action.params?.context !== undefined) details.context = action.params.context;
+	if (action.params) {
+		const { context, ...params } = action.params;
+
+		if (context !== undefined) details.context = context;
+
+		if (Object.keys(params).length > 0) details.params = params;
+	}
 
 	if (action.formName !== undefined) details.formName = action.formName;
 
