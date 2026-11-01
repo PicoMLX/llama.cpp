@@ -60,6 +60,36 @@ describe('OpenUI conversation messages', () => {
 		expect(formatOpenUIContinuation({ ...continuation, type: 'run_javascript' })).toBeNull();
 	});
 
+	it('distinguishes stock card selections with the same visible title', () => {
+		const selections = ['itinerary-a', 'itinerary-b'].map((itemId, itemIndex) => ({
+			humanFriendlyMessage: 'Weekend getaway',
+			params: {
+				context: { viewId: 'itinerary-picker' },
+				itemBody: itemIndex === 0 ? 'City museums' : 'Mountain trails',
+				itemId,
+				itemIndex,
+				itemTitle: 'Weekend getaway'
+			},
+			type: 'continue_conversation'
+		}));
+		const messages = selections.map((selection) => formatOpenUIContinuation(selection)!);
+
+		expect(messages[0]).not.toBe(messages[1]);
+
+		for (const [index, message] of messages.entries()) {
+			const { context, ...params } = selections[index].params;
+			const json = message.split('```json\n')[1].split('\n```')[0];
+
+			expect(JSON.parse(json)).toEqual({ context, params });
+		}
+	});
+
+	it('rejects oversized or unsafe continuation parameters', () => {
+		for (const params of [{ itemBody: 'x'.repeat(100_001) }, { constructor: { selected: true } }]) {
+			expect(formatOpenUIContinuation({ ...continuation, params })).toBeNull();
+		}
+	});
+
 	it('sends exactly one formatted request to the matching idle conversation', async () => {
 		const target = environment();
 
