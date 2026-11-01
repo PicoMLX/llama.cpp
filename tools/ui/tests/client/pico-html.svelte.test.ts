@@ -47,6 +47,21 @@ describe('static HTML cards', () => {
 		expect(frame.sandbox.contains('allow-same-origin')).toBe(false);
 	});
 
+	it('includes authored body margins in the preview height', async () => {
+		const { context, host } = fixture();
+		const handle = await renderHtmlPreview(
+			host,
+			'<body style="margin:32px"><p style="margin:0;height:24px">Body margins</p></body>',
+			context
+		);
+
+		handles.push(handle);
+		const frame = host.querySelector('iframe')!;
+
+		expect(frame.title).toContain('Body margins');
+		expect(parseInt(frame.style.height)).toBe(88);
+	});
+
 	it('removes active content, navigation, forms and external images', async () => {
 		const { context, host } = fixture();
 		const handle = await renderHtmlPreview(

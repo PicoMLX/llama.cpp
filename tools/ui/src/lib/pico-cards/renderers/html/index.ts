@@ -46,8 +46,15 @@ function htmlRuntime() {
 		scheduled = true;
 		requestAnimationFrame(() => {
 			scheduled = false;
+			const bodyBounds = document.body.getBoundingClientRect();
+			const outerBottom = Math.max(
+				0,
+				parseFloat(getComputedStyle(document.body).marginBottom) || 0
+			);
 			const height = Math.ceil(
-				Math.max(document.body.scrollHeight, document.body.getBoundingClientRect().height)
+				Math.max(bodyBounds.bottom, bodyBounds.top + document.body.scrollHeight) +
+					window.scrollY +
+					outerBottom
 			);
 			const fixed = Array.from(document.body.querySelectorAll('*')).some(
 				(element) => getComputedStyle(element).position === 'fixed'
