@@ -108,7 +108,20 @@ describe('offline official OpenUI runtime', () => {
 		expect(second.actions).toEqual([]);
 	});
 
-	it('reports late runtime errors and releases the iframe', async () => {
+	it('renders a valid fallback root with warning-only diagnostics', async () => {
+		const instance = await mount('screen = Stack([TextContent("Fallback root is visible")])');
+
+		await instance.frame.getByText('Fallback root is visible', { exact: true }).click();
+		expect(instance.host.querySelector('iframe')).toBe(instance.iframe);
+	});
+
+	it.each([
+		{ diagnostics: [{ code: 'runtime-error' }], name: 'fatal diagnostics' },
+		{
+			diagnostics: [{ code: 'no-root', severity: 'warning' }, { code: 'type-mismatch' }],
+			name: 'mixed warning and fatal diagnostics'
+		}
+	])('reports late $name and releases the iframe', async ({ diagnostics }) => {
 		const instance = await mount(fixtures[1].source);
 		const errors: Event[] = [];
 
@@ -124,7 +137,7 @@ describe('offline official OpenUI runtime', () => {
 					id: instance.context.id,
 					kind: 'error',
 					namespace: 'pico-openui',
-					payload: [{ code: 'runtime-error' }],
+					payload: diagnostics,
 					version: 1
 				},
 				origin: 'null',
