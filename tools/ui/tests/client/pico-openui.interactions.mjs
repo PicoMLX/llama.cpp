@@ -184,6 +184,36 @@ try {
 		await page.evaluate(() => window.instances.get('markdown-link').actions[0].params.url),
 		'https://www.openui.com/docs/openui-lang'
 	);
+	await page.evaluate(() =>
+		window.mountCard(
+			'root = Button("Open and summarize", Action([@OpenUrl("https://example.com/article"), @ToAssistant("Summarize this page")]))',
+			'multi-action'
+		)
+	);
+	const multiAction = page
+		.frameLocator('[data-testid="multi-action"]')
+		.getByRole('button', { exact: true, name: 'Open and summarize' });
+
+	await multiAction.click();
+	await page.waitForFunction(() => window.instances.get('multi-action').actions.length === 2);
+	assert.deepEqual(
+		await page.evaluate(() =>
+			window.instances.get('multi-action').actions.map((action) => action.type)
+		),
+		['open_url', 'continue_conversation']
+	);
+	assert.deepEqual(await page.evaluate(() => window.instances.get('multi-action').trusted), [
+		true,
+		true
+	]);
+	await multiAction.evaluate((button) => button.click());
+	await page.waitForFunction(() => window.instances.get('multi-action').actions.length === 4);
+	assert.deepEqual(await page.evaluate(() => window.instances.get('multi-action').trusted), [
+		true,
+		true,
+		false,
+		false
+	]);
 	await page.screenshot({ fullPage: true, path: path.join(scratch, 'openui.png') });
 	await page.evaluate(() => {
 		for (const instance of window.instances.values()) {

@@ -24,7 +24,6 @@
     if (message.kind !== 'ready' && message.sourceID !== id) return;
     if (!['ready', 'size', 'action', 'error'].includes(message.kind)) return;
     const userInitiated = message.kind === 'action' && userInteraction;
-    if (message.kind === 'action') userInteraction = false;
     window.parent.postMessage({
       namespace: 'pico-openui', version: 1, channel, id,
       kind: message.kind, payload: message.payload, userInitiated,

@@ -180,7 +180,9 @@ export async function renderOpenUI(
 			} else if (
 				message.kind === 'error' &&
 				Array.isArray(message.payload) &&
-				message.payload.length > 0
+				message.payload.some(
+					(diagnostic: { severity?: string } | null) => diagnostic?.severity !== 'warning'
+				)
 			) {
 				fail(new Error('OpenUI content could not be rendered.'));
 			} else if (message.kind === 'action' && settled) {
