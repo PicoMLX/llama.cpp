@@ -29,6 +29,35 @@ afterEach(() => {
 });
 
 describe('static HTML cards', () => {
+	it('renders with an opaque CSP frame when randomUUID is unavailable on LAN HTTP', async () => {
+		const { context, host } = fixture();
+		const descriptor = Object.getOwnPropertyDescriptor(crypto, 'randomUUID');
+
+		Object.defineProperty(crypto, 'randomUUID', { configurable: true, value: undefined });
+
+		try {
+			const handle = await renderHtmlPreview(host, '<p>LAN HTTP preview</p>', context);
+
+			handles.push(handle);
+			const frame = host.querySelector('iframe')!;
+			const markup = new DOMParser().parseFromString(frame.srcdoc, 'text/html');
+			const nonce = markup.querySelector('script')?.getAttribute('nonce');
+
+			expect(frame.title).toContain('LAN HTTP preview');
+			expect(parseInt(frame.style.height)).toBeGreaterThan(1);
+			expect(frame.sandbox.contains('allow-scripts')).toBe(true);
+			expect(frame.sandbox.contains('allow-same-origin')).toBe(false);
+			expect(frame.contentDocument).toBeNull();
+			expect(nonce).toMatch(/^[a-f0-9]{32}$/);
+			expect(
+				markup.querySelector('meta[http-equiv="Content-Security-Policy"]')?.getAttribute('content')
+			).toContain(`script-src 'nonce-${nonce}'`);
+		} finally {
+			if (descriptor) Object.defineProperty(crypto, 'randomUUID', descriptor);
+			else Reflect.deleteProperty(crypto, 'randomUUID');
+		}
+	});
+
 	it('renders a styled preview and preserves its frame on theme changes', async () => {
 		const { context, host } = fixture();
 		const handle = await renderHtmlPreview(
