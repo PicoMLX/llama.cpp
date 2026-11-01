@@ -46,21 +46,89 @@ function htmlRuntime() {
 		scheduled = true;
 		requestAnimationFrame(() => {
 			scheduled = false;
-			const bodyBounds = document.body.getBoundingClientRect();
-			const outerBottom = Math.max(
-				0,
-				parseFloat(getComputedStyle(document.body).marginBottom) || 0
-			);
-			const height = Math.ceil(
-				Math.max(bodyBounds.bottom, bodyBounds.top + document.body.scrollHeight) +
-					window.scrollY +
-					outerBottom
-			);
-			const fixed = Array.from(document.body.querySelectorAll('*')).some(
-				(element) => getComputedStyle(element).position === 'fixed'
-			);
+			const body = document.body;
+			const bodyBounds = body.getBoundingClientRect();
+			const bodyStyle = getComputedStyle(body);
+			const outerBottom = Math.max(0, parseFloat(bodyStyle.marginBottom) || 0);
+			const trailingSpacing =
+				(parseFloat(bodyStyle.paddingBottom) || 0) + (parseFloat(bodyStyle.borderBottomWidth) || 0);
+			const flowBottom = Math.max(0, bodyBounds.bottom + window.scrollY);
+			const overflowBottom =
+				bodyBounds.top +
+				window.scrollY +
+				(parseFloat(bodyStyle.borderTopWidth) || 0) +
+				body.scrollHeight;
 
-			if (!Number.isFinite(height) || height > 4096 || fixed)
+			// Root scrollHeight has a viewport floor, so it cannot track shrinking previews.
+			let height = Math.max(flowBottom, overflowBottom);
+
+			const outsideWidth = (rect: DOMRect) =>
+				rect.left + window.scrollX < -1 || rect.right + window.scrollX > window.innerWidth + 1;
+			const transformed = (style: CSSStyleDeclaration) =>
+				['transform', 'translate', 'rotate', 'scale'].some(
+					(property) =>
+						style.getPropertyValue(property) && style.getPropertyValue(property) !== 'none'
+				);
+			const unsupportedPseudo = (element: Element) =>
+				['::before', '::after'].some((selector) => {
+					const style = getComputedStyle(element, selector);
+					const active =
+						style.content !== 'none' &&
+						style.content !== 'normal' &&
+						style.display !== 'none' &&
+						!['hidden', 'collapse'].includes(style.visibility);
+
+					return (
+						active &&
+						(element === document.documentElement ||
+							style.position !== 'static' ||
+							transformed(style))
+					);
+				});
+
+			let unsupported =
+				bodyStyle.position === 'fixed' ||
+				bodyBounds.top + window.scrollY < 0 ||
+				outsideWidth(bodyBounds) ||
+				body.scrollWidth > window.innerWidth + 1 ||
+				(body.scrollHeight > body.clientHeight + 1 && transformed(bodyStyle));
+
+			const suppressed = new Set<Element>();
+
+			for (const element of [document.documentElement, body, ...body.querySelectorAll('*')]) {
+				const style = element === body ? bodyStyle : getComputedStyle(element);
+
+				if (
+					style.display === 'none' ||
+					(element.parentElement && suppressed.has(element.parentElement))
+				) {
+					suppressed.add(element);
+
+					continue;
+				}
+
+				if (unsupportedPseudo(element)) unsupported = true;
+
+				if (element === document.documentElement || element === body) continue;
+
+				const bounds = element.getBoundingClientRect();
+
+				if (bounds.width <= 0 || bounds.height <= 0 || style.visibility === 'hidden') continue;
+
+				if (
+					flowBottom === 0 ||
+					style.position === 'fixed' ||
+					bounds.top + window.scrollY < 0 ||
+					outsideWidth(bounds)
+				)
+					unsupported = true;
+
+				height = Math.max(height, bounds.bottom + window.scrollY + trailingSpacing);
+			}
+
+			height = Math.ceil(height + outerBottom);
+
+			if (!Number.isFinite(height) || height > 4096 || unsupported)
 				send('error', { message: 'HTML preview exceeds the static layout limits' });
 			else
 				send('size', {
@@ -195,8 +263,9 @@ function htmlRuntime() {
 		staticStyle.textContent =
 			'*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}';
 		document.head.append(staticStyle);
-		new ResizeObserver(measure).observe(document.body);
+		new ResizeObserver(measure).observe(document.body, { box: 'border-box' });
 		measure();
+		document.fonts.ready.then(measure);
 	};
 
 	window.addEventListener('message', (event) => {
@@ -216,8 +285,19 @@ function htmlRuntime() {
 		}
 	});
 	channel = location.hash.slice(1);
-	for (const event of ['pointerover', 'focusin', 'keydown'])
+	for (const event of [
+		'pointerover',
+		'pointerout',
+		'pointerdown',
+		'pointerup',
+		'pointercancel',
+		'focusin',
+		'focusout',
+		'keydown',
+		'keyup'
+	])
 		document.addEventListener(event, measure, true);
+	for (const event of ['resize', 'focus', 'blur']) window.addEventListener(event, measure);
 	send('ready');
 }
 
