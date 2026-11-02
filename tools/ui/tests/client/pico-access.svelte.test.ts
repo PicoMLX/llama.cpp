@@ -33,7 +33,9 @@ describe('Pico access', () => {
 
 		await input.fill('wrong-key');
 		await page.getByRole('button', { exact: true, name: 'Connect' }).click();
-		await expect.element(page.getByRole('alert')).toHaveTextContent('This access key isn’t valid.');
+		await expect
+			.element(page.getByRole('alert'))
+			.toHaveTextContent('This access key isn\u2019t valid.');
 		await expect.element(input).toHaveAttribute('aria-invalid', 'true');
 		await expect.element(input).toHaveFocus();
 		await input.fill('corrected-key');
@@ -66,7 +68,7 @@ describe('Pico access', () => {
 
 		await input.fill('saved-key');
 		await page.getByRole('button', { exact: true, name: 'Connect' }).click();
-		await expect.element(page.getByRole('alert')).toHaveTextContent('Can’t connect to Pico.');
+		await expect.element(page.getByRole('alert')).toHaveTextContent('Can\u2019t connect to Pico.');
 		await expect.element(input).toHaveValue('saved-key');
 		await expect.element(page.getByRole('button', { exact: true, name: 'Connect' })).toBeEnabled();
 	});
