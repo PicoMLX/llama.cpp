@@ -2,7 +2,8 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { ServerErrorSplash } from '$lib/components/app';
-	import { APP_NAME, ROUTES } from '$lib/constants';
+	import { APP_NAME, IS_PICO_BUILD, ROUTES } from '$lib/constants';
+	import { t } from '$lib/i18n';
 
 	let error = $derived($page.error);
 	let status = $derived($page.status);
@@ -23,7 +24,11 @@
 </script>
 
 <svelte:head>
-	<title>Error {status} - {APP_NAME}</title>
+	<title
+		>{IS_PICO_BUILD && isApiKeyError
+			? t('pico.access.title')
+			: `Error ${status} - ${APP_NAME}`}</title
+	>
 </svelte:head>
 
 {#if isApiKeyError}

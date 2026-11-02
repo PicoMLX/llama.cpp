@@ -1,3 +1,4 @@
+import { getPicoCardLabels } from './labels';
 import {
 	PICO_CARD_KIND_ATTR,
 	PICO_CARD_SELECTOR,
@@ -13,6 +14,7 @@ import { copyToClipboard } from '$lib/utils/clipboard';
 interface CardState {
 	abort: AbortController;
 	context: PicoCardContext;
+	copyButton: HTMLButtonElement;
 	element: HTMLElement;
 	errorListener: (event: Event) => void;
 	expandButton: HTMLButtonElement;
@@ -124,10 +126,14 @@ export class PicoCardController {
 			} else {
 				this.refreshContext(state);
 			}
+
+			this.refreshLabels(state);
 		}
 	}
 
 	private closeExpanded(state: CardState): void {
+		const wasExpanded = state.expanded;
+
 		if (
 			state.expandMode === 'fullscreen' &&
 			this.eventDocument?.fullscreenElement === state.element
@@ -144,9 +150,10 @@ export class PicoCardController {
 		state.expanded = false;
 		state.expandMode = 'none';
 		state.element.classList.remove('pico-card-expanded');
-		state.expandButton.textContent = 'Expand';
 		state.expandButton.setAttribute('aria-expanded', 'false');
-		state.expandButton.setAttribute('aria-label', 'Expand');
+		this.refreshLabels(state);
+
+		if (wasExpanded && this.isMounted(state)) state.expandButton.focus({ preventScroll: true });
 	}
 
 	private createState(
@@ -161,6 +168,7 @@ export class PicoCardController {
 
 		if (!preview || !sourceView || !status || !actions) return;
 
+		const labels = getPicoCardLabels(kind);
 		// The allowHtml path sanitizes authored HTML and removes all buttons. Recreate
 		// these trusted controls in the DOM without expanding that HTML allowlist.
 		const control = (action: string, label: string): HTMLButtonElement => {
@@ -171,17 +179,17 @@ export class PicoCardController {
 				button.type = 'button';
 				button.className = 'pico-card-action';
 				button.dataset.picoAction = action;
-				button.textContent = label;
-				button.setAttribute('aria-label', action === 'copy' ? 'Copy exact source' : label);
 				actions.append(button);
 			}
 
+			button.textContent = label;
+			button.setAttribute('aria-label', label);
+
 			return button;
 		};
-
-		control('copy', 'Copy');
-		const sourceButton = control('source', 'Source');
-		const expandButton = control('expand', 'Expand');
+		const copyButton = control('copy', labels.copy);
+		const sourceButton = control('source', labels.showCode);
+		const expandButton = control('expand', labels.expand);
 
 		sourceButton.setAttribute('aria-pressed', 'false');
 		sourceButton.disabled = true;
@@ -198,15 +206,12 @@ export class PicoCardController {
 		const state: CardState = {
 			abort,
 			context,
+			copyButton,
 			element,
-			errorListener: (event) => {
+			errorListener: () => {
 				if (!this.isCurrent(state)) return;
 
-				const detail = (event as CustomEvent<unknown>).detail;
-				const error =
-					detail && typeof detail === 'object' && 'error' in detail ? detail.error : detail;
-
-				this.showError(state, error);
+				this.showError(state);
 			},
 			expandButton,
 			expanded: false,
@@ -236,7 +241,7 @@ export class PicoCardController {
 		sourceView.hidden = false;
 		sourceButton.disabled = true;
 		status.hidden = false;
-		status.textContent = 'Rendering preview...';
+		status.textContent = labels.preparing;
 		element.setAttribute('aria-busy', 'true');
 		element.setAttribute('data-pico-id', context.id);
 		element.addEventListener('click', state.listener);
@@ -282,7 +287,11 @@ export class PicoCardController {
 
 		switch (button.getAttribute('data-pico-action')) {
 			case 'copy':
-				await copyToClipboard(state.source);
+				await copyToClipboard(
+					state.source,
+					getPicoCardLabels(state.kind).copySuccess,
+					getPicoCardLabels(state.kind).copyFailed
+				);
 
 				break;
 			case 'source':
@@ -292,6 +301,7 @@ export class PicoCardController {
 				state.sourceView.hidden = !state.showSource;
 				state.preview.hidden = state.showSource;
 				state.sourceButton.setAttribute('aria-pressed', String(state.showSource));
+				this.refreshLabels(state);
 
 				break;
 			case 'expand':
@@ -357,6 +367,24 @@ export class PicoCardController {
 		if (!state.updating) void this.updateState(state);
 	}
 
+	private refreshLabels(state: CardState): void {
+		const labels = getPicoCardLabels(state.kind);
+
+		for (const [button, label] of [
+			[state.copyButton, labels.copy],
+			[state.sourceButton, state.showSource ? labels.showPreview : labels.showCode],
+			[state.expandButton, state.expanded ? labels.closePreview : labels.expand]
+		] as const) {
+			button.textContent = label;
+			button.setAttribute('aria-label', label);
+		}
+
+		state.element.setAttribute('aria-label', labels.preview);
+
+		if (!state.ready)
+			state.status.textContent = state.abort.signal.aborted ? labels.unavailable : labels.preparing;
+	}
+
 	private async renderState(state: CardState): Promise<void> {
 		const generation = state.generation;
 		const renderer = this.renderers[state.kind];
@@ -364,7 +392,7 @@ export class PicoCardController {
 		if (!this.isCurrent(state)) return;
 
 		if (!renderer) {
-			this.showError(state, 'This card renderer is unavailable');
+			this.showError(state);
 
 			return;
 		}
@@ -392,14 +420,15 @@ export class PicoCardController {
 			state.sourceView.hidden = !state.showSource;
 			state.sourceButton.disabled = false;
 			this.refreshContext(state);
-		} catch (error) {
-			if (this.isCurrent(state)) this.showError(state, error);
+		} catch {
+			if (this.isCurrent(state)) this.showError(state);
 		}
 	}
 
-	private showError(state: CardState, error: unknown): void {
+	private showError(state: CardState): void {
 		state.abort.abort();
 		state.ready = false;
+		state.showSource = true;
 		state.host.removeEventListener('pico-card-error', state.errorListener);
 		state.host.remove();
 		state.preview.hidden = true;
@@ -408,7 +437,7 @@ export class PicoCardController {
 		state.sourceButton.setAttribute('aria-pressed', 'true');
 		state.element.setAttribute('aria-busy', 'false');
 		state.status.hidden = false;
-		state.status.textContent = `Preview unavailable: ${error instanceof Error ? error.message : typeof error === 'string' ? error : 'Unable to render this card'}`;
+		this.refreshLabels(state);
 
 		if (state.handle) this.disposeHandle(state.handle);
 
@@ -424,9 +453,8 @@ export class PicoCardController {
 
 		state.expanded = true;
 		state.element.classList.add('pico-card-expanded');
-		state.expandButton.textContent = 'Close preview';
-		state.expandButton.setAttribute('aria-label', 'Close preview');
 		state.expandButton.setAttribute('aria-expanded', 'true');
+		this.refreshLabels(state);
 
 		if (state.element.requestFullscreen && state.element.ownerDocument.fullscreenEnabled) {
 			state.expandMode = 'fullscreen';
@@ -482,8 +510,8 @@ export class PicoCardController {
 				await state.handle.update(context);
 				state.renderedContext = context;
 			}
-		} catch (error) {
-			if (this.isCurrent(state)) this.showError(state, error);
+		} catch {
+			if (this.isCurrent(state)) this.showError(state);
 		} finally {
 			state.updating = false;
 		}

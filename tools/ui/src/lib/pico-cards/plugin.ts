@@ -1,13 +1,8 @@
+import { getPicoCardLabels, PICO_CARD_NAMES } from './labels';
 import { PICO_CARD_KIND_ATTR, PICO_CARD_SOURCE_ATTR, type PicoCardKind } from './types';
 import type { Element, ElementContent, Root } from 'hast';
 import type { Plugin } from 'unified';
 import { visit } from 'unist-util-visit';
-
-const CARD_LABELS: Record<PicoCardKind, string> = {
-	'html-preview': 'HTML',
-	openui: 'OpenUI',
-	'vega-lite': 'Vega-Lite'
-};
 
 function textContent(node: ElementContent): string {
 	if (node.type === 'text') return node.value;
@@ -21,7 +16,7 @@ function button(action: string, label: string): Element {
 	return {
 		children: [{ type: 'text', value: label }],
 		properties: {
-			'aria-label': action === 'copy' ? 'Copy exact source' : label,
+			'aria-label': label,
 			className: ['pico-card-action'],
 			'data-pico-action': action,
 			type: 'button',
@@ -42,12 +37,13 @@ export const rehypePicoCards: Plugin<[], Root> = () => {
 				(child): child is Element => child.type === 'element' && child.tagName === 'code'
 			);
 			const classes = code?.properties.className;
-			const kind = Object.keys(CARD_LABELS).find(
+			const kind = Object.keys(PICO_CARD_NAMES).find(
 				(candidate) => Array.isArray(classes) && classes.includes(`language-${candidate}`)
 			) as PicoCardKind | undefined;
 
 			if (!code || !kind) return;
 
+			const labels = getPicoCardLabels(kind);
 			// remark-rehype appends one newline to code values. Keep the authored whitespace.
 			const source = code.children.map(textContent).join('').replace(/\n$/, '');
 			const card: Element = {
@@ -55,16 +51,16 @@ export const rehypePicoCards: Plugin<[], Root> = () => {
 					{
 						children: [
 							{
-								children: [{ type: 'text', value: CARD_LABELS[kind] }],
+								children: [{ type: 'text', value: PICO_CARD_NAMES[kind] }],
 								properties: { className: ['pico-card-label'] },
 								tagName: 'span',
 								type: 'element'
 							},
 							{
 								children: [
-									button('copy', 'Copy'),
-									button('source', 'Source'),
-									button('expand', 'Expand')
+									button('copy', labels.copy),
+									button('source', labels.showCode),
+									button('expand', labels.expand)
 								],
 								properties: { className: ['pico-card-actions'] },
 								tagName: 'div',
@@ -76,7 +72,7 @@ export const rehypePicoCards: Plugin<[], Root> = () => {
 						type: 'element'
 					},
 					{
-						children: [{ type: 'text', value: 'Rendering preview...' }],
+						children: [{ type: 'text', value: labels.preparing }],
 						properties: {
 							className: ['pico-card-status'],
 							'data-pico-status': true,
@@ -107,7 +103,7 @@ export const rehypePicoCards: Plugin<[], Root> = () => {
 				],
 				properties: {
 					'aria-busy': 'true',
-					'aria-label': `${CARD_LABELS[kind]} preview`,
+					'aria-label': labels.preview,
 					className: ['pico-card'],
 					[PICO_CARD_KIND_ATTR]: kind,
 					[PICO_CARD_SOURCE_ATTR]: source,

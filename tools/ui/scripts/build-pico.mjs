@@ -40,7 +40,8 @@ try {
 			...process.env,
 			LLAMA_UI_BUNDLE_STRATEGY: 'single',
 			LLAMA_UI_OUT_DIR: buildDir,
-			LLAMA_UI_PICO_BUILD: '1'
+			LLAMA_UI_PICO_BUILD: '1',
+			VITE_PUBLIC_APP_NAME: process.env.VITE_PUBLIC_APP_NAME || 'Pico'
 		}
 	});
 

@@ -7,8 +7,14 @@
 	import * as RadioGroup from '$lib/components/ui/radio-group';
 	import * as Select from '$lib/components/ui/select';
 	import { Textarea } from '$lib/components/ui/textarea';
-	import { ICON_CLASS_DEFAULT, SETTING_CONFIG_INFO, SETTINGS_KEYS } from '$lib/constants';
+	import {
+		ICON_CLASS_DEFAULT,
+		IS_PICO_BUILD,
+		SETTING_CONFIG_INFO,
+		SETTINGS_KEYS
+	} from '$lib/constants';
 	import { SettingsFieldType } from '$lib/enums/settings.enums';
+	import { t } from '$lib/i18n';
 	import { modelsStore, serverStore, settingsStore } from '$lib/stores';
 	import { normalizeFloatingPoint } from '$lib/utils/precision';
 	import type { Component } from 'svelte';
@@ -76,7 +82,9 @@
 
 				<div class="flex items-center gap-2">
 					<Label class="flex items-center gap-1.5 text-sm font-medium" for={field.key}>
-						{field.label}
+						{IS_PICO_BUILD && field.key === SETTINGS_KEYS.API_KEY
+							? t('pico.access.label')
+							: field.label}
 
 						{#if field.isExperimental}
 							<FlaskConical class="h-3.5 w-3.5 text-muted-foreground" />
@@ -124,7 +132,9 @@
 					{/if}
 				</div>
 
-				{#if field.help || SETTING_CONFIG_INFO[field.key]}
+				{#if IS_PICO_BUILD && field.key === SETTINGS_KEYS.API_KEY}
+					<p class="mt-1 text-xs text-muted-foreground">{t('pico.access.message')}</p>
+				{:else if field.help || SETTING_CONFIG_INFO[field.key]}
 					<p class="mt-1 text-xs text-muted-foreground">
 						{@html field.help || SETTING_CONFIG_INFO[field.key]}
 					</p>

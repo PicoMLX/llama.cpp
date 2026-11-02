@@ -32,6 +32,7 @@
 	import * as Empty from '$lib/components/ui/empty';
 	import {
 		FAMILY_ROW_WINDOW,
+		IS_PICO_BUILD,
 		type ModalityKey,
 		MODEL_ICON,
 		MODEL_ROW_GRID_CLASS,
@@ -47,6 +48,7 @@
 		ModelsTableGroupKind,
 		ModelsTableSortKey
 	} from '$lib/enums';
+	import { t } from '$lib/i18n';
 	import { modelsStore, settingsStore } from '$lib/stores';
 	import type { ModelOption } from '$lib/types/models';
 	import { groupModelFamilies, type ModelFamilyGroup } from '$lib/utils/model-families';
@@ -424,12 +426,20 @@
 						<MODEL_ICON />
 					</Empty.Media>
 
-					<Empty.Title>{hasFilters ? 'No matching models' : 'No models yet'}</Empty.Title>
+					<Empty.Title
+						>{hasFilters
+							? 'No matching models'
+							: IS_PICO_BUILD
+								? t('pico.models.empty')
+								: 'No models yet'}</Empty.Title
+					>
 
 					<Empty.Description>
 						{hasFilters
 							? 'Try a different search or clear the filters.'
-							: 'Models the server can run show up here.'}
+							: IS_PICO_BUILD
+								? t('pico.models.empty_hint')
+								: 'Models the server can run show up here.'}
 					</Empty.Description>
 				</Empty.Header>
 			</Empty.Root>
