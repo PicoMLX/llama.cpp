@@ -8,7 +8,9 @@
 		MarkdownContent
 	} from '$lib/components/app';
 	import { AgenticSectionType, ChatMessageStatsView, ToolPermissionDecision } from '$lib/enums';
-	import { agenticStore, conversationsStore, settingsStore } from '$lib/stores';
+	import { dispatchOpenUICardAction } from '$lib/pico-cards/renderers/openui/chat-action';
+	import type { PicoCardAction } from '$lib/pico-cards/types';
+	import { agenticStore, chatStore, conversationsStore, settingsStore } from '$lib/stores';
 	import type {
 		AgenticSection,
 		ChatMessageAgenticTimings,
@@ -16,6 +18,7 @@
 		DatabaseMessage
 	} from '$lib/types';
 	import { deriveAgenticSections, isSectionExpandedByDefault } from '$lib/utils';
+	import { toast } from 'svelte-sonner';
 
 	interface Props {
 		message: DatabaseMessage;
@@ -32,6 +35,35 @@
 	}: Props = $props();
 
 	let expandedStates: Record<number, boolean> = $state({});
+	let cardActionPending = false;
+
+	async function handleCardAction(action: PicoCardAction) {
+		const continuing = action.type === 'continue_conversation';
+
+		if (continuing && cardActionPending) return;
+
+		if (continuing) cardActionPending = true;
+
+		try {
+			await dispatchOpenUICardAction(action, {
+				activeConversationId: conversationsStore.activeConversation?.id ?? null,
+				conversationId: message.convId,
+				openURL: (url) => {
+					window.open(url, '_blank', 'noopener,noreferrer');
+				},
+				sendMessage: (content) => chatStore.sendMessage(content),
+				streaming:
+					isStreaming ||
+					chatStore.isChatLoadingInternal(message.convId) ||
+					agenticStore.isRunning(message.convId),
+				userActivation: navigator.userActivation?.isActive ?? false
+			});
+		} catch {
+			toast.error('Could not complete the action.');
+		} finally {
+			if (continuing) cardActionPending = false;
+		}
+	}
 
 	const showThoughtInProgress = $derived(Boolean(settingsStore.config.showThoughtInProgress));
 	const showToolCallInProgress = $derived(Boolean(settingsStore.config.showToolCallInProgress));
@@ -174,7 +206,11 @@
 {#snippet renderSection(section: AgenticSection, index: number)}
 	{#if section.type === AgenticSectionType.TEXT}
 		<div class="agentic-text">
-			<MarkdownContent attachments={message?.extra} content={section.content} />
+			<MarkdownContent
+				attachments={message?.extra}
+				content={section.content}
+				onCardAction={handleCardAction}
+			/>
 		</div>
 	{:else if section.type === AgenticSectionType.REASONING || section.type === AgenticSectionType.REASONING_PENDING}
 		<ChatMessageReasoningBlock

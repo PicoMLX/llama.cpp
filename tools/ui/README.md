@@ -124,6 +124,8 @@ The renderer adapter lives in `src/lib/pico-cards`; upstream integration is limi
 
 Static HTML previews recognize `html-preview` fences and raw CommonMark HTML blocks. They preserve authored HTML/CSS within a bounded isolated frame: scripts, forms, navigation and external resources are disabled, and images become their alternative text. Ordinary `html` fences keep upstream's manual preview behavior. Preparation or layout failures retain the original source.
 
+Completed `openui` fences use the pinned native OpenUI runtime in isolated frames. Each occurrence keeps its own form state through resizing, theme changes, and subsequent streamed text. Explicit form/button actions can continue the current conversation; HTTP(S) links open separately. Runtime files and fonts are local, and authored network access is blocked.
+
 ### 2. Start llama-server
 
 In a separate terminal, start the backend server:
