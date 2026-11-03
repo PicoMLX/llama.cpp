@@ -118,6 +118,12 @@ PicoServer is identified by its `/props` `server_name` field. Its model load/unl
 
 ### 2. Start llama-server
 
+### Pico rich cards
+
+Completed `vega-lite` fences render static charts using a bounded local worker, with inline data and interpreted expressions. Unsupported or invalid specs retain their original source. Charts support theme and width changes, source copying, and expanded viewing. The existing Mermaid renderer also accepts `mmd` and `mermaidjs` fences.
+
+The renderer adapter lives in `src/lib/pico-cards`; upstream integration is limited to the Markdown pipeline and component lifecycle. Renderer instances are keyed by DOM occurrence, so identical interactive cards keep separate state. Incomplete fences remain streaming code until closed.
+
 In a separate terminal, start the backend server:
 
 ```bash
