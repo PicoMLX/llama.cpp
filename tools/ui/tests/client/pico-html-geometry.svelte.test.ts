@@ -39,7 +39,7 @@ describe('static HTML geometry', () => {
 		render(MarkdownContent, { content: `\`\`\`html-preview\n${source}\n\`\`\`` });
 		await expect
 			.poll(() => document.querySelector('[data-pico-status]')?.textContent)
-			.toContain('layout limits');
+			.toContain('Preview unavailable.');
 		expect(document.querySelector('[data-pico-card] iframe')).toBeNull();
 		expect(document.querySelector<HTMLElement>('[data-pico-source-view]')?.hidden).toBe(false);
 		expect(document.querySelector('[data-pico-source-view]')?.textContent).toContain(source);

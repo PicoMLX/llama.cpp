@@ -1,4 +1,5 @@
 import '$lib/pico-cards/styles.css';
+import { i18n } from '$lib/i18n';
 import { PicoCardController } from '$lib/pico-cards/controller';
 import { rehypePicoCards } from '$lib/pico-cards/plugin';
 import {
@@ -102,8 +103,12 @@ describe('PicoCardController lifecycle', () => {
 		const card = root.querySelector<HTMLElement>(PICO_CARD_SELECTOR)!;
 		const sourceButton = card.querySelector<HTMLButtonElement>('[data-pico-action="source"]')!;
 
+		expect(sourceButton.textContent).toBe('Show Code');
 		sourceButton.click();
+		expect(sourceButton.textContent).toBe('Show Preview');
+		expect(sourceButton.getAttribute('aria-label')).toBe('Show Preview');
 		sourceButton.click();
+		expect(sourceButton.textContent).toBe('Show Code');
 		expect(input.value).toBe('Keep this answer');
 
 		const expandButton = card.querySelector<HTMLButtonElement>('[data-pico-action="expand"]')!;
@@ -112,12 +117,14 @@ describe('PicoCardController lifecycle', () => {
 		await expect
 			.poll(() => document.fullscreenElement === card || card.matches(':popover-open'))
 			.toBe(true);
+		expect(expandButton.textContent).toBe('Close Preview');
 		expect(root.querySelector('input')).toBe(input);
 		expect(input.value).toBe('Keep this answer');
 		expandButton.click();
 		await expect
 			.poll(() => document.fullscreenElement === card || card.matches(':popover-open'))
 			.toBe(false);
+		expect(expandButton.textContent).toBe('Expand');
 
 		const changedAction = vi.fn();
 
@@ -130,6 +137,106 @@ describe('PicoCardController lifecycle', () => {
 		contexts[0].onAction?.({ type: 'submit' });
 		expect(changedAction).toHaveBeenCalledOnce();
 		expect(disposals.every((dispose) => dispose.mock.calls.length === 1)).toBe(true);
+	});
+
+	it('expands the selected code view and returns keyboard focus when it closes', async () => {
+		const render = vi.fn<PicoCardRenderer>(async () => ({ dispose: vi.fn() }));
+		const root = await container('root = Text("Keep this code")');
+
+		controller(render).sync(root, { dark: false });
+		await expect.poll(() => root.querySelector('.pico-card-render--pending')).toBeNull();
+		const card = root.querySelector<HTMLElement>(PICO_CARD_SELECTOR)!;
+		const sourceButton = card.querySelector<HTMLButtonElement>('[data-pico-action="source"]')!;
+		const expandButton = card.querySelector<HTMLButtonElement>('[data-pico-action="expand"]')!;
+
+		sourceButton.click();
+		expandButton.click();
+		await expect.poll(() => card.classList.contains('pico-card-expanded')).toBe(true);
+		expect(card.querySelector<HTMLElement>('[data-pico-source-view]')?.hidden).toBe(false);
+		expect(card.querySelector<HTMLElement>('[data-pico-preview]')?.hidden).toBe(true);
+		expect(expandButton.getAttribute('aria-label')).toBe('Close Preview');
+		document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+		await expect.poll(() => card.classList.contains('pico-card-expanded')).toBe(false);
+		expect(document.activeElement).toBe(expandButton);
+		expect(sourceButton.textContent).toBe('Show Preview');
+	});
+
+	it('localizes pending, ready and failed chrome without replacing the renderer', async () => {
+		const savedLocale = i18n.locale;
+		const savedMessages = i18n.messages;
+		const source = 'root = Text("Keep the source")';
+		const pending = deferred();
+		const render = vi.fn<PicoCardRenderer>(async () => {
+			await pending.promise;
+
+			return { dispose: vi.fn() };
+		});
+
+		i18n.messages = {
+			...savedMessages,
+			'card-test': {
+				'pico.card.close_preview': 'Vorschau schliessen',
+				'pico.card.copy': 'Kopieren',
+				'pico.card.copy_failed': 'Kopieren fehlgeschlagen',
+				'pico.card.copy_success': 'Code kopiert',
+				'pico.card.expand': 'Vergroessern',
+				'pico.card.preparing': 'Vorschau vorbereiten',
+				'pico.card.preview_label': '{name}-Vorschau',
+				'pico.card.show_code': 'Code anzeigen',
+				'pico.card.show_preview': 'Vorschau anzeigen',
+				'pico.card.unavailable': 'Vorschau nicht verfuegbar. Der Code bleibt sichtbar.'
+			}
+		};
+		i18n.locale = 'card-test';
+
+		try {
+			const root = await container(source);
+			const instance = controller(render);
+
+			expect(root.querySelector('[data-pico-action="source"]')?.textContent).toBe('Code anzeigen');
+			expect(root.querySelector('[data-pico-action="copy"]')?.getAttribute('aria-label')).toBe(
+				'Kopieren'
+			);
+			root.style.width = '280px';
+			instance.sync(root, { dark: false });
+			const card = root.querySelector<HTMLElement>(PICO_CARD_SELECTOR)!;
+			const sourceButton = card.querySelector<HTMLButtonElement>('[data-pico-action="source"]')!;
+
+			expect(card.getAttribute('aria-label')).toBe('OpenUI-Vorschau');
+			expect(card.querySelector('[data-pico-status]')?.textContent).toBe('Vorschau vorbereiten');
+			expect(sourceButton.textContent).toBe('Code anzeigen');
+			expect(root.scrollWidth).toBeLessThanOrEqual(281);
+			pending.resolve();
+			await expect.poll(() => root.querySelector('.pico-card-render--pending')).toBeNull();
+			i18n.locale = 'en';
+			instance.sync(root, { dark: false });
+			expect(sourceButton.textContent).toBe('Show Code');
+			i18n.locale = 'card-test';
+			instance.sync(root, { dark: false });
+			sourceButton.click();
+			expect(sourceButton.textContent).toBe('Vorschau anzeigen');
+			card.querySelector<HTMLButtonElement>('[data-pico-action="copy"]')!.click();
+			await expect.poll(() => vi.mocked(copyToClipboard).mock.calls.length).toBe(1);
+			expect(copyToClipboard).toHaveBeenCalledWith(
+				source,
+				'Code kopiert',
+				'Kopieren fehlgeschlagen'
+			);
+			card
+				.querySelector('.pico-card-render')!
+				.dispatchEvent(
+					new CustomEvent('pico-card-error', { detail: new Error('Private technical detail') })
+				);
+			expect(card.querySelector('[data-pico-status]')?.textContent).toBe(
+				'Vorschau nicht verfuegbar. Der Code bleibt sichtbar.'
+			);
+			expect(card.textContent).not.toContain('Private technical detail');
+			expect(card.querySelector<HTMLElement>('[data-pico-source-view]')?.hidden).toBe(false);
+			expect(render).toHaveBeenCalledOnce();
+		} finally {
+			i18n.locale = savedLocale;
+			i18n.messages = savedMessages;
+		}
 	});
 
 	it('serializes updates so a theme change reversed during an async update is retained', async () => {
@@ -236,13 +343,14 @@ describe('PicoCardController lifecycle', () => {
 		controller(render).sync(root, { dark: false });
 		await expect
 			.poll(() => root.querySelector('[data-pico-status]')?.textContent)
-			.toContain('Invalid card <b>detail</b>');
+			.toBe('Preview unavailable. You can still view and copy the code.');
+		expect(root.querySelector('[data-pico-status]')?.textContent).not.toContain('Invalid card');
 		expect(root.querySelector('[data-pico-status] b')).toBeNull();
 		expect(root.querySelector<HTMLElement>('[data-pico-source-view]')?.hidden).toBe(false);
 		expect(root.querySelector('[data-pico-source-view]')?.textContent).toBe(`${source}\n`);
 		root.querySelector<HTMLButtonElement>('[data-pico-action="copy"]')!.click();
 		await expect.poll(() => vi.mocked(copyToClipboard).mock.calls.length).toBe(1);
-		expect(copyToClipboard).toHaveBeenCalledWith(source);
+		expect(copyToClipboard).toHaveBeenCalledWith(source, expect.any(String), expect.any(String));
 	});
 
 	it('restores readable source and disposes a live renderer after a later error event', async () => {
@@ -270,8 +378,8 @@ describe('PicoCardController lifecycle', () => {
 		expect(root.querySelector('iframe')).toBeNull();
 		expect(root.querySelector<HTMLElement>('[data-pico-source-view]')?.hidden).toBe(false);
 		expect(root.querySelector('[data-pico-source-view]')?.textContent).toBe(`${source}\n`);
-		expect(root.querySelector('[data-pico-status]')?.textContent).toContain(
-			'Preview exceeded its layout bounds'
+		expect(root.querySelector('[data-pico-status]')?.textContent).toBe(
+			'Preview unavailable. You can still view and copy the code.'
 		);
 	});
 });

@@ -291,6 +291,30 @@ try {
 	assert.ok(requests.some(({ path }) => path === '/models/load'));
 	assert.ok(requests.some(({ path }) => path === '/models/unload'));
 	assert.ok(!requests.some(({ path }) => path === '/models/sse'));
+	const accessContext = await browser.newContext({ locale: 'en-US' });
+	const accessPage = await accessContext.newPage();
+
+	await accessPage.goto(origin, { waitUntil: 'networkidle' });
+	const accessKey = accessPage.getByLabel('Access Key', { exact: true });
+
+	await accessKey.waitFor();
+	assert.equal(await accessPage.title(), 'Connect to Pico');
+	assert.equal(await accessPage.getByRole('alert').count(), 0);
+	await accessKey.fill('incorrect-key');
+	await accessPage.getByRole('button', { exact: true, name: 'Connect' }).click();
+	await accessPage.getByRole('alert').waitFor();
+	await accessKey.fill(token);
+	await accessPage.getByRole('button', { exact: true, name: 'Connect' }).click();
+	await accessPage.locator('textarea:visible,[contenteditable="true"]:visible').first().waitFor();
+	assert.equal(await accessPage.title(), 'Pico');
+	await accessContext.close();
+
+	const translatedContext = await browser.newContext({ locale: 'nl' });
+	const translatedPage = await translatedContext.newPage();
+
+	await translatedPage.goto(origin, { waitUntil: 'networkidle' });
+	await translatedPage.getByRole('heading', { name: 'Verbinden met Pico' }).waitFor();
+	await translatedContext.close();
 	assert.deepEqual(pageErrors, []);
 	assert.deepEqual(missingAssets, []);
 	console.log(

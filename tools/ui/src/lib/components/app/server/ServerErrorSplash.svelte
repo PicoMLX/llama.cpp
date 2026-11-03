@@ -1,11 +1,18 @@
 <script lang="ts">
+	import PicoAccessSplash from './PicoAccessSplash.svelte';
 	import { AlertTriangle, CheckCircle, Key, RefreshCw, XCircle } from '@lucide/svelte';
 	import { goto } from '$app/navigation';
 	import { base } from '$app/paths';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import Label from '$lib/components/ui/label/label.svelte';
-	import { HEADERS, ICON_CLASS_DEFAULT, ROUTES, SETTINGS_KEYS } from '$lib/constants';
+	import {
+		HEADERS,
+		ICON_CLASS_DEFAULT,
+		IS_PICO_BUILD,
+		ROUTES,
+		SETTINGS_KEYS
+	} from '$lib/constants';
 	import { KeyboardKey } from '$lib/enums';
 	import { t } from '$lib/i18n';
 	import { serverStore, settingsStore } from '$lib/stores';
@@ -126,172 +133,178 @@
 	}
 </script>
 
-<div class="flex h-full items-center justify-center {className}">
-	<div class="w-full max-w-md px-4 text-center">
-		<div in:fade={{ duration: 300 }} class="mb-6">
-			<div
-				class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10"
-			>
-				<AlertTriangle class="h-8 w-8 text-destructive" />
-			</div>
-
-			<h2 class="mb-2 text-xl font-semibold">{t('server.error.title')}</h2>
-
-			<p class="mb-4 text-sm text-muted-foreground">
-				{error}
-			</p>
-		</div>
-
-		{#if isAccessDeniedError && !showApiKeyInput}
-			<div in:fly={{ delay: 200, duration: 300, y: 10 }} class="mb-4">
-				<Button class="w-full" onclick={handleShowApiKeyInput} variant="outline">
-					<Key class={ICON_CLASS_DEFAULT} />
-					{t('server.error.api_key.enter')}
-				</Button>
-			</div>
-		{/if}
-
-		{#if showApiKeyInput}
-			<div in:fly={{ delay: 200, duration: 300, y: 10 }} class="mb-4 space-y-3 text-left">
-				<div class="space-y-2">
-					<Label class="text-sm font-medium" for="api-key-input">
-						{t('server.error.api_key.label')}
-					</Label>
-
-					<div class="relative">
-						<Input
-							bind:value={apiKeyInput}
-							autocomplete="new-password"
-							class="w-full pr-10 {apiKeyState === 'error'
-								? 'border-destructive'
-								: apiKeyState === 'success'
-									? 'border-green-500'
-									: ''}"
-							disabled={apiKeyState === 'validating'}
-							id="api-key-input"
-							onkeydown={handleApiKeyKeydown}
-							placeholder={t('server.error.api_key.placeholder')}
-							type="password"
-						/>
-
-						{#if apiKeyState === 'validating'}
-							<div class="absolute top-1/2 right-3 -translate-y-1/2">
-								<RefreshCw class="{ICON_CLASS_DEFAULT} animate-spin text-muted-foreground" />
-							</div>
-						{:else if apiKeyState === 'success'}
-							<div
-								in:scale={{ duration: 200, start: 0.8 }}
-								class="absolute top-1/2 right-3 -translate-y-1/2"
-							>
-								<CheckCircle class="{ICON_CLASS_DEFAULT} text-green-500" />
-							</div>
-						{:else if apiKeyState === 'error'}
-							<div
-								in:scale={{ duration: 200, start: 0.8 }}
-								class="absolute top-1/2 right-3 -translate-y-1/2"
-							>
-								<XCircle class="{ICON_CLASS_DEFAULT} text-destructive" />
-							</div>
-						{/if}
-					</div>
-
-					{#if apiKeyError}
-						<p in:fly={{ duration: 200, y: -10 }} class="text-sm text-destructive">
-							{apiKeyError}
-						</p>
-					{/if}
-
-					{#if apiKeyState === 'success'}
-						<p in:fly={{ duration: 200, y: -10 }} class="text-sm text-green-600">
-							{t('server.error.api_key.success')}
-						</p>
-					{/if}
+{#if IS_PICO_BUILD && isAccessDeniedError}
+	<PicoAccessSplash class={className} />
+{:else}
+	<div class="flex h-full items-center justify-center {className}">
+		<div class="w-full max-w-md px-4 text-center">
+			<div in:fade={{ duration: 300 }} class="mb-6">
+				<div
+					class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10"
+				>
+					<AlertTriangle class="h-8 w-8 text-destructive" />
 				</div>
 
-				<div class="flex gap-2">
-					<Button
-						class="flex-1"
-						disabled={!apiKeyInput.trim() ||
-							apiKeyState === 'validating' ||
-							apiKeyState === 'success'}
-						onclick={handleSaveApiKey}
-					>
-						{#if apiKeyState === 'validating'}
-							<RefreshCw class="{ICON_CLASS_DEFAULT} animate-spin" />
-							{t('server.error.api_key.validating')}
-						{:else if apiKeyState === 'success'}
-							{t('server.error.api_key.success_button')}
-						{:else}
-							{t('server.error.api_key.save_retry')}
-						{/if}
-					</Button>
+				<h2 class="mb-2 text-xl font-semibold">
+					{t(IS_PICO_BUILD ? 'pico.server.unavailable' : 'server.error.title')}
+				</h2>
 
-					<Button
-						class="flex-1"
-						disabled={apiKeyState === 'validating'}
-						onclick={() => {
-							showApiKeyInput = false;
-							apiKeyState = 'idle';
-							apiKeyError = '';
-						}}
-						variant="outline"
-					>
-						{t('server.error.api_key.cancel')}
+				<p class="mb-4 text-sm text-muted-foreground">
+					{IS_PICO_BUILD ? t('pico.server.help') : error}
+				</p>
+			</div>
+
+			{#if isAccessDeniedError && !showApiKeyInput}
+				<div in:fly={{ delay: 200, duration: 300, y: 10 }} class="mb-4">
+					<Button class="w-full" onclick={handleShowApiKeyInput} variant="outline">
+						<Key class={ICON_CLASS_DEFAULT} />
+						{t('server.error.api_key.enter')}
 					</Button>
 				</div>
-			</div>
-		{/if}
+			{/if}
 
-		{#if showRetry}
-			<div in:fly={{ delay: 200, duration: 300, y: 10 }}>
-				<Button class="w-full" disabled={isServerLoading} onclick={handleRetryConnection}>
-					{#if isServerLoading}
-						<RefreshCw class="{ICON_CLASS_DEFAULT} animate-spin" />
+			{#if showApiKeyInput}
+				<div in:fly={{ delay: 200, duration: 300, y: 10 }} class="mb-4 space-y-3 text-left">
+					<div class="space-y-2">
+						<Label class="text-sm font-medium" for="api-key-input">
+							{t('server.error.api_key.label')}
+						</Label>
 
-						{t('server.error.retry.connecting')}
-					{:else}
-						<RefreshCw class={ICON_CLASS_DEFAULT} />
+						<div class="relative">
+							<Input
+								bind:value={apiKeyInput}
+								autocomplete="new-password"
+								class="w-full pr-10 {apiKeyState === 'error'
+									? 'border-destructive'
+									: apiKeyState === 'success'
+										? 'border-green-500'
+										: ''}"
+								disabled={apiKeyState === 'validating'}
+								id="api-key-input"
+								onkeydown={handleApiKeyKeydown}
+								placeholder={t('server.error.api_key.placeholder')}
+								type="password"
+							/>
 
-						{t('server.error.retry.action')}
-					{/if}
-				</Button>
-			</div>
-		{/if}
-
-		{#if showTroubleshooting}
-			<div in:fly={{ delay: 400, duration: 300, y: 10 }} class="mt-4 text-left">
-				<details class="text-sm">
-					<summary class="cursor-pointer text-muted-foreground hover:text-foreground">
-						{t('server.error.troubleshooting.title')}
-					</summary>
-
-					<div class="mt-2 space-y-3 text-xs text-muted-foreground">
-						<div class="space-y-2">
-							<p class="mb-4 font-medium">
-								{t('server.error.troubleshooting.start')}
-							</p>
-
-							<div class="rounded bg-muted/50 px-2 py-1 font-mono text-xs">
-								<p>llama-server -hf ggml-org/gemma-3-4b-it-GGUF</p>
-							</div>
-
-							<p>{t('server.error.troubleshooting.or')}</p>
-
-							<div class="rounded bg-muted/50 px-2 py-1 font-mono text-xs">
-								<p class="mt-1">llama-server -m locally-stored-model.gguf</p>
-							</div>
+							{#if apiKeyState === 'validating'}
+								<div class="absolute top-1/2 right-3 -translate-y-1/2">
+									<RefreshCw class="{ICON_CLASS_DEFAULT} animate-spin text-muted-foreground" />
+								</div>
+							{:else if apiKeyState === 'success'}
+								<div
+									in:scale={{ duration: 200, start: 0.8 }}
+									class="absolute top-1/2 right-3 -translate-y-1/2"
+								>
+									<CheckCircle class="{ICON_CLASS_DEFAULT} text-green-500" />
+								</div>
+							{:else if apiKeyState === 'error'}
+								<div
+									in:scale={{ duration: 200, start: 0.8 }}
+									class="absolute top-1/2 right-3 -translate-y-1/2"
+								>
+									<XCircle class="{ICON_CLASS_DEFAULT} text-destructive" />
+								</div>
+							{/if}
 						</div>
 
-						<ul class="list-disc space-y-1 pl-4">
-							<li>{t('server.error.troubleshooting.step_url')}</li>
+						{#if apiKeyError}
+							<p in:fly={{ duration: 200, y: -10 }} class="text-sm text-destructive">
+								{apiKeyError}
+							</p>
+						{/if}
 
-							<li>{t('server.error.troubleshooting.step_network')}</li>
-
-							<li>{t('server.error.troubleshooting.step_logs')}</li>
-						</ul>
+						{#if apiKeyState === 'success'}
+							<p in:fly={{ duration: 200, y: -10 }} class="text-sm text-green-600">
+								{t('server.error.api_key.success')}
+							</p>
+						{/if}
 					</div>
-				</details>
-			</div>
-		{/if}
+
+					<div class="flex gap-2">
+						<Button
+							class="flex-1"
+							disabled={!apiKeyInput.trim() ||
+								apiKeyState === 'validating' ||
+								apiKeyState === 'success'}
+							onclick={handleSaveApiKey}
+						>
+							{#if apiKeyState === 'validating'}
+								<RefreshCw class="{ICON_CLASS_DEFAULT} animate-spin" />
+								{t('server.error.api_key.validating')}
+							{:else if apiKeyState === 'success'}
+								{t('server.error.api_key.success_button')}
+							{:else}
+								{t('server.error.api_key.save_retry')}
+							{/if}
+						</Button>
+
+						<Button
+							class="flex-1"
+							disabled={apiKeyState === 'validating'}
+							onclick={() => {
+								showApiKeyInput = false;
+								apiKeyState = 'idle';
+								apiKeyError = '';
+							}}
+							variant="outline"
+						>
+							{t('server.error.api_key.cancel')}
+						</Button>
+					</div>
+				</div>
+			{/if}
+
+			{#if showRetry}
+				<div in:fly={{ delay: 200, duration: 300, y: 10 }}>
+					<Button class="w-full" disabled={isServerLoading} onclick={handleRetryConnection}>
+						{#if isServerLoading}
+							<RefreshCw class="{ICON_CLASS_DEFAULT} animate-spin" />
+
+							{t('server.error.retry.connecting')}
+						{:else}
+							<RefreshCw class={ICON_CLASS_DEFAULT} />
+
+							{t('server.error.retry.action')}
+						{/if}
+					</Button>
+				</div>
+			{/if}
+
+			{#if showTroubleshooting && !IS_PICO_BUILD}
+				<div in:fly={{ delay: 400, duration: 300, y: 10 }} class="mt-4 text-left">
+					<details class="text-sm">
+						<summary class="cursor-pointer text-muted-foreground hover:text-foreground">
+							{t('server.error.troubleshooting.title')}
+						</summary>
+
+						<div class="mt-2 space-y-3 text-xs text-muted-foreground">
+							<div class="space-y-2">
+								<p class="mb-4 font-medium">
+									{t('server.error.troubleshooting.start')}
+								</p>
+
+								<div class="rounded bg-muted/50 px-2 py-1 font-mono text-xs">
+									<p>llama-server -hf ggml-org/gemma-3-4b-it-GGUF</p>
+								</div>
+
+								<p>{t('server.error.troubleshooting.or')}</p>
+
+								<div class="rounded bg-muted/50 px-2 py-1 font-mono text-xs">
+									<p class="mt-1">llama-server -m locally-stored-model.gguf</p>
+								</div>
+							</div>
+
+							<ul class="list-disc space-y-1 pl-4">
+								<li>{t('server.error.troubleshooting.step_url')}</li>
+
+								<li>{t('server.error.troubleshooting.step_network')}</li>
+
+								<li>{t('server.error.troubleshooting.step_logs')}</li>
+							</ul>
+						</div>
+					</details>
+				</div>
+			{/if}
+		</div>
 	</div>
-</div>
+{/if}

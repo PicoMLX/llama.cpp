@@ -10,10 +10,16 @@
 		ModelsSelectorTriggerIcon
 	} from '$lib/components/app';
 	import * as Tooltip from '$lib/components/ui/tooltip';
-	import { DROPDOWN_MENU_CONTENT_SEARCH_SELECTOR, MODEL_ICON, SETTINGS_KEYS } from '$lib/constants';
+	import {
+		DROPDOWN_MENU_CONTENT_SEARCH_SELECTOR,
+		IS_PICO_BUILD,
+		MODEL_ICON,
+		SETTINGS_KEYS
+	} from '$lib/constants';
 	import { KeyboardKey, ServerModelStatus } from '$lib/enums';
 	import { useChatFormModel } from '$lib/hooks/use-chat-form-model.svelte';
 	import { useModelsSelector } from '$lib/hooks/use-models-selector.svelte';
+	import { t } from '$lib/i18n';
 	import { deviceStore, modelsStore, serverStore, settingsStore, uiStore } from '$lib/stores';
 	import { type ModelItem, modelLoadFraction } from '$lib/utils';
 	import { untrack } from 'svelte';
@@ -310,7 +316,9 @@
 			<MODEL_ICON class="h-3.5 w-3.5 shrink-0" />
 		</span>
 	{:else}
-		<span class="text-xs text-muted-foreground">No models yet.</span>
+		<span class="text-xs text-muted-foreground"
+			>{IS_PICO_BUILD ? t('pico.models.empty') : 'No models yet.'}</span
+		>
 	{/if}
 {:else if ms.isMultiModel}
 	{#if isMobile}
