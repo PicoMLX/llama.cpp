@@ -152,12 +152,20 @@ describe('PicoCardController lifecycle', () => {
 		expect(render).toHaveBeenCalledOnce();
 	});
 
-	it('connects pending iframe hosts with measurable layout before awaiting readiness', async () => {
+	it('keeps pending iframe animation frames running without showing or focusing the preview', async () => {
 		const render = vi.fn<PicoCardRenderer>(async (host, _source, context) => {
 			expect(host.isConnected).toBe(true);
 			expect(host.getBoundingClientRect().width).toBeGreaterThan(32);
 			expect(context.width).toBeGreaterThan(32);
-			expect(getComputedStyle(host).visibility).toBe('hidden');
+			expect(getComputedStyle(host).visibility).toBe('visible');
+			expect(getComputedStyle(host).opacity).toBe('0');
+			expect(getComputedStyle(host).pointerEvents).toBe('none');
+			expect(host.inert).toBe(true);
+			expect(host.getAttribute('aria-hidden')).toBe('true');
+			expect(
+				host.closest(PICO_CARD_SELECTOR)?.querySelector<HTMLElement>('[data-pico-source-view]')
+					?.hidden
+			).toBe(false);
 
 			const frame = document.createElement('iframe');
 			const loaded = new Promise<void>((resolve) =>
@@ -167,6 +175,9 @@ describe('PicoCardController lifecycle', () => {
 			frame.srcdoc = '<p>Ready</p>';
 			host.appendChild(frame);
 			await loaded;
+			await new Promise<void>((resolve) =>
+				frame.contentWindow!.requestAnimationFrame(() => resolve())
+			);
 
 			return { dispose: () => frame.remove() };
 		});
@@ -176,6 +187,8 @@ describe('PicoCardController lifecycle', () => {
 		await expect.poll(() => root.querySelector('.pico-card-render--pending')).toBeNull();
 		expect(root.querySelector('iframe')?.isConnected).toBe(true);
 		expect(root.querySelector<HTMLElement>('[data-pico-source-view]')?.hidden).toBe(true);
+		expect(root.querySelector<HTMLElement>('.pico-card-render')?.inert).toBe(false);
+		expect(root.querySelector('.pico-card-render')?.hasAttribute('aria-hidden')).toBe(false);
 	});
 
 	it.each(['removal', 'destroy'])(

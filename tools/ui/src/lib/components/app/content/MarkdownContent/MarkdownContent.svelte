@@ -378,7 +378,12 @@
 		const processorInstance = getMarkdownProcessor({ allowHtml, attachments, disableMath });
 		const ast = processorInstance.parse(normalized) as MdastRoot;
 		const mdastChildren = (ast as { children?: unknown[] }).children ?? [];
-		const stableCount = Math.max(mdastChildren.length - 1, 0);
+		const lastChild = mdastChildren.at(-1) as { type?: string; lang?: string } | undefined;
+		// Closed interactive cards stay in the stable tree when later text arrives.
+		const stableCount =
+			lastChild?.type === 'code' && Object.hasOwn(picoCardRenderers, lastChild.lang ?? '')
+				? mdastChildren.length
+				: Math.max(mdastChildren.length - 1, 0);
 		const nextBlocks: MarkdownBlock[] = [];
 		// Check if we're in append mode for cache reuse
 		const appendMode = isAppendMode(markdown, previousContent);

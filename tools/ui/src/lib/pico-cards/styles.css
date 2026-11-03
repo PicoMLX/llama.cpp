@@ -70,7 +70,8 @@
 	position: absolute;
 	inset-inline: 0;
 	top: 0;
-	visibility: hidden;
+	opacity: 0;
+	pointer-events: none;
 }
 
 .markdown-content .pico-card .pico-card-source > pre {

@@ -5,6 +5,24 @@ import { cleanup, render } from 'vitest-browser-svelte';
 afterEach(cleanup);
 
 describe('Pico cards in the chat Markdown pipeline', () => {
+	it.each([
+		'```html-preview\n<section><h2>Inline static card</h2></section>\n```',
+		'<section><h2>Inline static card</h2></section>\n\nAfter HTML'
+	])('renders static HTML card syntax through Markdown', async (content) => {
+		render(MarkdownContent, { content });
+		await expect
+			.poll(
+				() =>
+					document.querySelector<HTMLIFrameElement>('[data-pico-card="html-preview"] iframe')?.title
+			)
+			.toContain('Inline static card');
+	});
+
+	it('keeps ordinary HTML fences on the existing source and manual-preview path', async () => {
+		render(MarkdownContent, { content: '```html\n<h2>Ordinary source</h2>\n```' });
+		await expect.poll(() => document.body.textContent).toContain('Ordinary source');
+		expect(document.querySelector('[data-pico-card]')).toBeNull();
+	});
 	it('renders a completed Vega-Lite fence and keeps its source view', async () => {
 		const source = JSON.stringify({
 			data: {
