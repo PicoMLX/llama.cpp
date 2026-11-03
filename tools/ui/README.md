@@ -116,6 +116,18 @@ The script validates local HTML and stylesheet asset references before publishin
 
 PicoServer is identified by its `/props` `server_name` field. Its model load/unload requests complete synchronously, without llama-server's `/models/sse` feed. The Models Manager keeps selection and load/unload available; GGUF downloads, discovery, and deletion are hidden because PicoServer manages MLX models separately.
 
+### Pico rich cards
+
+Completed `vega-lite` fences render static charts using a bounded local worker, with inline data and interpreted expressions. Unsupported or invalid specs retain their original source. Charts support theme and width changes, source copying, and expanded viewing. The existing Mermaid renderer also accepts `mmd` and `mermaidjs` fences.
+
+The renderer adapter lives in `src/lib/pico-cards`; upstream integration is limited to the Markdown pipeline and component lifecycle. Renderer instances are keyed by DOM occurrence, so identical interactive cards keep separate state. Incomplete fences remain streaming code until closed.
+
+Static HTML previews recognize `html-preview` fences and raw CommonMark HTML blocks. They preserve authored HTML/CSS within a bounded isolated frame: scripts, forms, navigation and external resources are disabled, and images become their alternative text. Ordinary `html` fences keep upstream's manual preview behavior. Preparation or layout failures retain the original source.
+
+Completed `openui` fences use the pinned native OpenUI runtime in isolated frames. Each occurrence keeps its own form state through resizing, theme changes, and subsequent streamed text. Explicit form/button actions can continue the current conversation; HTTP(S) links open separately. Runtime files and fonts are local, and authored network access is blocked.
+
+Mermaid.js handles its existing diagram families. The two additional native families (`usecase-beta` and `agentflow-beta`) use a pinned local Pele worker, retaining the existing source/copy/zoom/download controls. The shared native fixture suite covers 91 examples across 32 families; it checks successful rendering rather than pixel equivalence.
+
 ### 2. Start llama-server
 
 In a separate terminal, start the backend server:

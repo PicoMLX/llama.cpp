@@ -1,7 +1,8 @@
 <script lang="ts">
 	import ModelsManager from '$lib/components/app/models/ModelsManager/ModelsManager.svelte';
 	import { Button } from '$lib/components/ui/button';
-	import { APP_NAME, DISCOVER_ICON } from '$lib/constants';
+	import { APP_NAME, DISCOVER_ICON, IS_PICO_BUILD } from '$lib/constants';
+	import { t } from '$lib/i18n';
 	import { modelsStore, uiStore } from '$lib/stores';
 	import { onMount } from 'svelte';
 
@@ -29,7 +30,11 @@
 			<h1 class="text-2xl font-semibold tracking-tight">Models</h1>
 
 			<p class="text-sm text-muted-foreground">
-				Load, configure and remove the models this server can run.
+				{#if IS_PICO_BUILD}
+					{t('pico.models.description')}
+				{:else}
+					Load, configure and remove the models this server can run.
+				{/if}
 			</p>
 		</div>
 

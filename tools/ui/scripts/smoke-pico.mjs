@@ -7,10 +7,61 @@ import { chromium } from 'playwright';
 
 const uiDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const webRoot = resolve(process.env.PICO_WEB_ROOT ?? resolve(uiDir, 'dist'));
-const fixture = await readFile(
+const originalFixture = await readFile(
 	resolve(uiDir, 'tests/unit/fixtures/open-responses/pico-completed-response.sse'),
 	'utf8'
 );
+const cardKinds = (process.env.PICO_SMOKE_CARDS ?? '').split(',').filter(Boolean);
+const cardSources = {
+	'html-preview':
+		'<section style="padding:20px"><h2>Packaged HTML</h2><p>Local static preview</p></section>',
+	openui:
+		'root = Stack([TextContent("Packaged OpenUI"), Button("Continue packaging", @ToAssistant("Continue packaging", {viewId: "packaging-smoke"}), "primary")])',
+	'vega-lite': JSON.stringify({
+		data: {
+			values: [
+				{ category: 'A', value: 2 },
+				{ category: 'B', value: 5 }
+			]
+		},
+		encoding: {
+			x: { field: 'category', type: 'nominal' },
+			y: { field: 'value', type: 'quantitative' }
+		},
+		mark: 'bar',
+		title: 'Packaged chart'
+	})
+};
+const diagramSources =
+	process.env.PICO_SMOKE_DIAGRAMS === '1'
+		? JSON.parse(
+				await readFile(
+					resolve(uiDir, 'tests/fixtures/pico-cards/pele-native-examples.json'),
+					'utf8'
+				)
+			)
+				.filter(({ family }) => ['usecase', 'agentflow'].includes(family))
+				.filter(
+					(value, index, all) =>
+						all.findIndex((candidate) => candidate.family === value.family) === index
+				)
+				.map(({ source }) => source)
+		: [];
+const reply =
+	"Because they don't have the guts!" +
+	cardKinds
+		.map((kind) => {
+			assert.ok(cardSources[kind], `Unknown card ${kind}`);
+
+			return `\n\n\`\`\`${kind}\n${cardSources[kind]}\n\`\`\``;
+		})
+		.join('') +
+	diagramSources.map((source) => `\n\n\`\`\`mermaid\n${source}\n\`\`\``).join('');
+const fixture = originalFixture.replaceAll(
+	"Because they don't have the guts!",
+	JSON.stringify(reply).slice(1, -1)
+);
+const lanHTTP = process.env.PICO_SMOKE_LAN === '1';
 const token = 'pico-packaging-smoke';
 const requests = [];
 const pageErrors = [];
@@ -132,12 +183,18 @@ const server = http.createServer(async (request, response) => {
 });
 
 await new Promise((done) => server.listen(0, '127.0.0.1', done));
-const origin = `http://127.0.0.1:${server.address().port}`;
+const origin = `http://${lanHTTP ? 'pico.test' : '127.0.0.1'}:${server.address().port}`;
 
 let browser;
 
 try {
-	browser = await chromium.launch({ channel: process.env.PICO_BROWSER_CHANNEL, headless: true });
+	browser = await chromium.launch({
+		channel: process.env.PICO_BROWSER_CHANNEL,
+		headless: true,
+		...(lanHTTP
+			? { args: ['--host-resolver-rules=MAP pico.test 127.0.0.1', '--no-proxy-server'] }
+			: {})
+	});
 	for (const suffix of ['/#?apikey=', '/#/?apikey=', '/?apikey=']) {
 		const context = await browser.newContext({
 			locale: 'en-US',
@@ -148,6 +205,12 @@ try {
 
 		page.on('pageerror', (error) => pageErrors.push(String(error)));
 		await page.goto(`${origin}${suffix}${token}`, { waitUntil: 'networkidle' });
+
+		if (lanHTTP) {
+			assert.equal(await page.evaluate(() => window.isSecureContext), false);
+			assert.equal(await page.evaluate(() => typeof crypto.randomUUID), 'undefined');
+		}
+
 		await page.locator('textarea:visible,[contenteditable="true"]:visible').first().waitFor();
 		assert.equal(
 			requests.slice(first).find(({ path }) => path === '/props')?.auth,
@@ -162,6 +225,43 @@ try {
 				.fill('Tell a joke.');
 			await page.getByRole('button', { exact: true, name: 'Send' }).click();
 			await page.getByText("Because they don't have the guts!", { exact: true }).waitFor();
+			for (const kind of cardKinds) {
+				const card = page.locator(`[data-pico-card="${kind}"]`);
+
+				if (kind === 'vega-lite')
+					await card.locator('.pico-card-render svg').waitFor({ timeout: 15000 });
+				else if (kind === 'html-preview')
+					await card
+						.frameLocator('iframe')
+						.getByText('Packaged HTML', { exact: true })
+						.waitFor({ timeout: 15000 });
+				else
+					await card
+						.frameLocator('iframe')
+						.getByText('Packaged OpenUI', { exact: true })
+						.waitFor({ timeout: 15000 });
+
+				if (kind === 'openui') {
+					const continuation = page.waitForRequest(
+						(request) =>
+							new URL(request.url()).pathname === '/v1/responses' &&
+							Boolean(request.postData()?.includes('Continue packaging'))
+					);
+
+					await card
+						.frameLocator('iframe')
+						.getByRole('button', { exact: true, name: 'Continue packaging' })
+						.click();
+					const request = await continuation;
+
+					assert.ok(
+						request.postData()?.includes('packaging-smoke'),
+						'OpenUI action context must reach Responses'
+					);
+				}
+			}
+			for (let index = 0; index < diagramSources.length; index++)
+				await page.locator('pre.mermaid svg').nth(index).waitFor({ timeout: 15000 });
 		}
 
 		await context.close();
@@ -191,10 +291,34 @@ try {
 	assert.ok(requests.some(({ path }) => path === '/models/load'));
 	assert.ok(requests.some(({ path }) => path === '/models/unload'));
 	assert.ok(!requests.some(({ path }) => path === '/models/sse'));
+	const accessContext = await browser.newContext({ locale: 'en-US' });
+	const accessPage = await accessContext.newPage();
+
+	await accessPage.goto(origin, { waitUntil: 'networkidle' });
+	const accessKey = accessPage.getByLabel('Access Key', { exact: true });
+
+	await accessKey.waitFor();
+	assert.equal(await accessPage.title(), 'Connect to Pico');
+	assert.equal(await accessPage.getByRole('alert').count(), 0);
+	await accessKey.fill('incorrect-key');
+	await accessPage.getByRole('button', { exact: true, name: 'Connect' }).click();
+	await accessPage.getByRole('alert').waitFor();
+	await accessKey.fill(token);
+	await accessPage.getByRole('button', { exact: true, name: 'Connect' }).click();
+	await accessPage.locator('textarea:visible,[contenteditable="true"]:visible').first().waitFor();
+	assert.equal(await accessPage.title(), 'Pico');
+	await accessContext.close();
+
+	const translatedContext = await browser.newContext({ locale: 'nl' });
+	const translatedPage = await translatedContext.newPage();
+
+	await translatedPage.goto(origin, { waitUntil: 'networkidle' });
+	await translatedPage.getByRole('heading', { name: 'Verbinden met Pico' }).waitFor();
+	await translatedContext.close();
 	assert.deepEqual(pageErrors, []);
 	assert.deepEqual(missingAssets, []);
 	console.log(
-		'Pico packaged UI smoke passed: assets, invite authentication, Responses, model lifecycle.'
+		`Pico packaged UI smoke passed (${lanHTTP ? 'LAN HTTP' : 'loopback'}): assets, invite authentication, Responses, model lifecycle.`
 	);
 } finally {
 	await browser?.close();

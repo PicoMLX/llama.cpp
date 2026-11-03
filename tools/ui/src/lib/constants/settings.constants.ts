@@ -1,4 +1,5 @@
 import { DEFAULT_AGENTIC_CONFIG } from './agentic.constants';
+import { IS_PICO_BUILD } from './app.constants';
 import { CLI_FLAGS } from './cli-flags.constants';
 import { COMPACTION } from './compaction.constants';
 import { DEFAULT_MCP_CONFIG } from './mcp.constants';
@@ -700,6 +701,27 @@ export const SETTINGS_REGISTRY: SettingsSectionEntry[] = [
 		title: SETTINGS_SECTION_TITLES.DEVELOPER
 	}
 ];
+
+if (IS_PICO_BUILD) {
+	const general = SETTINGS_REGISTRY.find(
+		(section) => section.slug === SETTINGS_SECTION_SLUGS.GENERAL
+	)!;
+	const developer = SETTINGS_REGISTRY.find(
+		(section) => section.slug === SETTINGS_SECTION_SLUGS.DEVELOPER
+	)!;
+	const index = general.settings.findIndex((setting) => setting.key === SETTINGS_KEYS.API_ENDPOINT);
+	const [endpoint] = general.settings.splice(index, 1);
+
+	developer.settings.unshift({
+		...endpoint,
+		help: 'Use Open Responses for Pico. Choose Chat Completions only for servers that require it.',
+		label: 'API Compatibility',
+		options: [
+			{ label: 'Open Responses', value: 'responses' },
+			{ label: 'Chat Completions', value: 'chat_completions' }
+		]
+	});
+}
 
 function getAllSettings(): SettingsEntry[] {
 	const result: SettingsEntry[] = [];

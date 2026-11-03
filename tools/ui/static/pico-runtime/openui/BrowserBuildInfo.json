@@ -1,0 +1,19 @@
+{
+  "source": "PicoMarkdownView/PicoOpenUIRuntime/Resources/OpenUI",
+  "versions": {
+    "@openuidev/lang-core": "1.0.2",
+    "@openuidev/react-lang": "1.0.2",
+    "@openuidev/react-ui": "0.18.1",
+    "@openuidev/react-headless": "0.18.1",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "katex": "0.16.47"
+  },
+  "adapter": "browser-host.js",
+  "stylesheet": {
+    "file": "browser.css",
+    "bytes": 1815387,
+    "sha256": "a0f955f30cc4048347fc15113faa1d230e8d6c82f5205ec7faa5de38433f40e2"
+  },
+  "note": "Official app.js, app.css, fonts and notices are unchanged. browser.css inlines fonts for the opaque sandbox origin."
+}

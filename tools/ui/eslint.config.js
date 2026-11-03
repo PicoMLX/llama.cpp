@@ -329,7 +329,8 @@ export default ts.config(
 			'test-results/**',
 			'.storybook/**/*',
 			'src/lib/services/sandbox-worker.js',
-			'src/lib/vendors/**'
+			'src/lib/vendors/**',
+			'static/pico-runtime/**'
 		]
 	},
 	storybook.configs['flat/recommended']

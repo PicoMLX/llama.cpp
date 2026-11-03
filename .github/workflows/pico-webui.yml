@@ -41,6 +41,7 @@ jobs:
       - run: npm run test:unit -- --run
       - run: npx playwright install --with-deps chromium
       - run: npm run test:client -- --run --browser.headless
+      - run: npm run test:pico-openui
       - name: Build and validate Pico resources
         env:
           PICO_HTML_DIR: ${{ runner.temp }}/pico-html
@@ -50,4 +51,8 @@ jobs:
       - name: Smoke-test packaged UI
         env:
           PICO_WEB_ROOT: ${{ runner.temp }}/pico-html/webui
-        run: node scripts/smoke-pico.mjs
+          PICO_SMOKE_CARDS: vega-lite,html-preview,openui
+          PICO_SMOKE_DIAGRAMS: '1'
+        run: |
+          node scripts/smoke-pico.mjs
+          PICO_SMOKE_LAN=1 node scripts/smoke-pico.mjs

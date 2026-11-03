@@ -1,0 +1,163 @@
+.pico-card {
+	position: relative;
+	min-width: 0;
+	margin-block: 1.5rem;
+	overflow: hidden;
+	border: 1px solid color-mix(in oklch, var(--border) 30%, transparent);
+	border-radius: 0.75rem;
+	background: var(--code-background, var(--background));
+	color: var(--code-foreground, var(--foreground));
+	box-shadow: 0 1px 2px rgb(0 0 0 / 5%);
+}
+
+.dark .pico-card {
+	border-color: color-mix(in oklch, var(--border) 20%, transparent);
+}
+
+.pico-card-header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+	padding: 0.5rem 1rem;
+	border-bottom: 1px solid color-mix(in oklch, var(--border) 30%, transparent);
+	font-size: 0.875rem;
+}
+
+.pico-card-label {
+	font-family: var(--font-mono, ui-monospace, monospace);
+	font-size: 0.75rem;
+	font-weight: 500;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+}
+
+.pico-card-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 0.25rem;
+	margin-inline-start: auto;
+}
+
+.pico-card-action {
+	min-height: 2rem;
+	padding: 0.25rem 0.5rem;
+	border: 0;
+	border-radius: var(--radius-sm, 0.375rem);
+	background: transparent;
+	color: var(--code-foreground, var(--foreground));
+	cursor: pointer;
+	font: inherit;
+	line-height: 1.25;
+}
+
+.pico-card-action:hover:not(:disabled) {
+	background: var(--accent);
+	color: var(--accent-foreground);
+}
+
+.pico-card-action[aria-pressed='true'] {
+	color: var(--primary);
+}
+
+.pico-card-action:focus-visible {
+	outline: 2px solid var(--ring, currentColor);
+	outline-offset: 2px;
+}
+
+.pico-card-action:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+@media (pointer: coarse) {
+	.pico-card-action {
+		min-height: 2.75rem;
+	}
+}
+
+.pico-card-status {
+	padding: 0.75rem 1rem;
+	color: var(--muted-foreground);
+	font-size: 0.875rem;
+}
+
+.pico-card-preview {
+	position: relative;
+	min-width: 0;
+	width: 100%;
+}
+
+.pico-card-render {
+	min-width: 0;
+	width: 100%;
+}
+
+.pico-card-render--pending {
+	position: absolute;
+	inset-inline: 0;
+	top: 0;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.markdown-content .pico-card .pico-card-source > pre {
+	display: block !important;
+	max-height: var(--max-message-height, 28rem);
+	margin: 0 !important;
+	padding: 1rem !important;
+	overflow: auto !important;
+	border: 0;
+	border-radius: 0;
+	background: var(--code-background, var(--muted));
+	font-size: 0.875rem;
+	font-family: var(--font-mono, ui-monospace, monospace);
+	line-height: 1.5 !important;
+	white-space: pre;
+}
+
+.pico-card [hidden] {
+	display: none !important;
+}
+
+.pico-card:fullscreen,
+.pico-card.pico-card-expanded {
+	position: fixed;
+	inset: 0;
+	z-index: 999999;
+	display: flex;
+	flex-direction: column;
+	width: 100vw;
+	max-width: none;
+	height: 100dvh;
+	max-height: none;
+	margin: 0;
+	border-radius: 0;
+	background: var(--code-background, var(--background, white));
+}
+
+.pico-card-expanded::backdrop {
+	background: rgb(0 0 0 / 50%);
+}
+
+.pico-card:fullscreen .pico-card-preview,
+.pico-card.pico-card-expanded .pico-card-preview {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+}
+
+.pico-card:fullscreen .pico-card-source,
+.pico-card.pico-card-expanded .pico-card-source {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+}
+
+.markdown-content .pico-card.pico-card-expanded .pico-card-source > pre,
+.markdown-content .pico-card:fullscreen .pico-card-source > pre {
+	max-height: none;
+}

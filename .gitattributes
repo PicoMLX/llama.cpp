@@ -1,0 +1,3 @@
+# Keep pinned renderer runtimes and notices byte-identical to their sources.
+tools/ui/static/pico-runtime/** linguist-vendored=true -whitespace
+tools/ui/static/pico-runtime/openui/browser-host.js linguist-vendored=false whitespace=trailing-space,space-before-tab

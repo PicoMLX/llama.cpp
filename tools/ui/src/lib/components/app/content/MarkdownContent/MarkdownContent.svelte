@@ -1,5 +1,6 @@
 <script lang="ts">
 	import '$lib/styles/katex-custom.scss';
+	import '$lib/pico-cards/styles.css';
 	import { getMarkdownProcessor, type MarkdownProcessor } from './markdown-processor';
 	import {
 		getCodeInfoFromTarget,
@@ -33,6 +34,10 @@
 	} from '$lib/constants';
 	import { BooleanString, ColorMode, UrlProtocol } from '$lib/enums';
 	import { createStickToBottom } from '$lib/hooks/use-stick-to-bottom.svelte';
+	import { PicoCardController } from '$lib/pico-cards/controller';
+	import { picoCardRenderers } from '$lib/pico-cards/registry';
+	import { isPeleFallbackDiagram, renderPeleFallback } from '$lib/pico-cards/renderers/pele';
+	import type { PicoCardAction } from '$lib/pico-cards/types';
 	import { settingsStore } from '$lib/stores';
 	import type { DatabaseMessageExtra } from '$lib/types/database';
 	import {
@@ -61,6 +66,7 @@
 		disableMath?: boolean;
 		/** Render raw HTML found in the markdown (sanitized) instead of escaping it. */
 		allowHtml?: boolean;
+		onCardAction?: (action: PicoCardAction) => void;
 	}
 
 	interface MarkdownBlock {
@@ -74,10 +80,13 @@
 		attachments,
 		class: className = '',
 		content,
-		disableMath = false
+		disableMath = false,
+		onCardAction
 	}: Props = $props();
 
 	let containerRef = $state<HTMLDivElement>();
+	const picoCards = new PicoCardController(picoCardRenderers);
+	const peleRenders = new SvelteMap<HTMLElement, AbortController>();
 	let renderedBlocks = $state<MarkdownBlock[]>([]);
 	let unstableBlockHtml = $state('');
 	let incompleteCodeBlock = $state<IncompleteCodeBlock | null>(null);
@@ -371,7 +380,12 @@
 		const processorInstance = getMarkdownProcessor({ allowHtml, attachments, disableMath });
 		const ast = processorInstance.parse(normalized) as MdastRoot;
 		const mdastChildren = (ast as { children?: unknown[] }).children ?? [];
-		const stableCount = Math.max(mdastChildren.length - 1, 0);
+		const lastChild = mdastChildren.at(-1) as { type?: string; lang?: string } | undefined;
+		// Closed interactive cards stay in the stable tree when later text arrives.
+		const stableCount =
+			lastChild?.type === 'code' && Object.hasOwn(picoCardRenderers, lastChild.lang ?? '')
+				? mdastChildren.length
+				: Math.max(mdastChildren.length - 1, 0);
 		const nextBlocks: MarkdownBlock[] = [];
 		// Check if we're in append mode for cache reuse
 		const appendMode = isAppendMode(markdown, previousContent);
@@ -631,6 +645,37 @@
 		}
 	}
 
+	async function renderPeleDiagram(node: HTMLElement, source: string, isDark: boolean) {
+		const abort = new AbortController();
+
+		peleRenders.set(node, abort);
+
+		try {
+			const svg = await renderPeleFallback(source, isDark, {
+				maxWidth: node.parentElement?.clientWidth || 640,
+				signal: abort.signal
+			});
+
+			if (abort.signal.aborted || !containerRef?.contains(node)) return;
+
+			const clean = sanitizeSvg(svg);
+
+			if (!clean) throw new Error('Diagram SVG could not be sanitized');
+
+			node.innerHTML = clean;
+		} catch {
+			if (abort.signal.aborted || !containerRef?.contains(node)) return;
+
+			node.textContent = source;
+			const wrapper = node.closest(`.${MERMAID_WRAPPER_CLASS}`);
+
+			wrapper?.setAttribute(DIAGRAM_VIEW_MODE_ATTR, DIAGRAM_VIEW_SOURCE);
+			wrapper?.querySelector(`.${TOGGLE_SOURCE_BTN_CLASS}`)?.setAttribute('aria-pressed', 'true');
+		} finally {
+			peleRenders.delete(node);
+		}
+	}
+
 	/**
 	 * Renders mermaid diagrams that haven't been rendered yet.
 	 * Called after each markdown content update.
@@ -640,7 +685,14 @@
 	async function renderMermaidDiagrams() {
 		if (!containerRef) return;
 
-		const nodes = containerRef.querySelectorAll(
+		for (const [node, abort] of peleRenders) {
+			if (!containerRef.contains(node)) {
+				abort.abort();
+				peleRenders.delete(node);
+			}
+		}
+
+		const nodes = containerRef.querySelectorAll<HTMLElement>(
 			`pre.${MERMAID_BLOCK_CLASS}:not([${MERMAID_RENDERED_ATTR}])`
 		);
 
@@ -652,6 +704,17 @@
 
 		// Read mode before await so Svelte tracks it reactively.
 		const isDark = mode.current === ColorMode.DARK;
+		const mermaidNodes: HTMLElement[] = [];
+
+		for (const node of nodes) {
+			const source = node.getAttribute(MERMAID_SYNTAX_ATTR) ?? node.textContent ?? '';
+
+			if (isPeleFallbackDiagram(source)) void renderPeleDiagram(node, source, isDark);
+			else mermaidNodes.push(node);
+		}
+
+		if (mermaidNodes.length === 0) return;
+
 		// lazy load the mermaid dependecy only when needed to reduce bundle size.
 		const { default: mermaid } = await import('mermaid');
 
@@ -673,7 +736,7 @@
 
 		try {
 			await mermaid.run({
-				nodes: Array.from(nodes) as unknown as NodeListOf<HTMLElement>
+				nodes: mermaidNodes as unknown as NodeListOf<HTMLElement>
 			});
 		} catch (error) {
 			console.error('Failed to render mermaid diagram:', error);
@@ -800,6 +863,18 @@
 		}
 	});
 
+	$effect(() => {
+		void renderedBlocks;
+		void unstableBlockHtml;
+
+		if (containerRef) {
+			picoCards.sync(containerRef, {
+				dark: mode.current === ColorMode.DARK,
+				onAction: onCardAction
+			});
+		}
+	});
+
 	// Follow the streaming code block while the reader stays at its bottom; the
 	// resize observer does the pinning, so no polling for a stable height.
 	$effect(() => {
@@ -809,6 +884,10 @@
 	});
 
 	onDestroy(() => {
+		for (const abort of peleRenders.values()) abort.abort();
+
+		peleRenders.clear();
+		picoCards.destroy();
 		cleanupEventListeners();
 	});
 </script>

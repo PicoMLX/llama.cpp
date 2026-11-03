@@ -35,6 +35,11 @@ export default defineConfig(({ mode }) => {
 			chunkSizeWarningLimit: 3072,
 			minify: true
 		},
+		define: {
+			'import.meta.env.LLAMA_UI_PICO_BUILD': JSON.stringify(isPicoBuild ? '1' : '0')
+		},
+
+		optimizeDeps: { include: ['vega', 'vega-interpreter', 'vega-lite'] },
 
 		plugins: [
 			tailwindcss(),
