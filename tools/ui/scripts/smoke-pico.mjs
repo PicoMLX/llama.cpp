@@ -32,6 +32,21 @@ const cardSources = {
 		title: 'Packaged chart'
 	})
 };
+const diagramSources =
+	process.env.PICO_SMOKE_DIAGRAMS === '1'
+		? JSON.parse(
+				await readFile(
+					resolve(uiDir, 'tests/fixtures/pico-cards/pele-native-examples.json'),
+					'utf8'
+				)
+			)
+				.filter(({ family }) => ['usecase', 'agentflow'].includes(family))
+				.filter(
+					(value, index, all) =>
+						all.findIndex((candidate) => candidate.family === value.family) === index
+				)
+				.map(({ source }) => source)
+		: [];
 const reply =
 	"Because they don't have the guts!" +
 	cardKinds
@@ -40,7 +55,8 @@ const reply =
 
 			return `\n\n\`\`\`${kind}\n${cardSources[kind]}\n\`\`\``;
 		})
-		.join('');
+		.join('') +
+	diagramSources.map((source) => `\n\n\`\`\`mermaid\n${source}\n\`\`\``).join('');
 const fixture = originalFixture.replaceAll(
 	"Because they don't have the guts!",
 	JSON.stringify(reply).slice(1, -1)
@@ -224,23 +240,28 @@ try {
 						.frameLocator('iframe')
 						.getByText('Packaged OpenUI', { exact: true })
 						.waitFor({ timeout: 15000 });
+
 				if (kind === 'openui') {
 					const continuation = page.waitForRequest(
 						(request) =>
 							new URL(request.url()).pathname === '/v1/responses' &&
 							Boolean(request.postData()?.includes('Continue packaging'))
 					);
+
 					await card
 						.frameLocator('iframe')
-						.getByRole('button', { name: 'Continue packaging', exact: true })
+						.getByRole('button', { exact: true, name: 'Continue packaging' })
 						.click();
 					const request = await continuation;
+
 					assert.ok(
 						request.postData()?.includes('packaging-smoke'),
 						'OpenUI action context must reach Responses'
 					);
 				}
 			}
+			for (let index = 0; index < diagramSources.length; index++)
+				await page.locator('pre.mermaid svg').nth(index).waitFor({ timeout: 15000 });
 		}
 
 		await context.close();

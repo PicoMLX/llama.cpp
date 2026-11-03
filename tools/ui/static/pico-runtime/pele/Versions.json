@@ -1,0 +1,11 @@
+{
+  "name": "pele",
+  "version": "1.9.1",
+  "license": "MIT",
+  "upstream": "https://github.com/obsidianmd/pele",
+  "package": "https://registry.npmjs.org/pele/-/pele-1.9.1.tgz",
+  "packageSHA256": "fc7e0ee2d0c6118d7dd2622e47fa90206723ca40dcd8e0d29127118736e48d15",
+  "bundleSHA256": "354234843a25eb50f73077b404c9d6e879736ed4d70aa8fdfd73d54d2a19454d",
+  "nativeBridge": "PicoMarkdownView-HTML/Scripts/pele-wrapper.js",
+  "nativeBridgeLicense": "NativeBridge-LICENSE.txt"
+}
