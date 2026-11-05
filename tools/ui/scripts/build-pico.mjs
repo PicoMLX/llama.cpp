@@ -46,7 +46,7 @@ try {
 	});
 
 	const destination = await publishPicoPackage(buildDir, picoHtmlDir, {
-		logoPath: join(uiDir, 'src/lib/assets/logo.svg')
+		logoPath: join(uiDir, 'src/lib/assets/pico-logo.svg')
 	});
 
 	console.log(`Pico UI written to ${destination}`);
