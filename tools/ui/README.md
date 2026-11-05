@@ -112,6 +112,8 @@ PICO_HTML_DIR='/path/to/PicoServer/PicoServer/HTTP Server/HTML' npm run build:pi
 npm run test:pico-package
 ```
 
+Pico builds use `src/lib/assets/pico-logo.svg` for the application mark and light/dark favicons. It reproduces PicoServer's four-bar level-meter badge from `PicoServer/Icon.icon`: two lime bars, two gray bars, and an eigengrau tile. The upstream `logo.svg` stays in place for standard llama.cpp builds.
+
 The script validates local HTML and stylesheet asset references before publishing the new directory, and keeps the previous package if validation fails. Loading and onboarding pages in the HTML parent stay untouched. PicoServer serves this directory at the public `/` URL; `/webui` is the resource folder name, not an API or navigation prefix.
 
 PicoServer is identified by its `/props` `server_name` field. Its model load/unload requests complete synchronously, without llama-server's `/models/sse` feed. The Models Manager keeps selection and load/unload available; GGUF downloads, discovery, and deletion are hidden because PicoServer manages MLX models separately.
