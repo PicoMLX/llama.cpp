@@ -641,6 +641,7 @@
 			{/if}
 		</div>
 
+		<!-- inert, not only invisible: an open section or a context-menu trigger would otherwise catch clicks meant for the page -->
 		<div
 			in:fade={{ duration: 200 }}
 			out:fade={{ duration: 200 }}
@@ -650,6 +651,7 @@
 			!uiStore.isSidebarExpanded
 				? 'opacity-0 invisible !h-0'
 				: ''} {isStripHidden ? 'md:opacity-0 md:invisible' : ''}"
+			inert={isStripHidden}
 		>
 			<SidebarNavigationActions
 				class="px-2 md:my-3"
