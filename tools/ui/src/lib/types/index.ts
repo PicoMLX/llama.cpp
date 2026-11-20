@@ -199,6 +199,9 @@ export type {
 	MCPServerResources
 } from './mcp';
 
+// Group types
+export type { Group } from './groups';
+
 // Search result types
 export type { SearchResult } from './search';
 
@@ -235,7 +238,7 @@ export type {
 } from './agentic';
 
 // Navigation types
-export type { DesktopIconStripItem } from './navigation';
+export type { DesktopIconStripItem, MenuAction } from './navigation';
 
 // Tools types
 export type {
