@@ -49,6 +49,9 @@ export function modelRowActions(
 		];
 	}
 
+	// a model the router did not take from its HF cache is not its own to delete
+	const removeBlockedReason = modelsStore.removeBlockedReason(option.model);
+
 	return [
 		{
 			icon: favorite ? HeartOff : Heart,
@@ -58,10 +61,12 @@ export function modelRowActions(
 		...(serverStore.supportsModelDownloads
 			? [
 					{
+						disabled: removeBlockedReason !== null,
 						icon: Trash2,
 						label: 'Delete from disk',
 						onclick: () => onDelete(option),
 						separator: true,
+						tooltip: removeBlockedReason ?? undefined,
 						variant: 'destructive' as const
 					}
 				]

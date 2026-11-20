@@ -29,10 +29,15 @@
 
 	let {
 		isLastAssistantMessage = false,
-		isStreaming = false,
+		isStreaming: isChatStreaming = false,
 		message,
 		toolMessages = []
 	}: Props = $props();
+
+	// The chat-level streaming flag is shared by every message; only the last
+	// assistant message is actually live, so earlier ones must not keep their
+	// unresolved tool calls spinning while a newer reply streams.
+	const isStreaming = $derived(isChatStreaming && isLastAssistantMessage);
 
 	let expandedStates: Record<number, boolean> = $state({});
 	let cardActionPending = false;
@@ -53,7 +58,7 @@
 				},
 				sendMessage: (content) => chatStore.sendMessage(content),
 				streaming:
-					isStreaming ||
+					isChatStreaming ||
 					chatStore.isChatLoadingInternal(message.convId) ||
 					agenticStore.isRunning(message.convId),
 				userActivation: navigator.userActivation?.isActive ?? false
@@ -80,9 +85,7 @@
 	);
 
 	const pendingPermission = $derived(
-		isStreaming && isLastAssistantMessage
-			? agenticStore.getPendingPermissionRequest(message.convId)
-			: null
+		isStreaming ? agenticStore.getPendingPermissionRequest(message.convId) : null
 	);
 
 	// dismissal applies to the request object, so the next request ( new
@@ -99,9 +102,7 @@
 	}
 
 	const pendingContinue = $derived(
-		isStreaming && isLastAssistantMessage
-			? agenticStore.getPendingContinueRequest(message.convId)
-			: false
+		isStreaming ? agenticStore.getPendingContinueRequest(message.convId) : false
 	);
 
 	let continueDismissed = $state(false);

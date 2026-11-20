@@ -42,7 +42,7 @@
 
 			if (model) {
 				try {
-					await modelsStore.selectModelById(model.id);
+					await modelsStore.selectModelById(model.id, { fromLink: true });
 				} catch (error) {
 					console.error('Failed to select model:', error);
 					requestedModelName = modelParam;
@@ -106,6 +106,8 @@
 				chatStore.syncLoadingStateForChat(chatId);
 				// server probe (with localStorage fallback) and attach
 				await chatStore.discoverActiveStream(chatId);
+				// a message queued here may have finished its turn while another chat was open
+				await chatStore.flushPendingMessage(chatId);
 
 				if ((qParam !== null || modelParam !== null) && !urlParamsProcessed) {
 					await handleUrlParams();
