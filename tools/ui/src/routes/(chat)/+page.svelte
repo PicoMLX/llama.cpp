@@ -33,7 +33,7 @@
 
 			if (model) {
 				try {
-					await modelsStore.selectModelById(model.id);
+					await modelsStore.selectModelById(model.id, { fromLink: true });
 
 					// with ?load=true in router mode, start loading right away so the
 					// model is ready sooner; not awaited so the UI stays usable

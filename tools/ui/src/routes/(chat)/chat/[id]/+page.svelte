@@ -42,7 +42,7 @@
 
 			if (model) {
 				try {
-					await modelsStore.selectModelById(model.id);
+					await modelsStore.selectModelById(model.id, { fromLink: true });
 				} catch (error) {
 					console.error('Failed to select model:', error);
 					requestedModelName = modelParam;

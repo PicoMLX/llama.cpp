@@ -115,6 +115,9 @@ class ModelsStore implements ModelPropsHost, ModelStatusHost {
 	// Without this, ?model=<name> URL handler races an in-progress fetch and sees an empty list.
 	private inflightFetch: Promise<void> | null = null;
 
+	// the model a ?model= link selected; an automatic pick does not replace it with a loading model
+	private linkedModelId: string | null = null;
+
 	/**
 	 * Model the active conversation view resolves to. Router mode: the user's
 	 * selection first, then the conversation's own model. Otherwise the single
@@ -190,6 +193,7 @@ class ModelsStore implements ModelPropsHost, ModelStatusHost {
 	}
 
 	clearSelection(): void {
+		this.linkedModelId = null;
 		this.selectedModelId = null;
 		this.selectedModelName = null;
 	}
@@ -350,6 +354,8 @@ class ModelsStore implements ModelPropsHost, ModelStatusHost {
 	getLoadingModelToPreselect(): ModelOption | null {
 		if (this.getModelFromLastAssistantResponse()) return null;
 
+		if (this.linkedModelId !== null && this.linkedModelId === this.selectedModelId) return null;
+
 		const selected = this.selectedModelName;
 
 		if (selected && (this.isModelLoaded(selected) || this.isModelLoading(selected))) return null;
@@ -446,12 +452,18 @@ class ModelsStore implements ModelPropsHost, ModelStatusHost {
 
 	/**
 	 * Select a model. `recordRecent` keeps automatic picks out of the recency list.
+	 * `fromLink` marks a model a ?model= link asked for, so a loading model does not replace it.
 	 */
-	async selectModelById(modelId: string, options?: { recordRecent?: boolean }): Promise<void> {
+	async selectModelById(
+		modelId: string,
+		options?: { fromLink?: boolean; recordRecent?: boolean }
+	): Promise<void> {
 		if (!modelId || this.updating) return;
 
 		if (this.selectedModelId === modelId) {
 			if (options?.recordRecent) this.recordRecentModel(modelId);
+
+			if (options?.fromLink) this.linkedModelId = modelId;
 
 			return;
 		}
@@ -466,6 +478,7 @@ class ModelsStore implements ModelPropsHost, ModelStatusHost {
 		try {
 			this.selectedModelId = option.id;
 			this.selectedModelName = option.model;
+			this.linkedModelId = options?.fromLink ? option.id : null;
 
 			if (options?.recordRecent) this.recordRecentModel(modelId);
 
