@@ -6,7 +6,9 @@
  * browser, server and account, with a hash of the key standing for the
  * account. Switching waits for running replies and pending writes, drops the
  * loaded chats and messages, and reads the list from the new store;
- * DatabaseService drops what the old store answers late.
+ * DatabaseService drops what the old store answers late. While Pico Server
+ * keeps the chats, chatSyncStore follows other windows' changes; a switch
+ * closes its stream at once.
  */
 
 import { base } from '$app/paths';
@@ -19,6 +21,7 @@ import { ServerChatStore } from '$lib/services/server-chat-store';
 import { agenticStore } from '$lib/stores/agentic/index.svelte';
 import { chatActivityStore } from '$lib/stores/chat/activity.svelte';
 import { chatStore } from '$lib/stores/chat/index.svelte';
+import { chatSyncStore } from '$lib/stores/chat-sync.svelte';
 import { conversationsStore } from '$lib/stores/conversations/index.svelte';
 import { groupsStore } from '$lib/stores/groups.svelte';
 import { serverStore } from '$lib/stores/server.svelte';
@@ -173,6 +176,8 @@ class ChatStorageStore {
 		if (target === this.location && targetScope === this.scope) return;
 
 		this.pending = target;
+		// the notices belong to the account and store being left
+		chatSyncStore.stop();
 
 		try {
 			// the first list load runs on the store picked at startup, it ends before the switch
@@ -193,13 +198,16 @@ class ChatStorageStore {
 	/**
 	 * Points DatabaseService at a store once the current one's writes settle.
 	 * A Pico Server store sends `apiKey` with all its requests, also the ones
-	 * still queued when the key changes.
+	 * still queued when the key changes, and its notices stream opens.
 	 */
 	private async use(target: ChatStorageLocation, apiKey: string): Promise<void> {
 		const isServer = target === ChatStorageLocation.SERVER;
 
 		if (isServer) {
-			await DatabaseService.useStore(new ServerChatStore(apiKey), showStoreError);
+			const store = new ServerChatStore(apiKey);
+
+			await DatabaseService.useStore(store, showStoreError);
+			chatSyncStore.start(store);
 		} else {
 			await DatabaseService.useStore(localChatStore);
 		}

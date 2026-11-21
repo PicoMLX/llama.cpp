@@ -455,6 +455,25 @@ class ConversationsStore implements ConversationsPreferencesHost {
 	}
 
 	/**
+	 * Drops a chat another window deleted. An open chat gives way to the
+	 * new-chat screen.
+	 *
+	 * @param convId - The deleted conversation's ID
+	 */
+	async forgetConversation(convId: string): Promise<void> {
+		const wasOpen = this.activeConversation?.id === convId;
+
+		this.conversations = this.conversations.filter((c) => c.id !== convId);
+		tabsStore.removeTabs([convId]);
+		this.notifyConversationsDeleted([convId]);
+
+		if (!wasOpen) return;
+
+		this.clearActiveConversation();
+		await goto(ROUTES.START);
+	}
+
+	/**
 	 * Forks a conversation at a specific message, creating a new conversation
 	 * containing messages from root up to the target message, then navigates to it.
 	 *
@@ -684,6 +703,46 @@ class ConversationsStore implements ConversationsPreferencesHost {
 		const currentPath = filterByLeafNodeId(allMessages, leafNodeId, false) as DatabaseMessage[];
 
 		this.activeMessages = currentPath;
+	}
+
+	/**
+	 * Reads the open chat again after another window changed it. This window
+	 * keeps its own branch and follows it to its newest message; a chat that
+	 * is gone gives way to the new-chat screen. Nothing changes when another
+	 * chat opened, or `isBusy` says this window began work in it, before the
+	 * reads came back.
+	 *
+	 * @param isBusy - Whether this window is replying or editing in the chat
+	 */
+	async reloadActiveConversation(isBusy: (convId: string) => boolean): Promise<void> {
+		const active = this.activeConversation;
+
+		if (!active || isBusy(active.id)) return;
+
+		const conversation = await DatabaseService.getConversation(active.id);
+		const allMessages = conversation
+			? await DatabaseService.getConversationMessages(active.id)
+			: [];
+
+		if (this.activeConversation !== active || isBusy(active.id)) return;
+
+		if (!conversation) {
+			await this.forgetConversation(active.id);
+
+			return;
+		}
+
+		// this window's branch, followed to its newest message; the stored one once that branch is gone
+		const leafNodeId = allMessages.some((m) => m.id === active.currNode)
+			? findLeafNode(allMessages, active.currNode)
+			: conversation.currNode;
+
+		// one sync block, as in loadConversation; the new object makes the chat screen take the handed-off messages
+		this.lastLoadedMessages = { convId: active.id, messages: allMessages };
+		this.activeConversation = { ...conversation, currNode: leafNodeId };
+		this.activeMessages = leafNodeId
+			? (filterByLeafNodeId(allMessages, leafNodeId, false) as DatabaseMessage[])
+			: allMessages;
 	}
 
 	/**
