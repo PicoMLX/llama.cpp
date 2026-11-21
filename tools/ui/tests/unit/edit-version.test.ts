@@ -61,7 +61,7 @@ beforeEach(async () => {
 	server = new MockConversationsServer();
 	onError = vi.fn<(error: unknown) => void>();
 	vi.spyOn(globalThis, 'fetch').mockImplementation(server.fetch);
-	await DatabaseService.useStore(new ServerChatStore(), onError);
+	await DatabaseService.useStore(new ServerChatStore('test-key'), onError);
 });
 
 afterEach(async () => {
@@ -125,6 +125,42 @@ describe('in-place message edits', () => {
 		expect(onError).not.toHaveBeenCalled();
 		expect(itemText(conversation.id, reply!.id)).toBe('better answer');
 		expect(sentVersions()).toEqual([undefined, undefined, 3]);
+	});
+
+	it("are refused when this window's own write lands after an edit from another window", async () => {
+		const { conversation, reply, shown } = await openChat(true);
+
+		server.editElsewhere(conversation.id, reply!.id, 'from another window');
+		// the timings the reply writes when it ends get a version past the other edit
+		await DatabaseService.updateMessage(reply!.id, { timings: { predicted_n: 1 } as never });
+		server.requests = [];
+
+		const version = await DatabaseService.versionForEdit(shown(reply!.id));
+
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		await chatStore.editAssistantMessage(reply!.id, 'mine', false, version);
+
+		expect(sentVersions()).toEqual([1]);
+		expect(itemText(conversation.id, reply!.id)).toBe('from another window');
+		expect(onError).toHaveBeenCalledWith(
+			expect.objectContaining({ message: ERROR_MESSAGES.CHAT_STORAGE.STALE_VERSION })
+		);
+	});
+
+	it("start after this window's own write once the other window's edit was read", async () => {
+		const { conversation, reply } = await openChat(true);
+
+		server.editElsewhere(conversation.id, reply!.id, 'from another window');
+		await conversationsStore.loadConversation(conversation.id);
+		await DatabaseService.updateMessage(reply!.id, { timings: { predicted_n: 1 } as never });
+
+		const shown = conversationsStore.activeMessages.find((m) => m.id === reply!.id)!;
+		const version = await DatabaseService.versionForEdit(shown);
+
+		await chatStore.editAssistantMessage(reply!.id, 'mine', false, version);
+
+		expect(onError).not.toHaveBeenCalled();
+		expect(itemText(conversation.id, reply!.id)).toBe('mine');
 	});
 });
 

@@ -689,12 +689,14 @@ class ConversationsStore implements ConversationsPreferencesHost {
 	/**
 	 * Drops the loaded chats and messages and reads the list from the chat
 	 * store again, after the store changed. An open chat gives way to the
-	 * new-chat screen, and tabs of chats the store does not have close.
+	 * new-chat screen, and tabs of chats the store does not have close. The
+	 * group picked for the next chat is dropped: the new store may not have it.
 	 */
 	async reloadFromStore(): Promise<void> {
 		const wasOpen = this.activeConversation !== null;
 
 		this.clearActiveConversation();
+		this.preferences.pendingGroupId = null;
 		this.conversations = [];
 		this.lastLoadedMessages = null;
 		this.lastMessageIndex = null;

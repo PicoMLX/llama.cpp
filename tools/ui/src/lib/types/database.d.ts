@@ -220,8 +220,9 @@ export interface ChatStore {
 		options?: ChatStoreWriteOptions
 	): Promise<void>;
 	/**
-	 * The version an edit of `record` starts from: the newer of the record's own
-	 * and the one this window's writes left. Stores without versions omit it.
+	 * The version an edit of `record` starts from: the record's own, moved on
+	 * over the versions this window's writes got next after it. Stores without
+	 * versions omit it.
 	 */
 	versionForEdit?(record: { id: string; version?: number }): Promise<number | undefined>;
 }

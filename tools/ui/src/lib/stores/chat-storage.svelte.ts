@@ -92,6 +92,9 @@ class ChatStorageStore {
 	/** Switches run one after another. */
 	private switches: Promise<void> = Promise.resolve();
 
+	/** Choices localStorage could not save, by scope; they hold while this page is open. */
+	private unsaved = new Map<string, ChatStorageLocation>();
+
 	/** Whether Pico Server offers to keep this account's chats. */
 	get available(): boolean {
 		return serverStore.props?.conversation_storage === true && currentApiKey() !== '';
@@ -108,13 +111,13 @@ class ChatStorageStore {
 	async initialize(): Promise<void> {
 		const apiKey = currentApiKey();
 
-		if (!apiKey || readChoices()[scopeOf(apiKey)] !== ChatStorageLocation.SERVER) return;
+		if (!apiKey || this.choiceFor(scopeOf(apiKey)) !== ChatStorageLocation.SERVER) return;
 
 		if (!serverStore.props) await serverStore.fetch();
 
 		if (!this.available) return;
 
-		await this.use(ChatStorageLocation.SERVER, scopeOf(apiKey));
+		await this.use(ChatStorageLocation.SERVER, apiKey);
 	}
 
 	/**
@@ -127,14 +130,17 @@ class ChatStorageStore {
 
 		if (!apiKey) return;
 
+		const scope = scopeOf(apiKey);
 		const choices = readChoices();
 
-		choices[scopeOf(apiKey)] = target;
+		choices[scope] = target;
 
 		try {
 			localStorage.setItem(CHAT_STORAGE_LOCALSTORAGE_KEY, JSON.stringify(choices));
+			this.unsaved.delete(scope);
 		} catch {
-			// storage unavailable, the switch still applies to this page
+			// storage full or blocked, the choice still applies to this page
+			this.unsaved.set(scope, target);
 		}
 
 		await this.sync();
@@ -159,7 +165,7 @@ class ChatStorageStore {
 		const apiKey = currentApiKey();
 		const scope = apiKey ? scopeOf(apiKey) : null;
 		const target =
-			this.available && scope && readChoices()[scope] === ChatStorageLocation.SERVER
+			this.available && scope && this.choiceFor(scope) === ChatStorageLocation.SERVER
 				? ChatStorageLocation.SERVER
 				: ChatStorageLocation.BROWSER;
 		const targetScope = target === ChatStorageLocation.SERVER ? scope : null;
@@ -172,7 +178,7 @@ class ChatStorageStore {
 			// the first list load runs on the store picked at startup, it ends before the switch
 			await conversationsStore.initialize();
 			await waitForReplies();
-			await this.use(target, targetScope);
+			await this.use(target, apiKey);
 			await conversationsStore.reloadFromStore();
 			await groupsStore.reload();
 		} finally {
@@ -180,16 +186,26 @@ class ChatStorageStore {
 		}
 	}
 
-	/** Points DatabaseService at a store once the current one's writes settle. */
-	private async use(target: ChatStorageLocation, scope: string | null): Promise<void> {
-		if (target === ChatStorageLocation.SERVER) {
-			await DatabaseService.useStore(new ServerChatStore(), showStoreError);
+	private choiceFor(scope: string): ChatStorageLocation | undefined {
+		return this.unsaved.get(scope) ?? readChoices()[scope];
+	}
+
+	/**
+	 * Points DatabaseService at a store once the current one's writes settle.
+	 * A Pico Server store sends `apiKey` with all its requests, also the ones
+	 * still queued when the key changes.
+	 */
+	private async use(target: ChatStorageLocation, apiKey: string): Promise<void> {
+		const isServer = target === ChatStorageLocation.SERVER;
+
+		if (isServer) {
+			await DatabaseService.useStore(new ServerChatStore(apiKey), showStoreError);
 		} else {
 			await DatabaseService.useStore(localChatStore);
 		}
 
 		this.location = target;
-		this.scope = scope;
+		this.scope = isServer ? scopeOf(apiKey) : null;
 	}
 }
 

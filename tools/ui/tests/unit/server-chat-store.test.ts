@@ -58,7 +58,7 @@ beforeEach(async () => {
 	server = new MockConversationsServer();
 	onError = vi.fn<(error: unknown) => void>();
 	vi.spyOn(globalThis, 'fetch').mockImplementation(server.fetch);
-	await DatabaseService.useStore(new ServerChatStore(), onError);
+	await DatabaseService.useStore(new ServerChatStore('test-key'), onError);
 });
 
 afterEach(async () => {
@@ -490,16 +490,34 @@ describe('ServerChatStore errors', () => {
 	});
 
 	it('sends the API key with every request', async () => {
+		await DatabaseService.useStore(new ServerChatStore('secret-key'), onError);
+		await DatabaseService.getAllConversations();
+
+		expect(server.requests[0].headers.get('Authorization')).toBe('Bearer secret-key');
+	});
+
+	it('keeps the API key it was made for when the setting changes', async () => {
 		const previous = settingsStore.config.apiKey;
 
-		settingsStore.config.apiKey = 'secret-key';
+		await DatabaseService.useStore(new ServerChatStore('key-a'), onError);
+
+		const chat = await DatabaseService.createConversation('Chat');
+
+		settingsStore.config.apiKey = 'key-b';
 
 		try {
-			await DatabaseService.getAllConversations();
+			await DatabaseService.updateConversation(chat.id, { pinned: true });
+			await DatabaseService.getConversation(chat.id);
+			await DatabaseService.deleteConversation(chat.id);
 		} finally {
 			settingsStore.config.apiKey = previous;
 		}
 
-		expect(server.requests[0].headers.get('Authorization')).toBe('Bearer secret-key');
+		expect(server.requests.map((r) => r.headers.get('Authorization'))).toEqual([
+			'Bearer key-a',
+			'Bearer key-a',
+			'Bearer key-a',
+			'Bearer key-a'
+		]);
 	});
 });

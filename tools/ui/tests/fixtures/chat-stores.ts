@@ -56,7 +56,7 @@ const serverStore: TestChatStore = {
 
 		serverStore.server = server;
 		vi.spyOn(globalThis, 'fetch').mockImplementation(server.fetch);
-		await DatabaseService.useStore(new ServerChatStore());
+		await DatabaseService.useStore(new ServerChatStore('test-key'));
 	}
 };
 

@@ -19,6 +19,11 @@ import { tick } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
+vi.mock('$app/navigation', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$app/navigation')>()),
+	goto: vi.fn(async () => {})
+}));
+
 const KEY_A = 'account-a-secret';
 const KEY_B = 'account-b-secret';
 
@@ -142,6 +147,39 @@ describe('chat storage setting', () => {
 		expect(chatStorageStore.location).toBe(ChatStorageLocation.SERVER);
 		expect((await DatabaseService.getAllConversations()).map((c) => c.id)).toEqual([id]);
 	});
+
+	it('applies the choice on this page when it cannot be saved', async () => {
+		const setItem = Storage.prototype.setItem;
+		const full = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+			this: Storage,
+			key: string,
+			value: string
+		) {
+			if (key === CHAT_STORAGE_LOCALSTORAGE_KEY) {
+				throw new DOMException('Quota exceeded', 'QuotaExceededError');
+			}
+
+			setItem.call(this, key, value);
+		});
+		const id = await seedServerChat('On the server');
+
+		await chatStorageStore.select(ChatStorageLocation.SERVER);
+
+		expect(chatStorageStore.location).toBe(ChatStorageLocation.SERVER);
+		expect(conversationsStore.conversations.map((c) => c.id)).toEqual([id]);
+
+		// as when /props or the key change again
+		await chatStorageStore.sync();
+
+		expect(chatStorageStore.location).toBe(ChatStorageLocation.SERVER);
+
+		await chatStorageStore.select(ChatStorageLocation.BROWSER);
+
+		expect(chatStorageStore.location).toBe(ChatStorageLocation.BROWSER);
+		expect(localStorage.getItem(CHAT_STORAGE_LOCALSTORAGE_KEY)).toBeNull();
+
+		full.mockRestore();
+	});
 });
 
 describe('switching chat storage', () => {
@@ -199,6 +237,49 @@ describe('switching chat storage', () => {
 		expect(locationWhileWriting).toBe(ChatStorageLocation.SERVER);
 		expect(server.conversations.get(chat.id)?.pinned).toBe(true);
 		expect(chatStorageStore.location).toBe(ChatStorageLocation.BROWSER);
+	});
+
+	it('sends the writes it waits for with the key of the account that made them', async () => {
+		await chatStorageStore.select(ChatStorageLocation.SERVER);
+
+		const chat = await DatabaseService.createConversation('Chat');
+		const write = deferred();
+
+		server.gate = async (request) => {
+			if (request.method === 'POST') await write.promise;
+		};
+		server.requests = [];
+
+		const saved = Promise.all([
+			DatabaseService.updateConversation(chat.id, { pinned: true }),
+			DatabaseService.updateConversation(chat.id, { name: 'Renamed' })
+		]);
+
+		// another account, which keeps its chats in this browser
+		settingsStore.config.apiKey = KEY_B;
+
+		const switched = chatStorageStore.sync();
+
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		write.resolve();
+		await Promise.all([saved, switched]);
+
+		expect(server.requests.map((r) => r.headers.get('Authorization'))).toEqual([
+			`Bearer ${KEY_A}`,
+			`Bearer ${KEY_A}`
+		]);
+		expect(server.conversations.get(chat.id)).toMatchObject({ name: 'Renamed', pinned: true });
+		expect(chatStorageStore.location).toBe(ChatStorageLocation.BROWSER);
+	});
+
+	it('drops the group picked for the next chat, which the new store does not have', async () => {
+		conversationsStore.preferences.pendingGroupId = '00000000-0000-4000-8000-0000000000bb';
+
+		await chatStorageStore.select(ChatStorageLocation.SERVER);
+
+		const id = await conversationsStore.createConversation('First on the server');
+
+		expect(server.conversations.get(id)?.group_id).toBeNull();
 	});
 
 	it('ignores a list the old store answers after the switch', async () => {

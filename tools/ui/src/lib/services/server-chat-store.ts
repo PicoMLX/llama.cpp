@@ -13,7 +13,12 @@
  * Pico Server.
  */
 
-import { API_CONVERSATIONS, CONVERSATION_SETTINGS_KEYS, ERROR_MESSAGES } from '$lib/constants';
+import {
+	API_CONVERSATIONS,
+	CONVERSATION_SETTINGS_KEYS,
+	ERROR_MESSAGES,
+	HEADERS
+} from '$lib/constants';
 import { MessageRole, MessageType } from '$lib/enums';
 import type {
 	ApiConversation,
@@ -26,7 +31,7 @@ import type {
 } from '$lib/types/api';
 import type { ChatStore, ChatStoreWriteOptions, ExportedConversation } from '$lib/types/database';
 import type { Group } from '$lib/types/groups';
-import { apiDelete, ApiError, apiFetch, apiPost } from '$lib/utils/api-fetch';
+import { apiDelete, ApiError, apiFetch, type ApiFetchOptions, apiPost } from '$lib/utils/api-fetch';
 import { uuid } from '$lib/utils/uuid';
 
 type Body = Record<string, unknown>;
@@ -227,6 +232,9 @@ function toGroup(record: ApiConversationGroup): Group {
 }
 
 export class ServerChatStore implements ChatStore {
+	/** Sent with every request: writes still queued when the API key changes go out as the account that made them. */
+	private auth: ApiFetchOptions;
+
 	/** The last record of each chat the server sent, for forks and pin toggles. */
 	private conversations = new Map<string, DatabaseConversation>();
 
@@ -236,8 +244,8 @@ export class ServerChatStore implements ChatStore {
 	/** Tail of each chat's (or group's) write queue, by its id. */
 	private queues = new Map<string, Promise<void>>();
 
-	/** Versions the server gave this window's own writes, by record id; reads never change them. */
-	private versions = new Map<string, number>();
+	/** Versions the server gave this window's own writes, by record id; reads never add to them. */
+	private versions = new Map<string, Set<number>>();
 
 	async bulkDeleteConversations(ids: string[]): Promise<void> {
 		const cleanIds = ids.filter((id): id is string => typeof id === 'string' && id.length > 0);
@@ -266,6 +274,11 @@ export class ServerChatStore implements ChatStore {
 		return new Map(states.filter((state) => state !== null));
 	}
 
+	/** @param apiKey - Key of the account whose chats this store keeps */
+	constructor(apiKey: string) {
+		this.auth = { headers: { [HEADERS.AUTHORIZATION]: `${HEADERS.BEARER}${apiKey}` } };
+	}
+
 	async createConversation(
 		name: string,
 		fields?: Partial<Omit<DatabaseConversation, 'id' | 'name' | 'lastModified'>>
@@ -277,7 +290,9 @@ export class ServerChatStore implements ChatStore {
 
 		return this.enqueue(id, async () =>
 			this.trackWrite(
-				await request(() => apiPost<ApiConversation>(API_CONVERSATIONS.CONVERSATIONS, body))
+				await request(() =>
+					apiPost<ApiConversation>(API_CONVERSATIONS.CONVERSATIONS, body, this.auth)
+				)
 			)
 		);
 	}
@@ -286,10 +301,11 @@ export class ServerChatStore implements ChatStore {
 		return this.enqueue(group.id, async () =>
 			toGroup(
 				await request(() =>
-					apiPost<ApiConversationGroup>(API_CONVERSATIONS.GROUPS, {
-						id: group.id,
-						name: group.name
-					})
+					apiPost<ApiConversationGroup>(
+						API_CONVERSATIONS.GROUPS,
+						{ id: group.id, name: group.name },
+						this.auth
+					)
 				)
 			)
 		);
@@ -363,7 +379,7 @@ export class ServerChatStore implements ChatStore {
 
 			try {
 				const deleted = await request(() =>
-					apiDelete<ApiConversationDeleted>(conversationPath(id), { forks })
+					apiDelete<ApiConversationDeleted>(conversationPath(id), { forks }, this.auth)
 				);
 
 				deletedIds = deleted.deleted_ids;
@@ -378,7 +394,7 @@ export class ServerChatStore implements ChatStore {
 	async deleteGroup(id: string): Promise<void> {
 		await this.enqueue(id, async () => {
 			try {
-				await request(() => apiDelete(groupPath(id)));
+				await request(() => apiDelete(groupPath(id), undefined, this.auth));
 			} catch (error) {
 				if (!isMissing(error)) throw error;
 			}
@@ -433,7 +449,9 @@ export class ServerChatStore implements ChatStore {
 		// queued on the source so its pending writes land before the server copies its items
 		return this.enqueue(sourceConvId, async () =>
 			this.trackWrite(
-				await request(() => apiPost<ApiConversation>(API_CONVERSATIONS.CONVERSATIONS, body))
+				await request(() =>
+					apiPost<ApiConversation>(API_CONVERSATIONS.CONVERSATIONS, body, this.auth)
+				)
 			)
 		);
 	}
@@ -442,7 +460,7 @@ export class ServerChatStore implements ChatStore {
 		await this.flush();
 
 		const list = await request(() =>
-			apiFetch<ApiList<ApiConversation>>(API_CONVERSATIONS.CONVERSATIONS)
+			apiFetch<ApiList<ApiConversation>>(API_CONVERSATIONS.CONVERSATIONS, this.auth)
 		);
 
 		return list.data.map((record) => this.track(record));
@@ -450,7 +468,7 @@ export class ServerChatStore implements ChatStore {
 
 	async getAllGroups(): Promise<Group[]> {
 		const list = await request(() =>
-			apiFetch<ApiList<ApiConversationGroup>>(API_CONVERSATIONS.GROUPS)
+			apiFetch<ApiList<ApiConversationGroup>>(API_CONVERSATIONS.GROUPS, this.auth)
 		);
 
 		return list.data.map(toGroup);
@@ -460,7 +478,9 @@ export class ServerChatStore implements ChatStore {
 		await this.queues.get(id);
 
 		try {
-			return this.track(await request(() => apiFetch<ApiConversation>(conversationPath(id))));
+			return this.track(
+				await request(() => apiFetch<ApiConversation>(conversationPath(id), this.auth))
+			);
 		} catch (error) {
 			if (!isMissing(error)) throw error;
 
@@ -477,7 +497,7 @@ export class ServerChatStore implements ChatStore {
 
 		try {
 			list = await request(() =>
-				apiFetch<ApiList<ApiConversationItem>>(`${itemsPath(convId)}?branches=all`)
+				apiFetch<ApiList<ApiConversationItem>>(`${itemsPath(convId)}?branches=all`, this.auth)
 			);
 		} catch (error) {
 			if (!isMissing(error)) throw error;
@@ -557,7 +577,9 @@ export class ServerChatStore implements ChatStore {
 		if (options?.ifVersion !== undefined) patch.if_version = options.ifVersion;
 
 		await this.enqueue(id, async () => {
-			this.trackWrite(await request(() => apiPost<ApiConversation>(conversationPath(id), patch)));
+			this.trackWrite(
+				await request(() => apiPost<ApiConversation>(conversationPath(id), patch, this.auth))
+			);
 		});
 	}
 
@@ -572,7 +594,7 @@ export class ServerChatStore implements ChatStore {
 		const body = { name: updates.name };
 
 		await this.enqueue(id, async () => {
-			await request(() => apiPost<ApiConversationGroup>(groupPath(id), body));
+			await request(() => apiPost<ApiConversationGroup>(groupPath(id), body, this.auth));
 		});
 	}
 
@@ -595,10 +617,10 @@ export class ServerChatStore implements ChatStore {
 
 		await this.enqueue(item.convId, async () => {
 			const updated = await request(() =>
-				apiPost<ApiConversationItem>(itemPath(item.convId, id), patch)
+				apiPost<ApiConversationItem>(itemPath(item.convId, id), patch, this.auth)
 			);
 
-			this.versions.set(id, updated.version);
+			this.trackVersion(id, updated.version);
 		});
 	}
 
@@ -608,9 +630,14 @@ export class ServerChatStore implements ChatStore {
 
 		const own = this.versions.get(record.id);
 
-		if (own === undefined || record.version === undefined) return own ?? record.version;
+		if (record.version === undefined) return own ? Math.max(...own) : undefined;
 
-		return Math.max(own, record.version);
+		// an own write moves the start on only when no other window wrote before it, else the save gets stale_version
+		let version = record.version;
+
+		while (own?.has(version + 1)) version++;
+
+		return version;
 	}
 
 	private async addItems(
@@ -623,12 +650,12 @@ export class ServerChatStore implements ChatStore {
 		if (currentItemId) body.current_item_id = currentItemId;
 
 		const list = await this.enqueue(convId, () =>
-			request(() => apiPost<ApiList<ApiConversationItem>>(itemsPath(convId), body))
+			request(() => apiPost<ApiList<ApiConversationItem>>(itemsPath(convId), body, this.auth))
 		);
 
 		for (const item of list.data) {
 			this.items.set(item.id, { convId, role: item.role });
-			this.versions.set(item.id, item.version);
+			this.trackVersion(item.id, item.version);
 		}
 
 		return list.data;
@@ -642,7 +669,8 @@ export class ServerChatStore implements ChatStore {
 				const deleted = await request(() =>
 					apiDelete<ApiConversation & { deleted_ids: string[] }>(
 						itemPath(convId, itemId),
-						cascade ? { cascade: 'true' } : undefined
+						cascade ? { cascade: 'true' } : undefined,
+						this.auth
 					)
 				);
 
@@ -700,9 +728,17 @@ export class ServerChatStore implements ChatStore {
 		return conversation;
 	}
 
+	/** Keeps the version the server gave this window's own write to a record. */
+	private trackVersion(id: string, version: number): void {
+		const own = this.versions.get(id) ?? new Set<number>();
+
+		own.add(version);
+		this.versions.set(id, own);
+	}
+
 	/** {@link track} for the answer to this window's own write, whose version a later rename starts from. */
 	private trackWrite(record: ApiConversation): DatabaseConversation {
-		this.versions.set(record.id, record.version);
+		this.trackVersion(record.id, record.version);
 
 		return this.track(record);
 	}
