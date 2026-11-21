@@ -8,6 +8,7 @@
 		buttonText,
 		buttonVariant,
 		description,
+		disabled = false,
 		IconComponent,
 		onclick,
 		summary,
@@ -17,6 +18,7 @@
 	}: {
 		title: string;
 		description: string;
+		disabled?: boolean;
 		IconComponent: Component;
 		buttonText: string;
 		onclick: () => void;
@@ -36,7 +38,7 @@
 
 	<p class="mb-4 text-sm text-muted-foreground">{description}</p>
 
-	<Button class={sectionButtonClass} {onclick} variant={sectionButtonVariant}>
+	<Button class={sectionButtonClass} {disabled} {onclick} variant={sectionButtonVariant}>
 		<IconComponent class="mr-2 {ICON_CLASS_DEFAULT}" />
 
 		{buttonText}

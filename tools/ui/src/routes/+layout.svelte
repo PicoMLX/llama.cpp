@@ -21,6 +21,7 @@
 	import { i18n } from '$lib/i18n';
 	import { RouterService } from '$lib/services/router.service';
 	import {
+		chatStorageStore,
 		chatStore,
 		conversationsStore,
 		deviceStore,
@@ -208,6 +209,18 @@
 				serverStore.fetch();
 			});
 		}
+	});
+
+	// Keep chats in the store the saved choice, the server props and the API key call for
+	$effect(() => {
+		if (!storesInitialized) return;
+
+		void serverStore.props;
+		void settingsStore.config.apiKey;
+
+		untrack(() => {
+			void chatStorageStore.sync();
+		});
 	});
 
 	// Sync settings when server props are loaded

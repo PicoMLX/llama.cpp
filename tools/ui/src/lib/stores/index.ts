@@ -41,6 +41,9 @@ export { mcpStore } from './mcp/index.svelte';
 // GROUPS (named sidebar sections for chats)
 export { groupsStore } from './groups.svelte';
 
+// CHAT STORAGE (this browser or Pico Server)
+export { chatStorageStore } from './chat-storage.svelte';
+
 // MODELS
 export { modelsStore } from './models/index.svelte';
 

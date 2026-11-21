@@ -687,6 +687,28 @@ class ConversationsStore implements ConversationsPreferencesHost {
 	}
 
 	/**
+	 * Drops the loaded chats and messages and reads the list from the chat
+	 * store again, after the store changed. An open chat gives way to the
+	 * new-chat screen, and tabs of chats the store does not have close.
+	 */
+	async reloadFromStore(): Promise<void> {
+		const wasOpen = this.activeConversation !== null;
+
+		this.clearActiveConversation();
+		this.conversations = [];
+		this.lastLoadedMessages = null;
+		this.lastMessageIndex = null;
+
+		if (wasOpen) await goto(ROUTES.START);
+
+		await this.loadConversations();
+
+		const ids = new Set(this.conversations.map((c) => c.id));
+
+		tabsStore.removeTabs(tabsStore.openTabs.filter((id) => id !== NEW_CHAT_TAB_ID && !ids.has(id)));
+	}
+
+	/**
 	 * Removes a message from active messages by index
 	 */
 	removeMessageAtIndex(index: number): DatabaseMessage | undefined {
