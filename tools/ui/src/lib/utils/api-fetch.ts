@@ -17,12 +17,15 @@ import { API_ABSOLUTE_URL_PROTOCOLS, ERROR_MESSAGES, HTTP_CODE_TO_STRING } from 
  * genuine failure.
  */
 export class ApiError extends Error {
+	/** OpenAI-style `error.code` of the response body, e.g. `stale_version` */
+	code?: string;
 	status: number;
 
-	constructor(message: string, status: number) {
+	constructor(message: string, status: number, code?: string) {
 		super(message);
 		this.name = 'ApiError';
 		this.status = status;
+		this.code = code;
 	}
 }
 
@@ -77,9 +80,9 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
 	}
 
 	if (!response.ok) {
-		const errorMessage = await parseErrorMessage(response);
+		const { code, message } = await parseError(response);
 
-		throw new ApiError(errorMessage, response.status);
+		throw new ApiError(message, response.status, code);
 	}
 
 	return response.json() as Promise<T>;
@@ -172,23 +175,29 @@ export async function apiDelete<T>(
 }
 
 /**
- * Parse error message from a failed response.
+ * Parse error message and code from a failed response.
  * Tries to extract error message from JSON body, falls back to status text.
  */
-async function parseErrorMessage(response: Response): Promise<string> {
+async function parseError(response: Response): Promise<{ code?: string; message: string }> {
+	let code: string | undefined;
+
 	try {
 		const errorData = await response.json();
 
+		if (typeof errorData?.error?.code === 'string') {
+			code = errorData.error.code;
+		}
+
 		if (errorData?.error?.message) {
-			return errorData.error.message;
+			return { code, message: errorData.error.message };
 		}
 
 		if (errorData?.error && typeof errorData.error === 'string') {
-			return errorData.error;
+			return { message: errorData.error };
 		}
 
 		if (errorData?.message) {
-			return errorData.message;
+			return { message: errorData.message };
 		}
 	} catch {
 		// JSON parsing failed, use status text
@@ -197,10 +206,13 @@ async function parseErrorMessage(response: Response): Promise<string> {
 	const httpErrorStr = HTTP_CODE_TO_STRING[response.status];
 
 	if (httpErrorStr) {
-		return httpErrorStr;
+		return { code, message: httpErrorStr };
 	}
 
-	return `${ERROR_MESSAGES.HTTP.GENERIC}: ${response.status} ${response.statusText}`;
+	return {
+		code,
+		message: `${ERROR_MESSAGES.HTTP.GENERIC}: ${response.status} ${response.statusText}`
+	};
 }
 
 /**

@@ -33,7 +33,14 @@ export type {
 	ApiModelsListResponse,
 	ApiModelsUnloadResponse,
 	AudioInputFormat,
-	ApiStreamSession
+	ApiStreamSession,
+	ApiList,
+	ApiConversation,
+	ApiConversationTextPart,
+	ApiConversationItem,
+	ApiConversationItemInput,
+	ApiConversationGroup,
+	ApiConversationDeleted
 } from './api';
 
 // HuggingFace types

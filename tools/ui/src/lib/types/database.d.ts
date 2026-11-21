@@ -30,6 +30,8 @@ export interface DatabaseConversation {
 	/** Sidebar group the conversation is sorted into. */
 	groupId?: string;
 	pinned?: boolean;
+	/** Pico Server's version of the record, changed by renames; unset in this browser's database */
+	version?: number;
 }
 
 export interface DatabaseMessageExtraAudioFile {
@@ -143,6 +145,8 @@ export interface DatabaseMessage {
 	extra?: DatabaseMessageExtra[];
 	timings?: ChatMessageTimings;
 	model?: string;
+	/** Pico Server's version of the record, changed by every edit; unset in this browser's database */
+	version?: number;
 }
 
 export type ExportedConversation = {

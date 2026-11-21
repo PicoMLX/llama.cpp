@@ -4,4 +4,6 @@ export interface Group {
 	id: string;
 	name: string;
 	updatedAt: number;
+	/** Pico Server's version of the record, changed by renames; unset in this browser's database */
+	version?: number;
 }

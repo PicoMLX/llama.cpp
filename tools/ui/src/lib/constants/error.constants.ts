@@ -1,4 +1,10 @@
 export const ERROR_MESSAGES = {
+	CHAT_STORAGE: {
+		IMPORT_UNAVAILABLE:
+			"Import isn't available while chats are stored on Pico Server. Store chats in this browser to import.",
+		STALE_VERSION:
+			'This chat changed in another window. Refresh the page to see the latest version.'
+	},
 	HTTP: {
 		ACCESS_DENIED: 'Access denied',
 		GENERIC: 'Request failed',

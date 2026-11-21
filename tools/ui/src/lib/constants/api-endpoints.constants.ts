@@ -20,6 +20,12 @@ export const API_SLOTS = {
 	LIST: './slots'
 };
 
+// Pico Server chat storage routes, served only when user accounts are on
+export const API_CONVERSATIONS = {
+	CONVERSATIONS: '/v1/conversations',
+	GROUPS: '/v1/conversation_groups'
+};
+
 export const API_TOOLS = {
 	EXECUTE: '/tools',
 	LIST: '/tools'
