@@ -11,7 +11,13 @@ vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 
 import { MockConversationsServer } from '../fixtures/mock-conversations-server';
 import { goto } from '$app/navigation';
-import { API_CONVERSATIONS, CHAT_STORAGE_LOCALSTORAGE_KEY, HEADERS, ROUTES } from '$lib/constants';
+import {
+	API_CONVERSATIONS,
+	CHAT_STORAGE_LOCALSTORAGE_KEY,
+	CONVERSATION_EVENTS,
+	HEADERS,
+	ROUTES
+} from '$lib/constants';
 import { ChatStorageLocation, MessageRole, MessageType } from '$lib/enums';
 import { DatabaseService } from '$lib/services/database.service';
 import { chatActivityStore } from '$lib/stores/chat/activity.svelte';
@@ -244,6 +250,54 @@ describe("another window's changes", () => {
 
 		await editElsewhere(chat.id, user.id, 'once idle');
 		await vi.waitFor(() => expect(shownText()).toEqual(['once idle']));
+	});
+
+	it('reloads the open chat once this window stops replying or editing in it', async () => {
+		const { chat, user } = await openChat();
+
+		chatActivityStore.markLocal(chat.id);
+		await editElsewhere(chat.id, user.id, 'while replying');
+		await renameElsewhere(chat.id, 'Renamed while replying');
+		await vi.waitFor(() => expect(listName(chat.id)).toBe('Renamed while replying'));
+		await settle();
+
+		expect(shownText()).toEqual(['hi']);
+
+		chatActivityStore.localEnded(chat.id);
+		await vi.waitFor(() => expect(shownText()).toEqual(['while replying']));
+
+		chatStore.setEditModeActive(() => {});
+		await editElsewhere(chat.id, user.id, 'while editing');
+		await renameElsewhere(chat.id, 'Renamed while editing');
+		await vi.waitFor(() => expect(listName(chat.id)).toBe('Renamed while editing'));
+		await settle();
+
+		expect(shownText()).toEqual(['while replying']);
+
+		chatStore.clearEditMode();
+		await vi.waitFor(() => expect(shownText()).toEqual(['while editing']));
+	});
+
+	it('drops a skipped reload of a chat that is no longer open when the reply ends', async () => {
+		const { chat, user } = await openChat('First');
+		const second = await openChat('Second');
+
+		expect(await conversationsStore.loadConversation(chat.id)).toBe(true);
+
+		chatActivityStore.markLocal(chat.id);
+		await editElsewhere(chat.id, user.id, 'while replying');
+		await renameElsewhere(chat.id, 'Renamed while replying');
+		await vi.waitFor(() => expect(listName(chat.id)).toBe('Renamed while replying'));
+		await settle();
+		expect(await conversationsStore.loadConversation(second.chat.id)).toBe(true);
+
+		const itemReads = reads(chat.id);
+
+		chatActivityStore.localEnded(chat.id);
+		await settle(CONVERSATION_EVENTS.RELOAD_DEBOUNCE_MS + 100);
+
+		expect(reads(chat.id)).toBe(itemReads);
+		expect(conversationsStore.activeConversation?.id).toBe(second.chat.id);
 	});
 
 	it('keeps the chats this window made or renamed while a reload read the list', async () => {

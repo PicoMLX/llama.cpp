@@ -713,23 +713,28 @@ class ConversationsStore implements ConversationsPreferencesHost {
 	 * reads came back.
 	 *
 	 * @param isBusy - Whether this window is replying or editing in the chat
+	 * @returns False when it skipped the chat because `isBusy` said so
 	 */
-	async reloadActiveConversation(isBusy: (convId: string) => boolean): Promise<void> {
+	async reloadActiveConversation(isBusy: (convId: string) => boolean): Promise<boolean> {
 		const active = this.activeConversation;
 
-		if (!active || isBusy(active.id)) return;
+		if (!active) return true;
+
+		if (isBusy(active.id)) return false;
 
 		const conversation = await DatabaseService.getConversation(active.id);
 		const allMessages = conversation
 			? await DatabaseService.getConversationMessages(active.id)
 			: [];
 
-		if (this.activeConversation !== active || isBusy(active.id)) return;
+		if (this.activeConversation !== active) return true;
+
+		if (isBusy(active.id)) return false;
 
 		if (!conversation) {
 			await this.forgetConversation(active.id);
 
-			return;
+			return true;
 		}
 
 		// this window's branch, followed to its newest message; the stored one once that branch is gone
@@ -743,6 +748,8 @@ class ConversationsStore implements ConversationsPreferencesHost {
 		this.activeMessages = leafNodeId
 			? (filterByLeafNodeId(allMessages, leafNodeId, false) as DatabaseMessage[])
 			: allMessages;
+
+		return true;
 	}
 
 	/**
