@@ -153,3 +153,52 @@ export type ExportedConversation = {
 };
 
 export type ExportedConversations = ExportedConversation | ExportedConversation[];
+
+/**
+ * Where chats are kept: this browser's IndexedDB (localChatStore) or Pico
+ * Server (ServerChatStore). DatabaseService forwards every call to one of them.
+ */
+export interface ChatStore {
+	bulkDeleteConversations(ids: string[]): Promise<void>;
+	bulkToggleConversationPins(ids: string[]): Promise<Map<string, boolean>>;
+	createConversation(
+		name: string,
+		fields?: Partial<Omit<DatabaseConversation, 'id' | 'name' | 'lastModified'>>
+	): Promise<DatabaseConversation>;
+	createGroup(group: Group): Promise<Group>;
+	createMessageBranch(
+		message: Omit<DatabaseMessage, 'id'>,
+		parentId: string | null
+	): Promise<DatabaseMessage>;
+	createRootMessage(convId: string): Promise<string>;
+	createSystemMessage(
+		convId: string,
+		systemPrompt: string,
+		parentId: string
+	): Promise<DatabaseMessage>;
+	deleteConversation(id: string, options?: { deleteWithForks?: boolean }): Promise<void>;
+	deleteGroup(id: string): Promise<void>;
+	deleteMessage(messageId: string): Promise<void>;
+	deleteMessageCascading(conversationId: string, messageId: string): Promise<string[]>;
+	/** Resolves once every write already sent has settled. Stores that write at once omit it. */
+	flush?(): Promise<void>;
+	forkConversation(
+		sourceConvId: string,
+		atMessageId: string,
+		options: { name: string; includeAttachments: boolean }
+	): Promise<DatabaseConversation>;
+	getAllConversations(): Promise<DatabaseConversation[]>;
+	getAllGroups(): Promise<Group[]>;
+	getConversation(id: string): Promise<DatabaseConversation | undefined>;
+	getConversationMessages(convId: string): Promise<DatabaseMessage[]>;
+	getConversationsWithMessages(convIds: string[]): Promise<Map<string, ExportedConversation>>;
+	importConversations(
+		data: ExportedConversation[]
+	): Promise<{ imported: DatabaseConversation[]; skipped: DatabaseConversation[] }>;
+	setConversationsGroup(ids: string[], groupId: string | null): Promise<void>;
+	toggleConversationPin(id: string): Promise<boolean>;
+	updateConversation(id: string, updates: Partial<Omit<DatabaseConversation, 'id'>>): Promise<void>;
+	updateCurrentNode(convId: string, nodeId: string): Promise<void>;
+	updateGroup(id: string, updates: Partial<Omit<Group, 'id'>>): Promise<void>;
+	updateMessage(id: string, updates: Partial<Omit<DatabaseMessage, 'id'>>): Promise<void>;
+}

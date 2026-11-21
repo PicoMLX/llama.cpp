@@ -61,15 +61,16 @@ export { ChatService } from './chat.service';
 export { OpenResponsesService } from './open-responses';
 
 /**
- * **DatabaseService** - IndexedDB persistence layer via Dexie ORM
+ * **DatabaseService** - Persistence layer for conversations, messages and groups
  *
- * Provides stateless data access for conversations and messages using IndexedDB.
- * Handles all low-level storage operations including branching tree structures,
- * cascade deletions, and transaction safety for multi-table operations.
+ * Provides stateless data access for conversations and messages. Forwards each
+ * call to the chat store in use: localChatStore (IndexedDB via Dexie) or
+ * ServerChatStore (Pico Server). The IndexedDB store handles branching tree
+ * structures, cascade deletions, and transaction safety for multi-table operations.
  *
  * **Architecture & Relationships (bottom to top):**
- * - **DatabaseService** (this class): Stateless IndexedDB operations
- *   - Lowest layer — direct Dexie/IndexedDB communication
+ * - **DatabaseService** (this class): Stateless store operations
+ *   - Lowest layer - forwards to localChatStore (Dexie/IndexedDB) or ServerChatStore (HTTP)
  *   - Pure CRUD operations without business logic
  *   - Handles branching tree structure (parent-child relationships)
  *   - Provides transaction safety for multi-table operations
