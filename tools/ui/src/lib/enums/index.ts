@@ -20,6 +20,7 @@ export {
 	ChatStorageLocation,
 	StreamConnectionState,
 	ContentPartType,
+	ConversationEventType,
 	ConversationSelectionMode,
 	ErrorDialogType,
 	MessageRole,

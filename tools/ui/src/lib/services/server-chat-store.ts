@@ -8,21 +8,27 @@
  * timings, attachments) still land in order, and a read of a chat waits for
  * its writes. The server derives each message's children from the parents it
  * gets, so they are never sent. Only a person's in-place edits and renames
- * send `if_version`, from the version kept when the edit began. No reactive
- * state; DatabaseService forwards to one instance while chats are kept on
- * Pico Server.
+ * send `if_version`, from the version kept when the edit began. Every
+ * request carries this window's id, which the change notices on the events
+ * stream name as their origin. No reactive state; DatabaseService forwards to
+ * one instance while chats are kept on Pico Server.
  */
 
+import { base } from '$app/paths';
 import {
 	API_CONVERSATIONS,
+	CONVERSATION_EVENTS,
 	CONVERSATION_SETTINGS_KEYS,
 	ERROR_MESSAGES,
-	HEADERS
+	HEADERS,
+	SSE_EVENT_PREFIX,
+	SSE_LINE_SEPARATOR
 } from '$lib/constants';
-import { MessageRole, MessageType } from '$lib/enums';
+import { ConversationEventType, MessageRole, MessageType } from '$lib/enums';
 import type {
 	ApiConversation,
 	ApiConversationDeleted,
+	ApiConversationEvent,
 	ApiConversationGroup,
 	ApiConversationItem,
 	ApiConversationItemInput,
@@ -32,6 +38,7 @@ import type {
 import type { ChatStore, ChatStoreWriteOptions, ExportedConversation } from '$lib/types/database';
 import type { Group } from '$lib/types/groups';
 import { apiDelete, ApiError, apiFetch, type ApiFetchOptions, apiPost } from '$lib/utils/api-fetch';
+import { extractSseDataPayload, splitSseRecords } from '$lib/utils/sse';
 import { uuid } from '$lib/utils/uuid';
 
 type Body = Record<string, unknown>;
@@ -221,6 +228,24 @@ function toItemPatch(role: string, updates: Partial<DatabaseMessage>): Body {
 	}
 
 	return patch;
+}
+
+/** One notice of the events stream, or null for a keep-alive comment or a malformed record. */
+function parseEvent(record: string): ApiConversationEvent | null {
+	const name = record
+		.split(SSE_LINE_SEPARATOR)
+		.find((line) => line.startsWith(SSE_EVENT_PREFIX))
+		?.slice(SSE_EVENT_PREFIX.length)
+		.trim();
+	const payload = extractSseDataPayload(record);
+
+	if (!name || !payload) return null;
+
+	try {
+		return { data: JSON.parse(payload), event: name as ConversationEventType };
+	} catch {
+		return null;
+	}
 }
 
 function toGroup(record: ApiConversationGroup): Group {
@@ -645,6 +670,71 @@ export class ServerChatStore implements ChatStore {
 		while (own?.has(version + 1)) version++;
 
 		return version;
+	}
+
+	/**
+	 * Reads Pico Server's change notices until `signal` aborts, and hands
+	 * `onEvent` the ones other windows caused. A dropped stream reconnects
+	 * with backoff. The server replays nothing, so `onReconnect` runs each
+	 * time a stream is back after a drop. The stream goes out as this store's
+	 * account.
+	 */
+	async watchEvents(
+		signal: AbortSignal,
+		onEvent: (event: ApiConversationEvent) => void,
+		onReconnect: () => void
+	): Promise<void> {
+		let delay: number = CONVERSATION_EVENTS.INITIAL_RECONNECT_DELAY_MS;
+		let dropped = false;
+
+		while (!signal.aborted) {
+			try {
+				const response = await fetch(`${base}${API_CONVERSATIONS.EVENTS}`, {
+					headers: this.auth.headers,
+					signal
+				});
+
+				if (response.ok && response.body) {
+					const reader = response.body.getReader();
+					const decoder = new TextDecoder();
+
+					let buffer = '';
+
+					delay = CONVERSATION_EVENTS.INITIAL_RECONNECT_DELAY_MS;
+
+					if (dropped) onReconnect();
+
+					while (!signal.aborted) {
+						const { done, value } = await reader.read();
+
+						if (done) break;
+
+						buffer += decoder.decode(value, { stream: true });
+
+						const { records, rest } = splitSseRecords(buffer);
+
+						buffer = rest;
+
+						for (const record of records) {
+							const event = parseEvent(record);
+
+							if (event && event.data.origin_client_id !== CLIENT_ID) onEvent(event);
+						}
+					}
+				}
+			} catch {
+				// network drop or abort falls through to the reconnect delay
+			}
+
+			if (signal.aborted) return;
+
+			dropped = true;
+			await new Promise((resolve) => setTimeout(resolve, delay));
+			delay = Math.min(
+				delay * CONVERSATION_EVENTS.BACKOFF_MULTIPLIER,
+				CONVERSATION_EVENTS.MAX_RECONNECT_DELAY_MS
+			);
+		}
 	}
 
 	private async addItems(

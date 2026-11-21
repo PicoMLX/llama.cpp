@@ -2,6 +2,7 @@ import type { ChatMessagePromptProgress, ChatMessageType, ChatRole } from './cha
 import type { ModelSidecar } from '$lib/constants';
 import type {
 	ContentPartType,
+	ConversationEventType,
 	FileTypeAudio,
 	ServerModelSource,
 	ServerModelsSseEventType,
@@ -612,4 +613,19 @@ export interface ApiConversationGroup {
 export interface ApiConversationDeleted {
 	id: string;
 	deleted_ids: string[];
+}
+
+/**
+ * One change notice of Pico Server's /v1/conversation_events stream. It names
+ * what changed and the window whose write caused it, never the data itself.
+ */
+export interface ApiConversationEvent {
+	event: ConversationEventType;
+	data: {
+		conversation_id?: string;
+		group_id?: string;
+		last_modified_ms?: number;
+		version?: number;
+		origin_client_id: string | null;
+	};
 }

@@ -40,7 +40,8 @@ export type {
 	ApiConversationItem,
 	ApiConversationItemInput,
 	ApiConversationGroup,
-	ApiConversationDeleted
+	ApiConversationDeleted,
+	ApiConversationEvent
 } from './api';
 
 // HuggingFace types

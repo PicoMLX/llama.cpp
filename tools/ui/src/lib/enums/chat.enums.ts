@@ -81,6 +81,16 @@ export enum ChatStorageLocation {
 }
 
 /**
+ * Change notices on Pico Server's /v1/conversation_events stream.
+ */
+export enum ConversationEventType {
+	CONVERSATION_CHANGED = 'conversation.changed',
+	CONVERSATION_DELETED = 'conversation.deleted',
+	GROUP_CHANGED = 'group.changed',
+	GROUP_DELETED = 'group.deleted'
+}
+
+/**
  * PDF view mode options for previewing PDF attachments.
  */
 export enum PdfViewMode {

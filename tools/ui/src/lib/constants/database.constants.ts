@@ -48,3 +48,11 @@ export const CONVERSATION_SETTINGS_KEYS = [
 	'reasoningEffort',
 	'thinkingEnabled'
 ] as const;
+
+/** Pico Server's change notices: how long a burst of them waits before one reload, and the reconnect backoff. */
+export const CONVERSATION_EVENTS = {
+	BACKOFF_MULTIPLIER: 2,
+	INITIAL_RECONNECT_DELAY_MS: 1000,
+	MAX_RECONNECT_DELAY_MS: 30_000,
+	RELOAD_DEBOUNCE_MS: 300
+} as const;
