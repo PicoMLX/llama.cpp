@@ -158,6 +158,12 @@ export type ExportedConversation = {
 
 export type ExportedConversations = ExportedConversation | ExportedConversation[];
 
+/** Options of a write a person made, e.g. an in-place message edit or a rename. */
+export interface ChatStoreWriteOptions {
+	/** Version the record had when the edit began; a store with versions refuses the write if it changed since */
+	ifVersion?: number;
+}
+
 /**
  * Where chats are kept: this browser's IndexedDB (localChatStore) or Pico
  * Server (ServerChatStore). DatabaseService forwards every call to one of them.
@@ -201,8 +207,21 @@ export interface ChatStore {
 	): Promise<{ imported: DatabaseConversation[]; skipped: DatabaseConversation[] }>;
 	setConversationsGroup(ids: string[], groupId: string | null): Promise<void>;
 	toggleConversationPin(id: string): Promise<boolean>;
-	updateConversation(id: string, updates: Partial<Omit<DatabaseConversation, 'id'>>): Promise<void>;
+	updateConversation(
+		id: string,
+		updates: Partial<Omit<DatabaseConversation, 'id'>>,
+		options?: ChatStoreWriteOptions
+	): Promise<void>;
 	updateCurrentNode(convId: string, nodeId: string): Promise<void>;
 	updateGroup(id: string, updates: Partial<Omit<Group, 'id'>>): Promise<void>;
-	updateMessage(id: string, updates: Partial<Omit<DatabaseMessage, 'id'>>): Promise<void>;
+	updateMessage(
+		id: string,
+		updates: Partial<Omit<DatabaseMessage, 'id'>>,
+		options?: ChatStoreWriteOptions
+	): Promise<void>;
+	/**
+	 * The version an edit of `record` starts from: the newer of the record's own
+	 * and the one this window's writes left. Stores without versions omit it.
+	 */
+	versionForEdit?(record: { id: string; version?: number }): Promise<number | undefined>;
 }

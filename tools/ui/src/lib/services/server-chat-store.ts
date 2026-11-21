@@ -7,8 +7,10 @@
  * one chat run one at a time in call order, so writes nobody awaits (model,
  * timings, attachments) still land in order, and a read of a chat waits for
  * its writes. The server derives each message's children from the parents it
- * gets, so they are never sent. No reactive state; DatabaseService forwards to
- * one instance while chats are kept on Pico Server.
+ * gets, so they are never sent. Only a person's in-place edits and renames
+ * send `if_version`, from the version kept when the edit began. No reactive
+ * state; DatabaseService forwards to one instance while chats are kept on
+ * Pico Server.
  */
 
 import { API_CONVERSATIONS, CONVERSATION_SETTINGS_KEYS, ERROR_MESSAGES } from '$lib/constants';
@@ -22,7 +24,7 @@ import type {
 	ApiConversationTextPart,
 	ApiList
 } from '$lib/types/api';
-import type { ChatStore, ExportedConversation } from '$lib/types/database';
+import type { ChatStore, ChatStoreWriteOptions, ExportedConversation } from '$lib/types/database';
 import type { Group } from '$lib/types/groups';
 import { apiDelete, ApiError, apiFetch, apiPost } from '$lib/utils/api-fetch';
 import { uuid } from '$lib/utils/uuid';
@@ -234,6 +236,9 @@ export class ServerChatStore implements ChatStore {
 	/** Tail of each chat's (or group's) write queue, by its id. */
 	private queues = new Map<string, Promise<void>>();
 
+	/** Versions the server gave this window's own writes, by record id; reads never change them. */
+	private versions = new Map<string, number>();
+
 	async bulkDeleteConversations(ids: string[]): Promise<void> {
 		const cleanIds = ids.filter((id): id is string => typeof id === 'string' && id.length > 0);
 
@@ -271,7 +276,7 @@ export class ServerChatStore implements ChatStore {
 		delete body.current_item_id;
 
 		return this.enqueue(id, async () =>
-			this.track(
+			this.trackWrite(
 				await request(() => apiPost<ApiConversation>(API_CONVERSATIONS.CONVERSATIONS, body))
 			)
 		);
@@ -427,7 +432,7 @@ export class ServerChatStore implements ChatStore {
 
 		// queued on the source so its pending writes land before the server copies its items
 		return this.enqueue(sourceConvId, async () =>
-			this.track(
+			this.trackWrite(
 				await request(() => apiPost<ApiConversation>(API_CONVERSATIONS.CONVERSATIONS, body))
 			)
 		);
@@ -542,14 +547,17 @@ export class ServerChatStore implements ChatStore {
 
 	async updateConversation(
 		id: string,
-		updates: Partial<Omit<DatabaseConversation, 'id'>>
+		updates: Partial<Omit<DatabaseConversation, 'id'>>,
+		options?: ChatStoreWriteOptions
 	): Promise<void> {
 		const patch = toConversationPatch(updates);
 
 		if (Object.keys(patch).length === 0) return;
 
+		if (options?.ifVersion !== undefined) patch.if_version = options.ifVersion;
+
 		await this.enqueue(id, async () => {
-			this.track(await request(() => apiPost<ApiConversation>(conversationPath(id), patch)));
+			this.trackWrite(await request(() => apiPost<ApiConversation>(conversationPath(id), patch)));
 		});
 	}
 
@@ -568,7 +576,11 @@ export class ServerChatStore implements ChatStore {
 		});
 	}
 
-	async updateMessage(id: string, updates: Partial<Omit<DatabaseMessage, 'id'>>): Promise<void> {
+	async updateMessage(
+		id: string,
+		updates: Partial<Omit<DatabaseMessage, 'id'>>,
+		options?: ChatStoreWriteOptions
+	): Promise<void> {
 		const item = this.items.get(id);
 
 		if (!item) {
@@ -579,9 +591,26 @@ export class ServerChatStore implements ChatStore {
 
 		if (Object.keys(patch).length === 0) return;
 
+		if (options?.ifVersion !== undefined) patch.if_version = options.ifVersion;
+
 		await this.enqueue(item.convId, async () => {
-			await request(() => apiPost<ApiConversationItem>(itemPath(item.convId, id), patch));
+			const updated = await request(() =>
+				apiPost<ApiConversationItem>(itemPath(item.convId, id), patch)
+			);
+
+			this.versions.set(id, updated.version);
 		});
+	}
+
+	async versionForEdit(record: { id: string; version?: number }): Promise<number | undefined> {
+		// a write still on its way when the edit begins counts as seen by this window
+		await this.queues.get(this.items.get(record.id)?.convId ?? record.id);
+
+		const own = this.versions.get(record.id);
+
+		if (own === undefined || record.version === undefined) return own ?? record.version;
+
+		return Math.max(own, record.version);
 	}
 
 	private async addItems(
@@ -599,6 +628,7 @@ export class ServerChatStore implements ChatStore {
 
 		for (const item of list.data) {
 			this.items.set(item.id, { convId, role: item.role });
+			this.versions.set(item.id, item.version);
 		}
 
 		return list.data;
@@ -616,7 +646,7 @@ export class ServerChatStore implements ChatStore {
 					)
 				);
 
-				this.track(deleted);
+				this.trackWrite(deleted);
 				deletedIds = deleted.deleted_ids;
 			} catch (error) {
 				if (!isMissing(error)) throw error;
@@ -668,5 +698,12 @@ export class ServerChatStore implements ChatStore {
 		this.conversations.set(conversation.id, { ...conversation });
 
 		return conversation;
+	}
+
+	/** {@link track} for the answer to this window's own write, whose version a later rename starts from. */
+	private trackWrite(record: ApiConversation): DatabaseConversation {
+		this.versions.set(record.id, record.version);
+
+		return this.track(record);
 	}
 }

@@ -754,10 +754,11 @@ class ConversationsStore implements ConversationsPreferencesHost {
 	 * Updates the name of a conversation.
 	 * @param convId - The conversation ID to update
 	 * @param name - The new name for the conversation
+	 * @param ifVersion - For a rename a person made: the chat's version when the rename began
 	 */
-	async updateConversationName(convId: string, name: string): Promise<void> {
+	async updateConversationName(convId: string, name: string, ifVersion?: number): Promise<void> {
 		try {
-			await DatabaseService.updateConversation(convId, { name });
+			await DatabaseService.updateConversation(convId, { name }, { ifVersion });
 
 			this.applyConversationUpdate(convId, { name });
 		} catch (error) {

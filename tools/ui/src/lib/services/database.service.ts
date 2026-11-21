@@ -9,7 +9,7 @@
  */
 
 import { localChatStore } from './local-chat-store';
-import type { ChatStore, ExportedConversation } from '$lib/types/database';
+import type { ChatStore, ChatStoreWriteOptions, ExportedConversation } from '$lib/types/database';
 import type { Group } from '$lib/types/groups';
 import { isAbortError } from '$lib/utils/abort';
 
@@ -128,11 +128,15 @@ export class DatabaseService {
 		return DatabaseService.call((store) => store.toggleConversationPin(id));
 	}
 
+	/**
+	 * @param options - `ifVersion` for a rename a person made, from when the rename began
+	 */
 	static updateConversation(
 		id: string,
-		updates: Partial<Omit<DatabaseConversation, 'id'>>
+		updates: Partial<Omit<DatabaseConversation, 'id'>>,
+		options?: ChatStoreWriteOptions
 	): Promise<void> {
-		return DatabaseService.call((store) => store.updateConversation(id, updates));
+		return DatabaseService.call((store) => store.updateConversation(id, updates, options));
 	}
 
 	static updateCurrentNode(convId: string, nodeId: string): Promise<void> {
@@ -143,8 +147,15 @@ export class DatabaseService {
 		return DatabaseService.call((store) => store.updateGroup(id, updates));
 	}
 
-	static updateMessage(id: string, updates: Partial<Omit<DatabaseMessage, 'id'>>): Promise<void> {
-		return DatabaseService.call((store) => store.updateMessage(id, updates));
+	/**
+	 * @param options - `ifVersion` for an in-place edit a person made, from when the edit began
+	 */
+	static updateMessage(
+		id: string,
+		updates: Partial<Omit<DatabaseMessage, 'id'>>,
+		options?: ChatStoreWriteOptions
+	): Promise<void> {
+		return DatabaseService.call((store) => store.updateMessage(id, updates, options));
 	}
 
 	/**
@@ -160,6 +171,15 @@ export class DatabaseService {
 		DatabaseService.generation++;
 		DatabaseService.store = store;
 		DatabaseService.onError = onError;
+	}
+
+	/**
+	 * The version to send as `ifVersion` when a person saves an edit of
+	 * `record`. Call it when the edit begins and keep the result with the
+	 * draft; undefined in this browser's store, which has no versions.
+	 */
+	static versionForEdit(record: { id: string; version?: number }): Promise<number | undefined> {
+		return DatabaseService.call(async (store) => store.versionForEdit?.(record));
 	}
 
 	private static async call<T>(run: (store: ChatStore) => Promise<T>): Promise<T> {

@@ -300,10 +300,14 @@ export class ChatMessageFlows {
 		}
 	}
 
+	/**
+	 * @param ifVersion - The message's version from when the edit began, sent with an in-place save
+	 */
 	async editAssistantMessage(
 		messageId: string,
 		newContent: string,
-		shouldBranch: boolean
+		shouldBranch: boolean,
+		ifVersion?: number
 	): Promise<void> {
 		const activeConv = conversationsStore.activeConversation;
 
@@ -333,7 +337,7 @@ export class ChatMessageFlows {
 
 				await conversationsStore.updateCurrentNode(newMessage.id);
 			} else {
-				await DatabaseService.updateMessage(msg.id, { content: newContent });
+				await DatabaseService.updateMessage(msg.id, { content: newContent }, { ifVersion });
 				conversationsStore.updateMessageAtIndex(idx, { content: newContent });
 			}
 
@@ -345,10 +349,14 @@ export class ChatMessageFlows {
 		}
 	}
 
+	/**
+	 * @param ifVersion - The message's version from when the edit began, sent with an in-place save
+	 */
 	async editMessageWithBranching(
 		messageId: string,
 		newContent: string,
-		newExtras?: DatabaseMessageExtra[]
+		newExtras?: DatabaseMessageExtra[],
+		ifVersion?: number
 	): Promise<void> {
 		const activeConv = conversationsStore.activeConversation;
 
@@ -387,7 +395,7 @@ export class ChatMessageFlows {
 					timestamp: Date.now()
 				};
 
-				await DatabaseService.updateMessage(msg.id, updates);
+				await DatabaseService.updateMessage(msg.id, updates, { ifVersion });
 				conversationsStore.updateMessageAtIndex(idx, updates);
 				messageIdForResponse = msg.id;
 			} else {
@@ -429,10 +437,14 @@ export class ChatMessageFlows {
 		}
 	}
 
+	/**
+	 * @param ifVersion - The message's version from when the edit began
+	 */
 	async editUserMessagePreserveResponses(
 		messageId: string,
 		newContent: string,
-		newExtras?: DatabaseMessageExtra[]
+		newExtras?: DatabaseMessageExtra[],
+		ifVersion?: number
 	): Promise<void> {
 		const activeConv = conversationsStore.activeConversation;
 
@@ -449,7 +461,7 @@ export class ChatMessageFlows {
 
 			if (newExtras !== undefined) updateData.extra = JSON.parse(JSON.stringify(newExtras));
 
-			await DatabaseService.updateMessage(messageId, updateData);
+			await DatabaseService.updateMessage(messageId, updateData, { ifVersion });
 
 			conversationsStore.updateMessageAtIndex(idx, updateData);
 

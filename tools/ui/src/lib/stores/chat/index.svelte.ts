@@ -395,25 +395,28 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 	async editAssistantMessage(
 		messageId: string,
 		newContent: string,
-		shouldBranch: boolean
+		shouldBranch: boolean,
+		ifVersion?: number
 	): Promise<void> {
-		return this.flows.editAssistantMessage(messageId, newContent, shouldBranch);
+		return this.flows.editAssistantMessage(messageId, newContent, shouldBranch, ifVersion);
 	}
 
 	async editMessageWithBranching(
 		messageId: string,
 		newContent: string,
-		newExtras?: DatabaseMessageExtra[]
+		newExtras?: DatabaseMessageExtra[],
+		ifVersion?: number
 	): Promise<void> {
-		return this.flows.editMessageWithBranching(messageId, newContent, newExtras);
+		return this.flows.editMessageWithBranching(messageId, newContent, newExtras, ifVersion);
 	}
 
 	async editUserMessagePreserveResponses(
 		messageId: string,
 		newContent: string,
-		newExtras?: DatabaseMessageExtra[]
+		newExtras?: DatabaseMessageExtra[],
+		ifVersion?: number
 	): Promise<void> {
-		return this.flows.editUserMessagePreserveResponses(messageId, newContent, newExtras);
+		return this.flows.editUserMessagePreserveResponses(messageId, newContent, newExtras, ifVersion);
 	}
 
 	/**
