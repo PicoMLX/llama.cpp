@@ -27,6 +27,9 @@ export const HEADERS = {
 	/** Header carrying the stream-session identity (conversation id, optionally with a model suffix) */
 	X_CONVERSATION_ID_HEADER: 'X-Conversation-Id',
 
+	/** Header carrying this window's id on Pico Server chat requests; change notices name it as their origin */
+	X_PICO_CLIENT_ID_HEADER: 'X-Pico-Client-Id',
+
 	/** Header asking the server to encode a tool's output differently, e.g. read_file returning base64. */
 	X_RESP_TYPE_HEADER: 'x-resp-type',
 

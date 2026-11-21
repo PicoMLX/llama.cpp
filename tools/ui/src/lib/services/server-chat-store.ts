@@ -49,6 +49,8 @@ const OPTIONAL_ITEM_FIELDS: Record<string, string> = {
 	toolCwd: 'tool_cwd'
 };
 const SETTINGS_KEYS: readonly string[] = CONVERSATION_SETTINGS_KEYS;
+/** This window's id, made once per page load; Pico Server names it as the origin of the change notices its writes cause. */
+const CLIENT_ID = uuid();
 
 function conversationPath(id: string): string {
 	return `${API_CONVERSATIONS.CONVERSATIONS}/${encodeURIComponent(id)}`;
@@ -232,7 +234,7 @@ function toGroup(record: ApiConversationGroup): Group {
 }
 
 export class ServerChatStore implements ChatStore {
-	/** Sent with every request: writes still queued when the API key changes go out as the account that made them. */
+	/** Sent with every request: writes still queued when the API key changes go out as the account that made them. Also carries this window's id. */
 	private auth: ApiFetchOptions;
 
 	/** The last record of each chat the server sent, for forks and pin toggles. */
@@ -276,7 +278,12 @@ export class ServerChatStore implements ChatStore {
 
 	/** @param apiKey - Key of the account whose chats this store keeps */
 	constructor(apiKey: string) {
-		this.auth = { headers: { [HEADERS.AUTHORIZATION]: `${HEADERS.BEARER}${apiKey}` } };
+		this.auth = {
+			headers: {
+				[HEADERS.AUTHORIZATION]: `${HEADERS.BEARER}${apiKey}`,
+				[HEADERS.X_PICO_CLIENT_ID_HEADER]: CLIENT_ID
+			}
+		};
 	}
 
 	async createConversation(
