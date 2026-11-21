@@ -103,7 +103,7 @@ class ChatSyncStore {
 		try {
 			if (groupsChanged) await groupsStore.reload();
 
-			await conversationsStore.loadConversations();
+			await conversationsStore.reloadConversations();
 
 			const openId = conversationsStore.activeConversation?.id;
 

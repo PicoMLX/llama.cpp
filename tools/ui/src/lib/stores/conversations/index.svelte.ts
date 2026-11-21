@@ -746,6 +746,31 @@ class ConversationsStore implements ConversationsPreferencesHost {
 	}
 
 	/**
+	 * Reads the chat list again after another window changed it. Chats this
+	 * window made, changed or dropped while the read ran keep this window's
+	 * state: the server may have read the list before those writes landed.
+	 */
+	async reloadConversations(): Promise<void> {
+		const before = new Map(this.conversations.map((c) => [c.id, JSON.stringify(c)]));
+		const conversations = await DatabaseService.getAllConversations();
+		const after = new Map(this.conversations.map((c) => [c.id, JSON.stringify(c)]));
+		const touched = new Set(
+			[...before.keys(), ...after.keys()].filter((id) => before.get(id) !== after.get(id))
+		);
+
+		if (touched.size === 0) {
+			this.conversations = conversations;
+
+			return;
+		}
+
+		this.conversations = [
+			...conversations.filter((c) => !touched.has(c.id)),
+			...this.conversations.filter((c) => touched.has(c.id))
+		].sort((a, b) => b.lastModified - a.lastModified);
+	}
+
+	/**
 	 * Drops the loaded chats and messages and reads the list from the chat
 	 * store again, after the store changed. An open chat gives way to the
 	 * new-chat screen, and tabs of chats the store does not have close. The

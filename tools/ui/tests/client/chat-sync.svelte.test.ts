@@ -246,6 +246,49 @@ describe("another window's changes", () => {
 		await vi.waitFor(() => expect(shownText()).toEqual(['once idle']));
 	});
 
+	it('keeps the chats this window made or renamed while a reload read the list', async () => {
+		const { chat } = await openChat();
+		const send = vi.mocked(globalThis.fetch).getMockImplementation()!;
+		const listPath = (input: RequestInfo | URL) =>
+			new URL(input instanceof Request ? input.url : String(input), 'http://pico.test').pathname;
+
+		let answer!: () => void;
+		let readStarted!: () => void;
+		let held = false;
+
+		const answered = new Promise<void>((resolve) => (answer = resolve));
+		const started = new Promise<void>((resolve) => (readStarted = resolve));
+
+		// the server reads the list at once, its answer arrives after this window's writes
+		vi.mocked(globalThis.fetch).mockImplementation(async (input, init) => {
+			const response = await send(input, init);
+
+			if (
+				!held &&
+				(init?.method ?? 'GET') === 'GET' &&
+				listPath(input) === API_CONVERSATIONS.CONVERSATIONS
+			) {
+				held = true;
+				readStarted();
+				await answered;
+			}
+
+			return response;
+		});
+
+		await createChatElsewhere(THEIR_CHAT, 'Theirs');
+		await started;
+
+		const mine = await conversationsStore.createConversation('Mine');
+
+		await conversationsStore.updateConversationName(chat.id, 'Renamed here');
+		answer();
+		await vi.waitFor(() => expect(listName(THEIR_CHAT)).toBe('Theirs'));
+
+		expect(listName(mine)).toBe('Mine');
+		expect(listName(chat.id)).toBe('Renamed here');
+	});
+
 	it('removes a chat deleted elsewhere, and leaves it when it is open', async () => {
 		await createChatElsewhere(THEIR_CHAT, 'Theirs');
 
