@@ -3,6 +3,7 @@
 // in call order, settings patched per key, and the tree kept by parents only.
 
 import { MockConversationsServer } from '../fixtures/mock-conversations-server';
+import { API_CONVERSATIONS } from '$lib/constants';
 import { MessageRole, MessageType } from '$lib/enums';
 import { DatabaseService } from '$lib/services/database.service';
 import { localChatStore } from '$lib/services/local-chat-store';
@@ -52,6 +53,29 @@ function deferred() {
 	});
 
 	return { promise, resolve };
+}
+
+/** Holds the answer to the first GET of `path` until `release`; the server reads at once. */
+function holdAnswer(path: string) {
+	const answer = deferred();
+	const read = deferred();
+
+	let held = false;
+
+	vi.mocked(globalThis.fetch).mockImplementation(async (input, init) => {
+		const response = await server.fetch(input, init);
+		const url = new URL(input instanceof Request ? input.url : String(input), 'http://pico.test');
+
+		if (!held && (init?.method ?? 'GET') === 'GET' && url.pathname === path) {
+			held = true;
+			read.resolve();
+			await answer.promise;
+		}
+
+		return response;
+	});
+
+	return { read: read.promise, release: answer.resolve };
 }
 
 beforeEach(async () => {
@@ -271,6 +295,52 @@ describe('ServerChatStore writes', () => {
 			{ pinned: false },
 			{ pinned: false }
 		]);
+	});
+
+	it.each([
+		[
+			'the list',
+			() => DatabaseService.getAllConversations(),
+			() => API_CONVERSATIONS.CONVERSATIONS
+		],
+		[
+			'the chat',
+			(id: string) => DatabaseService.getConversation(id),
+			(id: string) => `${API_CONVERSATIONS.CONVERSATIONS}/${id}`
+		]
+	])(
+		'keeps a pin saved while a read of %s was out, so the next toggle unpins',
+		async (_, read, path) => {
+			const conversation = await DatabaseService.createConversation('Chat');
+			const held = holdAnswer(path(conversation.id));
+			const reading = read(conversation.id);
+
+			await held.read;
+			expect(await DatabaseService.toggleConversationPin(conversation.id)).toBe(true);
+			held.release();
+			await reading;
+
+			expect(await DatabaseService.toggleConversationPin(conversation.id)).toBe(false);
+			expect(server.conversations.get(conversation.id)!.pinned).toBe(false);
+		}
+	);
+
+	it('forks with the settings saved while a list read was out', async () => {
+		const conversation = await DatabaseService.createConversation('Chat', { cwd: '/old' });
+		const rootId = await DatabaseService.createRootMessage(conversation.id);
+		const held = holdAnswer(API_CONVERSATIONS.CONVERSATIONS);
+		const reading = DatabaseService.getAllConversations();
+
+		await held.read;
+		await DatabaseService.updateConversation(conversation.id, { cwd: '/new' });
+		held.release();
+		await reading;
+		await DatabaseService.forkConversation(conversation.id, rootId, {
+			includeAttachments: false,
+			name: 'Fork'
+		});
+
+		expect(server.requests.at(-1)!.body).toMatchObject({ settings: { cwd: '/new' } });
 	});
 
 	it('unpins chats that join a group, one update per chat', async () => {
