@@ -67,6 +67,7 @@ function toolResult(content: string): DatabaseMessage {
 }
 
 beforeEach(() => {
+	vi.spyOn(DatabaseService, 'versionForEdit').mockResolvedValue(7);
 	serverStore.role = ServerRole.MODEL;
 	settingsStore.updateMultipleConfig({
 		alwaysShowToolCallContent: true,
@@ -120,7 +121,11 @@ describe.runIf(IS_PICO_BUILD)('Pico chat instructions', () => {
 			.fill('Use clear examples');
 		await page.getByRole('button', { exact: true, name: 'Save instructions' }).click();
 		await expect.poll(() => update.mock.calls.length).toBe(1);
-		expect(update).toHaveBeenCalledWith(system.id, { content: 'Use clear examples' });
+		expect(update).toHaveBeenCalledWith(
+			system.id,
+			{ content: 'Use clear examples' },
+			{ ifVersion: 7 }
+		);
 		expect(settingsStore.config.showSystemMessage).toBe(false);
 	});
 
@@ -153,7 +158,8 @@ describe.runIf(IS_PICO_BUILD)('Pico message editing', () => {
 		expect(chatActions.editWithBranching).toHaveBeenCalledWith(
 			user,
 			'Updated question',
-			user.extra
+			user.extra,
+			7
 		);
 		expect(chatActions.editUserMessagePreserveResponses).not.toHaveBeenCalled();
 	});
@@ -172,7 +178,8 @@ describe.runIf(IS_PICO_BUILD)('Pico message editing', () => {
 		expect(chatActions.editWithReplacement).toHaveBeenCalledWith(
 			assistant,
 			'Updated response',
-			false
+			false,
+			7
 		);
 	});
 

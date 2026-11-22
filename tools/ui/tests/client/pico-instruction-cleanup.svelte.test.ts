@@ -1,9 +1,10 @@
 import { SYSTEM_MESSAGE_PLACEHOLDER } from '$lib/constants';
 import { MessageRole, MessageType } from '$lib/enums';
 import { DatabaseService } from '$lib/services/database.service';
+import { localChatStore } from '$lib/services/local-chat-store';
 import { chatStore, conversationsStore, draftMessagesStore } from '$lib/stores';
 import type { ChatUploadedFile, DatabaseMessage, ExportedConversation } from '$lib/types';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('$app/navigation', () => ({
 	afterNavigate: () => {},
@@ -15,7 +16,12 @@ vi.mock('$app/navigation', () => ({
 
 const createdIds = new Set<string>();
 
+beforeEach(async () => {
+	await DatabaseService.useStore(localChatStore);
+});
+
 afterEach(async () => {
+	await DatabaseService.useStore(localChatStore);
 	conversationsStore.activeConversation = null;
 	conversationsStore.activeMessages = [];
 	chatStore.clearPendingEditMessageId();

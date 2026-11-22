@@ -113,11 +113,7 @@
 	}
 
 	$effect(() => {
-		chatStore.setEditModeActive(handleFilesAdd);
-
-		return () => {
-			chatStore.clearEditMode();
-		};
+		return chatStore.setEditModeActive(handleFilesAdd, editCtx.conversationId ?? null);
 	});
 </script>
 

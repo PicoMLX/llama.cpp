@@ -81,6 +81,8 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 	streamConnectionState = $state<StreamConnectionState>(StreamConnectionState.STREAMING);
 	private abortControllers = new SvelteMap<string, AbortController>();
 	private addFilesHandler: ((files: File[]) => void) | null = $state(null);
+	private editConversationId = $state<string | null>(null);
+	private editModeOwner: symbol | null = null;
 	// message flows: edit, regenerate, continue, delete
 	private flows = new ChatMessageFlows(this);
 	private isEditModeActive = $state(false);
@@ -277,6 +279,8 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 	}
 	clearEditMode(): void {
 		this.isEditModeActive = false;
+		this.editConversationId = null;
+		this.editModeOwner = null;
 		this.addFilesHandler = null;
 	}
 
@@ -604,8 +608,11 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		return this.activity.isCompacting(convId);
 	}
 
-	isEditing(): boolean {
-		return this.isEditModeActive;
+	isEditing(convId?: string): boolean {
+		return (
+			this.isEditModeActive &&
+			(!convId || !this.editConversationId || this.editConversationId === convId)
+		);
 	}
 
 	/** True while the active conversation has a live streaming pipe. */
@@ -704,7 +711,14 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 
 			if (!rootMessage) return false;
 
-			if (allMessages.length === 2 && systemMessage.children.length === 0) {
+			const newChatDraft = draftMessagesStore.getDraftMessage(undefined);
+
+			if (
+				allMessages.length === 2 &&
+				systemMessage.children.length === 0 &&
+				!newChatDraft.message &&
+				newChatDraft.files.length === 0
+			) {
 				if (conversationsStore.activeConversation?.id !== activeConv.id) return false;
 
 				const draft = draftMessagesStore.getDraftMessage(activeConv.id);
@@ -914,9 +928,20 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		});
 	}
 
-	setEditModeActive(handler: (files: File[]) => void): void {
+	setEditModeActive(
+		handler: ((files: File[]) => void) | null,
+		conversationId: string | null = conversationsStore.activeConversation?.id ?? null
+	): () => void {
+		const owner = Symbol();
+
+		this.editModeOwner = owner;
+		this.editConversationId = conversationId;
 		this.isEditModeActive = true;
 		this.addFilesHandler = handler;
+
+		return () => {
+			if (this.editModeOwner === owner) this.clearEditMode();
+		};
 	}
 
 	showErrorDialog(state: ErrorDialogState | null): void {

@@ -58,6 +58,10 @@
 	let showExpandButton = $derived(contentHeight > MAX_HEIGHT);
 
 	$effect(() => {
+		if (editCtx.isEditing) return chatStore.setEditModeActive(null, message.convId);
+	});
+
+	$effect(() => {
 		if (!messageElement || !message.content.trim()) return;
 
 		if (message.content.includes('\n')) {
