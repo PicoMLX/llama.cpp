@@ -186,6 +186,73 @@ describe('chat renames', () => {
 		);
 	});
 
+	it.each([
+		['a pin', (id: string) => DatabaseService.toggleConversationPin(id)],
+		['a setting', (id: string) => DatabaseService.updateConversation(id, { cwd: '/work' })],
+		[
+			'the current message',
+			(id: string, userId: string) => DatabaseService.updateCurrentNode(id, userId)
+		],
+		[
+			'a group',
+			async (id: string) => {
+				const group = await DatabaseService.createGroup({
+					createdAt: 0,
+					id: '22222222-2222-4222-8222-222222222222',
+					name: 'Work',
+					updatedAt: 0
+				});
+
+				await DatabaseService.setConversationsGroup([id], group.id);
+			}
+		]
+	])(
+		'are refused when this window saved %s after a rename from another window',
+		async (_, save) => {
+			const { conversation, user } = await openChat(false);
+
+			server.conversations.get(conversation.id)!.name = 'Renamed elsewhere';
+			server.conversations.get(conversation.id)!.version++;
+			// the answer carries the other window's version, which this window did not write
+			await save(conversation.id, user.id);
+			server.requests = [];
+
+			const version = await DatabaseService.versionForEdit({
+				id: conversation.id,
+				version: conversation.version
+			});
+
+			vi.spyOn(console, 'error').mockImplementation(() => {});
+			await conversationsStore.updateConversationName(conversation.id, 'Mine', version);
+
+			expect(server.requests[0].body).toEqual({ if_version: 1, name: 'Mine' });
+			expect(server.conversations.get(conversation.id)!.name).toBe('Renamed elsewhere');
+			expect(onError).toHaveBeenCalledWith(
+				expect.objectContaining({ message: ERROR_MESSAGES.CHAT_STORAGE.STALE_VERSION })
+			);
+		}
+	);
+
+	it('are refused when this window deleted a message after a rename from another window', async () => {
+		const { conversation, user } = await openChat(true);
+
+		server.conversations.get(conversation.id)!.name = 'Renamed elsewhere';
+		server.conversations.get(conversation.id)!.version++;
+		await DatabaseService.deleteMessageCascading(conversation.id, user.id);
+		server.requests = [];
+
+		const version = await DatabaseService.versionForEdit({
+			id: conversation.id,
+			version: conversation.version
+		});
+
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		await conversationsStore.updateConversationName(conversation.id, 'Mine', version);
+
+		expect(server.requests[0].body).toEqual({ if_version: 1, name: 'Mine' });
+		expect(server.conversations.get(conversation.id)!.name).toBe('Renamed elsewhere');
+	});
+
 	it('start from the version an automatic title left, which sends none itself', async () => {
 		const { conversation } = await openChat(false);
 

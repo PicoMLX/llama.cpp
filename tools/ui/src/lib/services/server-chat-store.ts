@@ -274,6 +274,12 @@ export class ServerChatStore implements ChatStore {
 	/** Versions the server gave this window's own writes, by record id; reads never add to them. */
 	private versions = new Map<string, Set<number>>();
 
+	/** Writes to chats that finished so far; the count after each chat's last one is in {@link written}. */
+	private writes = 0;
+
+	/** {@link writes} once each chat's last write finished, by id: a read that began before it leaves the chat's copy alone. */
+	private written = new Map<string, number>();
+
 	async bulkDeleteConversations(ids: string[]): Promise<void> {
 		const cleanIds = ids.filter((id): id is string => typeof id === 'string' && id.length > 0);
 
@@ -433,7 +439,10 @@ export class ServerChatStore implements ChatStore {
 		});
 
 		for (const conversation of this.conversations.values()) {
-			if (conversation.groupId === id) delete conversation.groupId;
+			if (conversation.groupId !== id) continue;
+
+			delete conversation.groupId;
+			this.markWritten(conversation.id);
 		}
 	}
 
@@ -491,11 +500,12 @@ export class ServerChatStore implements ChatStore {
 	async getAllConversations(): Promise<DatabaseConversation[]> {
 		await this.flush();
 
+		const since = this.writes;
 		const list = await request(() =>
 			apiFetch<ApiList<ApiConversation>>(API_CONVERSATIONS.CONVERSATIONS, this.auth)
 		);
 
-		return list.data.map((record) => this.track(record));
+		return list.data.map((record) => this.trackRead(record, since));
 	}
 
 	async getAllGroups(): Promise<Group[]> {
@@ -509,14 +519,17 @@ export class ServerChatStore implements ChatStore {
 	async getConversation(id: string): Promise<DatabaseConversation | undefined> {
 		await this.queues.get(id);
 
+		const since = this.writes;
+
 		try {
-			return this.track(
-				await request(() => apiFetch<ApiConversation>(conversationPath(id), this.auth))
+			return this.trackRead(
+				await request(() => apiFetch<ApiConversation>(conversationPath(id), this.auth)),
+				since
 			);
 		} catch (error) {
 			if (!isMissing(error)) throw error;
 
-			this.conversations.delete(id);
+			if (this.isUnwrittenSince(id, since)) this.conversations.delete(id);
 
 			return undefined;
 		}
@@ -609,9 +622,13 @@ export class ServerChatStore implements ChatStore {
 		if (options?.ifVersion !== undefined) patch.if_version = options.ifVersion;
 
 		await this.enqueue(id, async () => {
-			this.trackWrite(
-				await request(() => apiPost<ApiConversation>(conversationPath(id), patch, this.auth))
+			const record = await request(() =>
+				apiPost<ApiConversation>(conversationPath(id), patch, this.auth)
 			);
+
+			// only a name change moves a chat's version; other writes answer with whatever version it has
+			if ('name' in patch) this.trackWrite(record);
+			else this.track(record);
 		});
 	}
 
@@ -771,7 +788,7 @@ export class ServerChatStore implements ChatStore {
 					)
 				);
 
-				this.trackWrite(deleted);
+				this.track(deleted);
 				deletedIds = deleted.deleted_ids;
 			} catch (error) {
 				if (!isMissing(error)) throw error;
@@ -805,22 +822,50 @@ export class ServerChatStore implements ChatStore {
 	private forgetConversations(ids: string[]): void {
 		const gone = new Set(ids);
 
-		for (const id of gone) this.conversations.delete(id);
+		for (const id of gone) {
+			this.conversations.delete(id);
+			this.markWritten(id);
+		}
 
 		for (const [id, item] of this.items) {
 			if (gone.has(item.convId)) this.items.delete(id);
 		}
 	}
 
+	/** Whether no write to the chat finished after `since`, a {@link writes} count. */
+	private isUnwrittenSince(id: string, since: number): boolean {
+		return (this.written.get(id) ?? 0) <= since;
+	}
+
 	private async knownConversation(id: string): Promise<DatabaseConversation | undefined> {
 		return this.conversations.get(id) ?? (await this.getConversation(id));
 	}
 
-	/** Maps a chat record and keeps a copy for later forks and pin toggles. */
+	private markWritten(id: string): void {
+		this.written.set(id, ++this.writes);
+	}
+
+	/** Maps the answer to this window's own write to a chat and keeps a copy for later forks and pin toggles. */
 	private track(record: ApiConversation): DatabaseConversation {
 		const conversation = toConversation(record);
 
 		this.conversations.set(conversation.id, { ...conversation });
+		this.markWritten(conversation.id);
+
+		return conversation;
+	}
+
+	/**
+	 * {@link track} for a chat record a read began to fetch at `since`, a
+	 * {@link writes} count. A write to the chat that finished meanwhile keeps
+	 * its newer copy: the server may have read before that write landed.
+	 */
+	private trackRead(record: ApiConversation, since: number): DatabaseConversation {
+		const conversation = toConversation(record);
+
+		if (this.isUnwrittenSince(conversation.id, since)) {
+			this.conversations.set(conversation.id, { ...conversation });
+		}
 
 		return conversation;
 	}
@@ -833,7 +878,7 @@ export class ServerChatStore implements ChatStore {
 		this.versions.set(id, own);
 	}
 
-	/** {@link track} for the answer to this window's own write, whose version a later rename starts from. */
+	/** {@link track} for the answer to this window's own create or rename, whose version a later rename starts from. */
 	private trackWrite(record: ApiConversation): DatabaseConversation {
 		this.trackVersion(record.id, record.version);
 
