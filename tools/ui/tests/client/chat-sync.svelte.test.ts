@@ -5,6 +5,7 @@
 // while a reload reads. A failed reload is tried again a few times. After a
 // reconnect, or a first stream that opens late, it reads everything again,
 // and the stream closes when chats leave Pico Server.
+// A store's first read of the chats and each stream's reloads run one after another.
 
 import { vi } from 'vitest';
 
@@ -421,6 +422,43 @@ describe("another window's changes", () => {
 		});
 	});
 
+	it('keeps a reply this window made in the open chat while a reload read it', async () => {
+		const { chat, user } = await openChat();
+		const held = holdAnswer(`${API_CONVERSATIONS.CONVERSATIONS}/${chat.id}/items`);
+
+		await renameElsewhere(chat.id, 'Renamed elsewhere');
+		await held.read;
+
+		// a reply that starts and ends while the reload reads, as chatStore makes one
+		const reply = await DatabaseService.createMessageBranch(
+			{ ...message(chat.id, 'my reply'), role: MessageRole.ASSISTANT },
+			user.id
+		);
+
+		conversationsStore.addMessageToActive(reply);
+		await conversationsStore.updateCurrentNode(reply.id);
+		held.release();
+		await vi.waitFor(() =>
+			expect(conversationsStore.activeConversation?.name).toBe('Renamed elsewhere')
+		);
+
+		expect(shownText()).toEqual(['hi', 'my reply']);
+		expect(conversationsStore.activeConversation?.currNode).toBe(reply.id);
+	});
+
+	it('keeps an in-place edit this window made in the open chat while a reload read it', async () => {
+		const { chat, user } = await openChat();
+		const held = holdAnswer(`${API_CONVERSATIONS.CONVERSATIONS}/${chat.id}/items`);
+
+		await replyElsewhere(chat.id, THEIR_REPLY, user.id, 'their reply');
+		await held.read;
+		conversationsStore.updateMessageAtIndex(0, { content: 'edited here' });
+		await DatabaseService.updateMessage(user.id, { content: 'edited here' });
+		held.release();
+
+		await vi.waitFor(() => expect(shownText()).toEqual(['edited here', 'their reply']));
+	});
+
 	it('keeps the groups this window made, renamed or deleted while a reload read them', async () => {
 		const kept = (await groupsStore.create('Kept'))!;
 		const gone = (await groupsStore.create('Gone'))!;
@@ -533,6 +571,38 @@ describe('the notices stream', () => {
 		await createChatElsewhere(THEIR_CHAT, 'Theirs');
 		open();
 		await vi.waitFor(() => expect(listName(THEIR_CHAT)).toBe('Theirs'));
+	});
+
+	it("reads a notice that comes during a switch's read of the list after that read", async () => {
+		await chatStorageStore.select(ChatStorageLocation.BROWSER);
+
+		const held = holdAnswer(API_CONVERSATIONS.CONVERSATIONS);
+		const switched = chatStorageStore.select(ChatStorageLocation.SERVER);
+
+		await held.read;
+		await createChatElsewhere(THEIR_CHAT, 'Theirs');
+		// time for the notice's reload to read the list, had it not waited
+		await settle(CONVERSATION_EVENTS.RELOAD_DEBOUNCE_MS + 100);
+		held.release();
+		await switched;
+
+		await vi.waitFor(() => expect(listName(THEIR_CHAT)).toBe('Theirs'));
+	});
+
+	it("follows the new stream's notices while a reload of the old one still reads", async () => {
+		const held = holdAnswer(API_CONVERSATIONS.GROUPS);
+
+		try {
+			await createGroupElsewhere(THEIR_GROUP, 'Work');
+			await held.read;
+			await chatStorageStore.select(ChatStorageLocation.BROWSER);
+			await chatStorageStore.select(ChatStorageLocation.SERVER);
+			await createChatElsewhere(THEIR_CHAT, 'Theirs');
+
+			await vi.waitFor(() => expect(listName(THEIR_CHAT)).toBe('Theirs'));
+		} finally {
+			held.release();
+		}
 	});
 
 	it('reads the chats once when the stream opens before them', async () => {

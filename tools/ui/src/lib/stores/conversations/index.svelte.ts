@@ -711,11 +711,11 @@ class ConversationsStore implements ConversationsPreferencesHost {
 	 * Reads the open chat again after another window changed it. This window
 	 * keeps its own branch and follows it to its newest message, and the
 	 * fields it changed while the reads ran; a chat that is gone gives way to
-	 * the new-chat screen. Nothing changes when another chat opened, or
-	 * `isBusy` says this window began work in it, before the reads came back.
+	 * the new-chat screen.
+	 * Nothing changes when another chat opened before the reads came back, or when `isBusy` says this window began work in the chat, or this window changed its messages while the reads ran: the server may have read before those writes landed.
 	 *
 	 * @param isBusy - Whether this window is replying or editing in the chat
-	 * @returns False when it skipped the chat because `isBusy` said so
+	 * @returns False when it skipped the chat for `isBusy` or this window's own message changes; a later reload reads them
 	 */
 	async reloadActiveConversation(isBusy: (convId: string) => boolean): Promise<boolean> {
 		const active = this.activeConversation;
@@ -725,6 +725,8 @@ class ConversationsStore implements ConversationsPreferencesHost {
 		if (isBusy(active.id)) return false;
 
 		const before: Record<string, unknown> = { ...active };
+		// a reply or in-place edit that starts and ends while the reads run never shows in `isBusy`
+		const messagesBefore = JSON.stringify(this.activeMessages);
 		const conversation = await DatabaseService.getConversation(active.id);
 		const allMessages = conversation
 			? await DatabaseService.getConversationMessages(active.id)
@@ -732,7 +734,7 @@ class ConversationsStore implements ConversationsPreferencesHost {
 
 		if (this.activeConversation !== active) return true;
 
-		if (isBusy(active.id)) return false;
+		if (isBusy(active.id) || JSON.stringify(this.activeMessages) !== messagesBefore) return false;
 
 		if (!conversation) {
 			await this.forgetConversation(active.id);

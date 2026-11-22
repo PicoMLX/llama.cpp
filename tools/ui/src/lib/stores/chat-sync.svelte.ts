@@ -10,6 +10,7 @@
  * again a few times. The server replays nothing, so the chats are read once
  * the stream is open, and after a reconnect the groups, the list and the open
  * chat are read again.
+ * Each stream's reloads, and the store's first read of the chats, run one after another.
  */
 
 import { CONVERSATION_EVENTS } from '$lib/constants';
@@ -42,18 +43,29 @@ class ChatSyncStore {
 
 	private groupsChanged = false;
 
-	/** Reloads run one after another, so an older list never lands last. */
+	/** This stream's reloads, run one after another so an older list never lands last; each stream starts a new queue. */
 	private reloads: Promise<void> = Promise.resolve();
 
 	private reloadTimer: ReturnType<typeof setTimeout> | null = null;
 
-	/** The open chat whose reload was skipped while this window replied or edited in it. */
+	/** The open chat whose reload was skipped while this window replied, edited or changed its messages in it. */
 	private skipped = $state<string | null>(null);
 
 	/** Ends the effect that waits for that reply or edit to end. */
 	private stopIdleWatch: (() => void) | null = null;
 
 	private stream: AbortController | null = null;
+
+	/**
+	 * Runs `read` in turn with the reloads of the open stream, or at once when none is open.
+	 * For the store's first read of the chats: a reload that a notice starts meanwhile then reads after it, so an older list never lands last.
+	 */
+	async inTurn(read: () => Promise<void>): Promise<void> {
+		const run = this.reloads.then(read);
+
+		this.reloads = run.catch(() => {});
+		await run;
+	}
 
 	/**
 	 * Opens the notices stream of `store`, as its account; one already open is
@@ -98,10 +110,14 @@ class ChatSyncStore {
 		waiting = false;
 	}
 
-	/** Closes the stream and drops the reloads it has not run yet. */
+	/**
+	 * Closes the stream and drops the reloads it has not run yet.
+	 * A reload still reading is not waited for: the store switch makes its calls abort.
+	 */
 	stop(): void {
 		this.stream?.abort();
 		this.stream = null;
+		this.reloads = Promise.resolve();
 		this.stopIdleWatch?.();
 		this.stopIdleWatch = null;
 		this.skipped = null;
@@ -139,11 +155,9 @@ class ChatSyncStore {
 		this.scheduleReload();
 	}
 
-	private async reload(): Promise<void> {
-		const stream = this.stream;
-
-		// stopped while an earlier reload ran
-		if (!stream) return;
+	private async reload(stream: AbortController | null): Promise<void> {
+		// stopped, or another stream opened, while an earlier reload ran
+		if (!stream || this.stream !== stream) return;
 
 		const changed = this.changed;
 		const groupsChanged = this.groupsChanged;
@@ -220,8 +234,10 @@ class ChatSyncStore {
 		if (this.reloadTimer) clearTimeout(this.reloadTimer);
 
 		this.reloadTimer = setTimeout(() => {
+			const stream = this.stream;
+
 			this.reloadTimer = null;
-			this.reloads = this.reloads.then(() => this.reload());
+			this.reloads = this.reloads.then(() => this.reload(stream));
 		}, delay);
 	}
 }
