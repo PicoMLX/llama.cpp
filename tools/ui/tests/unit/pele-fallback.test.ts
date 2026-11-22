@@ -59,9 +59,9 @@ describe('Pele fallback selection', () => {
 		const bundle = await readFile(new URL('pele-bundle.js', runtimeDirectory));
 		const metadata = JSON.parse(await readFile(new URL('Versions.json', runtimeDirectory), 'utf8'));
 
-		expect(metadata.version).toBe('1.9.1');
+		expect(metadata.version).toBe('1.13.0');
 		expect(createHash('sha256').update(bundle).digest('hex')).toBe(metadata.bundleSHA256);
-		expect(bundle.toString('utf8')).toContain('Pele 1.9.1 | MIT License');
+		expect(bundle.toString('utf8')).toContain('Pele 1.13.0 | MIT License');
 		await expect(readFile(new URL('LICENSE.txt', runtimeDirectory), 'utf8')).resolves.toContain(
 			'MIT License'
 		);
