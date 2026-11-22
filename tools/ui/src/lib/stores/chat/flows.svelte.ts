@@ -603,6 +603,7 @@ export class ChatMessageFlows {
 
 		const convId = activeConv.id;
 		const selectedNode = activeConv.currNode;
+		const abortController = this.host.getOrCreateAbortController(convId);
 		const requestSnapshot = this.host.getRequestSnapshot();
 		const modelToUse =
 			modelOverride || msg.model || (requestSnapshot.options.model as string | undefined);
@@ -614,6 +615,9 @@ export class ChatMessageFlows {
 		this.host.clearChatStreaming(convId);
 		try {
 			const allMessages = await conversationsStore.getConversationMessages(convId);
+
+			if (abortController.signal.aborted) return;
+
 			const parentMessage = findMessageById(allMessages, msg.parent);
 
 			if (!parentMessage) return;
@@ -631,6 +635,9 @@ export class ChatMessageFlows {
 				},
 				parentMessage.id
 			);
+
+			if (abortController.signal.aborted) return;
+
 			const conversationPath = filterByLeafNodeId(
 				allMessages,
 				parentMessage.id,
@@ -660,12 +667,15 @@ export class ChatMessageFlows {
 				requestSnapshot
 			);
 		} catch (error) {
+			if (abortController.signal.aborted) return;
+
 			if (!isAbortError(error))
 				console.error('Failed to regenerate message with branching:', error);
 
 			this.host.setChatLoading(convId, false);
 		} finally {
-			if (!streamStarted) this.host.setChatLoading(convId, false);
+			if (!streamStarted && !abortController.signal.aborted)
+				this.host.setChatLoading(convId, false);
 		}
 	}
 

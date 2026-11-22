@@ -136,6 +136,117 @@ afterEach(async () => {
 });
 
 describe('response lifecycle across navigation', () => {
+	it.each(['read', 'branch'] as const)(
+		'does not start a stopped retry after the %s await',
+		async (boundary) => {
+			const entered = gate();
+			const release = gate();
+			const originalRead = conversationsStore.getConversationMessages.bind(conversationsStore);
+			const originalCreate = DatabaseService.createMessageBranch.bind(DatabaseService);
+			const create = vi.spyOn(DatabaseService, 'createMessageBranch');
+			const stream = vi.spyOn(chatStore, 'streamChatCompletion').mockResolvedValue();
+
+			vi.spyOn(ChatService, 'cancelServerStream').mockResolvedValue();
+
+			if (boundary === 'read') {
+				vi.spyOn(conversationsStore, 'getConversationMessages').mockImplementationOnce(
+					async (id) => {
+						const messages = await originalRead(id);
+
+						entered.resolve();
+						await release.promise;
+
+						return messages;
+					}
+				);
+			} else {
+				create.mockImplementationOnce(async (...args) => {
+					const message = await originalCreate(...args);
+
+					entered.resolve();
+					await release.promise;
+
+					return message;
+				});
+			}
+
+			const visibleBefore = structuredClone($state.snapshot(conversationsStore.activeMessages));
+			const retry = chatStore.regenerateMessageWithBranching(`${origin.conv.id}-reply`);
+
+			try {
+				await entered.promise;
+				expect(chatStore.isChatLoadingInternal(origin.conv.id)).toBe(true);
+				await chatStore.stopGenerationForChat(origin.conv.id);
+				release.resolve();
+				await retry;
+
+				expect(create).toHaveBeenCalledTimes(boundary === 'read' ? 0 : 1);
+				expect(stream).not.toHaveBeenCalled();
+				expect(conversationsStore.activeMessages).toEqual(visibleBefore);
+				expect(conversationsStore.activeConversation?.currNode).toBe(origin.conv.currNode);
+				expect(chatStore.isChatLoadingInternal(origin.conv.id)).toBe(false);
+			} finally {
+				release.resolve();
+				await retry;
+			}
+		}
+	);
+
+	it.each(['resolves', 'rejects'] as const)(
+		'does not clear a newer retry when a stopped history read %s',
+		async (outcome) => {
+			const entered = gate();
+			const release = gate();
+			const streaming = gate();
+			const finishStream = gate();
+			const originalRead = conversationsStore.getConversationMessages.bind(conversationsStore);
+
+			vi.spyOn(ChatService, 'cancelServerStream').mockResolvedValue();
+			vi.spyOn(conversationsStore, 'getConversationMessages').mockImplementationOnce(async (id) => {
+				const messages = await originalRead(id);
+
+				entered.resolve();
+				await release.promise;
+
+				if (outcome === 'rejects') throw new Error('Delayed storage failure');
+
+				return messages;
+			});
+			const create = vi.spyOn(DatabaseService, 'createMessageBranch');
+			const stream = vi
+				.spyOn(chatStore, 'streamChatCompletion')
+				.mockResolvedValue()
+				.mockImplementationOnce(async () => {
+					streaming.resolve();
+					await finishStream.promise;
+					chatStore.cleanupStreaming(origin.conv.id);
+				});
+			const retry = chatStore.regenerateMessageWithBranching(`${origin.conv.id}-reply`);
+
+			let nextRetry: Promise<void> | undefined;
+
+			try {
+				await entered.promise;
+				await chatStore.stopGenerationForChat(origin.conv.id);
+				nextRetry = chatStore.regenerateMessageWithBranching(`${origin.conv.id}-reply`);
+				await streaming.promise;
+				const nextResponse = conversationsStore.activeConversation?.currNode;
+
+				release.resolve();
+				await retry;
+
+				expect(create).toHaveBeenCalledTimes(1);
+				expect(stream).toHaveBeenCalledTimes(1);
+				expect(chatStore.isChatLoadingInternal(origin.conv.id)).toBe(true);
+				expect(conversationsStore.activeConversation?.currNode).toBe(nextResponse);
+			} finally {
+				release.resolve();
+				finishStream.resolve();
+				await Promise.all([retry, nextRetry]);
+			}
+		}
+	);
+
 	it('keeps server storage selected until an actual retry finishes its first asynchronous read', async () => {
 		const server = new MockConversationsServer();
 		const previousProps = serverStore.props;
