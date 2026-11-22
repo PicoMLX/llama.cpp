@@ -135,6 +135,45 @@ describe.runIf(IS_PICO_BUILD)('Pico preferences', () => {
 		expect(JSON.parse(String(settingsStore.config.mcpServers))).toEqual([connection]);
 	});
 
+	it.each(['selected LLM mode', 'a secondary-key override'] as const)(
+		'resets all title radio keys from %s',
+		async (initial) => {
+			settingsStore.updateConfig('sendOnEnter', false);
+
+			if (initial === 'a secondary-key override') {
+				settingsStore.updateMultipleConfig({
+					titleGenerationUseFirstLine: true,
+					titleGenerationUseLLM: true
+				});
+			}
+
+			const screen = render(SettingsChat, { initialSection: SETTINGS_SECTION_SLUGS.ADVANCED });
+
+			await screen.getByText('Chat and files', { exact: true }).click();
+
+			if (initial === 'selected LLM mode') {
+				await screen.getByRole('radio', { name: 'Generate title with LLM' }).click();
+				expect(settingsStore.config.titleGenerationUseFirstLine).toBe(false);
+			}
+
+			expect(settingsStore.config.titleGenerationUseLLM).toBe(true);
+			await screen.getByRole('button', { exact: true, name: 'Reset Chat and files' }).click();
+			await page.getByRole('button', { exact: true, name: 'Reset to Default' }).click();
+
+			expect(settingsStore.config.titleGenerationUseFirstLine).toBe(true);
+			expect(settingsStore.config.titleGenerationUseLLM).toBe(false);
+			expect(settingsStore.config.sendOnEnter).toBe(false);
+			await expect
+				.element(
+					screen.getByRole('radio', { name: 'Use first non-empty line for the conversation title' })
+				)
+				.toBeChecked();
+			await expect
+				.element(screen.getByRole('textbox', { name: 'LLM title generation prompt' }))
+				.not.toBeInTheDocument();
+		}
+	);
+
 	it('validates an access-key replacement before saving it', async () => {
 		settingsStore.updateConfig('apiKey', 'working-key');
 		const fetch = vi

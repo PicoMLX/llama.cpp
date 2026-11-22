@@ -33,7 +33,12 @@
 		settingsStore,
 		uiStore
 	} from '$lib/stores';
-	import type { SettingsConfigValue, SettingsSection, SettingsSectionTitle } from '$lib/types';
+	import type {
+		SettingsConfigValue,
+		SettingsFieldConfig,
+		SettingsSection,
+		SettingsSectionTitle
+	} from '$lib/types';
 	import { setMode } from 'mode-watcher';
 	import { fade } from 'svelte/transition';
 	interface Props {
@@ -190,10 +195,21 @@
 		localConfig[key] = settingsStore.config[key];
 	}
 
-	function handleSectionReset(fields: SettingsFieldConfig[]) {
-		for (const field of fields) {
-			delete fieldErrors[field.key];
-			localConfig[field.key] = settingsStore.config[field.key];
+	function getPreferenceKeys(fields: SettingsFieldConfig[]): string[] {
+		return [
+			...new Set(
+				fields.flatMap((field) => [
+					field.key,
+					...(field.radioOptions?.map((option) => option.key) ?? [])
+				])
+			)
+		];
+	}
+
+	function handleSectionReset(keys: string[]) {
+		for (const key of keys) {
+			delete fieldErrors[key];
+			localConfig[key] = settingsStore.config[key];
 		}
 	}
 
@@ -295,6 +311,8 @@
 </script>
 
 {#snippet preferenceFields(fields: SettingsFieldConfig[], title: string)}
+	{@const keys = getPreferenceKeys(fields)}
+
 	<SettingsChatFields
 		errors={fieldErrors}
 		{fields}
@@ -305,9 +323,9 @@
 	/>
 
 	<SettingsResetButton
-		hasDraftChanges={fields.some((field) => Boolean(fieldErrors[field.key]))}
-		keys={fields.map((field) => field.key)}
-		onReset={() => handleSectionReset(fields)}
+		hasDraftChanges={keys.some((key) => Boolean(fieldErrors[key]))}
+		{keys}
+		onReset={() => handleSectionReset(keys)}
 		sectionTitle={title}
 	/>
 {/snippet}
