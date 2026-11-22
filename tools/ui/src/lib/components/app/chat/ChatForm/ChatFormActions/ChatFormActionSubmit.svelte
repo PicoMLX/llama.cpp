@@ -18,6 +18,7 @@
 
 {#snippet submitButton(props = {})}
 	<Button
+		{...props}
 		class={[
 			'md:h-8 md:w-8 h-9 w-9 rounded-full p-0',
 			showErrorState &&
@@ -25,7 +26,6 @@
 		]}
 		disabled={isDisabled}
 		type="submit"
-		{...props}
 	>
 		<span class="sr-only">{t('chat.form.send')}</span>
 
@@ -36,7 +36,9 @@
 {#if tooltipLabel}
 	<Tooltip.Root>
 		<Tooltip.Trigger>
-			{@render submitButton()}
+			{#snippet child({ props })}
+				{@render submitButton(props)}
+			{/snippet}
 		</Tooltip.Trigger>
 
 		<Tooltip.Content>

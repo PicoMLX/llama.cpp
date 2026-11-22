@@ -14,16 +14,31 @@
 		ROUTES,
 		SYSTEM_MESSAGE_PLACEHOLDER
 	} from '$lib/constants';
+	import { IS_PICO_BUILD } from '$lib/constants/app.constants';
 	import { setChatMessageActionsContext, setChatMessageEditContext } from '$lib/contexts';
-	import { AgenticSectionType, AttachmentType, MessageRole, MessageType } from '$lib/enums';
+	import {
+		AgenticSectionType,
+		AttachmentType,
+		ErrorDialogType,
+		MessageRole,
+		MessageType
+	} from '$lib/enums';
 	import { DatabaseService } from '$lib/services/database.service';
-	import { chatStore, conversationsStore, deviceStore } from '$lib/stores';
+	import {
+		agenticStore,
+		chatStore,
+		conversationsStore,
+		deviceStore,
+		settingsStore
+	} from '$lib/stores';
+	import { chatStorageStore } from '$lib/stores/chat-storage.svelte';
 	import type {
 		ChatMessageActions,
 		ChatMessageDeletionInfo,
 		DatabaseMessageExtraMcpPrompt
 	} from '$lib/types';
 	import { deriveAgenticSections } from '$lib/utils';
+	import { ApiError } from '$lib/utils/api-fetch';
 	import { parseFilesToMessageExtras } from '$lib/utils/browser-only';
 
 	interface Props {
@@ -112,7 +127,11 @@
 	let editedUploadedFiles = $state<ChatUploadedFile[]>([]);
 	let isEditing = $state(false);
 	// the message's version when the edit began, sent with the save so an edit made elsewhere since is not overwritten
-	let editVersion: Promise<number | undefined> = Promise.resolve(undefined);
+	let editVersion: Promise<{ version: number | undefined } | { error: unknown }> = Promise.resolve({
+		version: undefined
+	});
+	let editOnServer = false;
+	let editAccount = '';
 	let showDeleteDialog = $state(false);
 	let showForkDialog = $state(false);
 	let shouldBranchAfterEdit = $state(false);
@@ -123,6 +142,9 @@
 
 	setChatMessageEditContext({
 		cancel: handleCancelEdit,
+		get conversationId() {
+			return message.convId;
+		},
 		get editedContent() {
 			return editedContent;
 		},
@@ -231,19 +253,31 @@
 	});
 
 	async function handleCancelEdit() {
-		isEditing = false;
-
-		// If canceling a new system message with placeholder content, remove it without deleting children
 		if (message.role === MessageRole.SYSTEM && message.content === SYSTEM_MESSAGE_PLACEHOLDER) {
-			const conversationDeleted = await chatStore.removeSystemPromptPlaceholder(message.id);
+			try {
+				const version = await versionForSave();
 
-			if (conversationDeleted) {
-				goto(ROUTES.START);
+				if (editOnServer) {
+					if (!canEditOrigin()) return;
+
+					await saveSystemContent('', version);
+				} else {
+					const conversationDeleted = await chatStore.removeSystemPromptPlaceholder(message.id);
+
+					if (conversationDeleted) goto(ROUTES.START);
+				}
+			} catch (error) {
+				if (editOnServer && error instanceof ApiError && error.code === 'stale_version') {
+					isEditing = false;
+				}
+
+				showEditError(error);
+
+				return;
 			}
-
-			return;
 		}
 
+		isEditing = false;
 		editedContent =
 			message.role === MessageRole.ASSISTANT
 				? rawEditContent || message.content || ''
@@ -294,8 +328,15 @@
 	}
 
 	function handleEdit() {
+		if (!canEditOrigin()) return;
+
 		isEditing = true;
-		editVersion = DatabaseService.versionForEdit(message).catch(() => undefined);
+		editOnServer = chatStorageStore.isServer;
+		editAccount = String(settingsStore.config.apiKey ?? '').trim();
+		editVersion = DatabaseService.versionForEdit(message).then(
+			(version) => ({ version }),
+			(error: unknown) => ({ error })
+		);
 
 		// Clear temporary placeholder content for system messages
 		if (message.role === MessageRole.SYSTEM && message.content === SYSTEM_MESSAGE_PLACEHOLDER) {
@@ -349,57 +390,42 @@
 	}
 
 	async function handleSaveEdit() {
-		if (message.role === MessageRole.SYSTEM) {
-			// System messages: update in place without branching
-			const newContent = editedContent.trim();
+		if (!canEditOrigin()) return;
 
-			// If content is empty, remove without deleting children
-			if (!newContent) {
-				const conversationDeleted = await chatStore.removeSystemPromptPlaceholder(message.id);
+		try {
+			const version = await versionForSave();
 
-				isEditing = false;
+			if (!canEditOrigin()) return;
 
-				if (conversationDeleted) {
-					goto(ROUTES.START);
+			if (message.role === MessageRole.SYSTEM) {
+				const newContent = editedContent.trim();
+
+				if (!newContent && !editOnServer) {
+					const conversationDeleted = await chatStore.removeSystemPromptPlaceholder(message.id);
+
+					if (conversationDeleted) {
+						goto(ROUTES.START);
+					} else {
+						focusMainChatForm();
+					}
 				} else {
+					await saveSystemContent(newContent, version);
 					focusMainChatForm();
 				}
+			} else if (message.role === MessageRole.USER) {
+				const finalExtras = await getMergedExtras();
 
-				return;
+				if (!canEditOrigin()) return;
+
+				chatActions.editWithBranching(message, editedContent.trim(), finalExtras, version);
+			} else {
+				// Keep trailing whitespace for Continue.
+				chatActions.editWithReplacement(message, editedContent, shouldBranchAfterEdit, version);
 			}
+		} catch (error) {
+			showEditError(error);
 
-			try {
-				await DatabaseService.updateMessage(
-					message.id,
-					{ content: newContent },
-					{ ifVersion: await editVersion }
-				);
-			} catch (error) {
-				console.error('Failed to save system message:', error);
-
-				return;
-			}
-
-			const index = conversationsStore.findMessageIndex(message.id);
-
-			if (index !== -1) {
-				conversationsStore.updateMessageAtIndex(index, { content: newContent });
-			}
-
-			focusMainChatForm();
-		} else if (message.role === MessageRole.USER) {
-			const finalExtras = await getMergedExtras();
-
-			chatActions.editWithBranching(message, editedContent.trim(), finalExtras, await editVersion);
-		} else {
-			// For assistant messages, preserve exact content including trailing whitespace
-			// This is important for the Continue feature to work properly
-			chatActions.editWithReplacement(
-				message,
-				editedContent,
-				shouldBranchAfterEdit,
-				await editVersion
-			);
+			return;
 		}
 
 		isEditing = false;
@@ -408,20 +434,71 @@
 	}
 
 	async function handleSaveEditOnly() {
-		if (message.role === MessageRole.USER) {
-			// For user messages, trim to avoid accidental whitespace
-			const finalExtras = await getMergedExtras();
+		if (!canEditOrigin()) return;
 
-			chatActions.editUserMessagePreserveResponses(
-				message,
-				editedContent.trim(),
-				finalExtras,
-				await editVersion
-			);
+		try {
+			if (message.role === MessageRole.USER) {
+				const finalExtras = await getMergedExtras();
+				const version = await versionForSave();
+
+				if (!canEditOrigin()) return;
+
+				chatActions.editUserMessagePreserveResponses(
+					message,
+					editedContent.trim(),
+					finalExtras,
+					version
+				);
+			}
+		} catch (error) {
+			showEditError(error);
+
+			return;
 		}
 
 		isEditing = false;
 		editedUploadedFiles = [];
+	}
+
+	async function versionForSave(): Promise<number | undefined> {
+		const result = await editVersion;
+
+		if ('error' in result) throw result.error;
+
+		if (editOnServer && editAccount !== String(settingsStore.config.apiKey ?? '').trim()) {
+			throw new Error('Chat storage changed. Reopen the message before saving.');
+		}
+
+		if (editOnServer !== chatStorageStore.isServer)
+			throw new Error('Chat storage changed. Reopen the message before saving.');
+
+		if (editOnServer && result.version === undefined)
+			throw new Error('The message version is unavailable. Reopen the message before saving.');
+
+		return result.version;
+	}
+
+	async function saveSystemContent(content: string, version: number | undefined) {
+		await DatabaseService.updateMessage(message.id, { content }, { ifVersion: version });
+		const index = conversationsStore.findMessageIndex(message.id);
+
+		if (index !== -1) conversationsStore.updateMessageAtIndex(index, { content });
+	}
+
+	function showEditError(error: unknown) {
+		chatStore.showErrorDialog({
+			message: error instanceof Error ? error.message : String(error),
+			type: ErrorDialogType.SERVER
+		});
+	}
+
+	function canEditOrigin(): boolean {
+		return (
+			!IS_PICO_BUILD ||
+			(!chatStore.isChatLoadingInternal(message.convId) &&
+				!agenticStore.isRunning(message.convId) &&
+				!chatStore.activity.isRemote(message.convId))
+		);
 	}
 
 	async function getMergedExtras(): Promise<DatabaseMessageExtra[]> {

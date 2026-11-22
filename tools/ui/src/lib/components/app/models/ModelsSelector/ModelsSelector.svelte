@@ -29,6 +29,7 @@
 		currentModel?: string | null;
 		disabled?: boolean;
 		forceForegroundText?: boolean;
+		header?: boolean;
 		onModelChange?: (modelId: string, modelName: string) => Promise<boolean> | boolean | void;
 		useGlobalSelection?: boolean;
 	}
@@ -37,6 +38,7 @@
 		currentModel = null,
 		disabled = false,
 		forceForegroundText = false,
+		header = false,
 		onModelChange,
 		useGlobalSelection = false
 	}: Props = $props();
@@ -51,7 +53,7 @@
 	let isOpen = $state(false);
 	let highlightedId = $state<string | null>(null);
 
-	const formModel = useChatFormModel();
+	const formModel = useChatFormModel({ synchronizeSelection: () => !IS_PICO_BUILD });
 
 	// the store's pick wins while it differs from the conversation's model: the
 	// trigger follows the model the user just picked, whose load state and
@@ -105,6 +107,8 @@
 
 	// Keyboard navigation follows the on-screen row order, not the flat option list order.
 	let visualOrder = $derived.by(() => {
+		if (IS_PICO_BUILD) return ms.filteredOptions.map((option) => option.id);
+
 		const order: string[] = [];
 
 		for (const item of ms.favoriteItems) order.push(item.option.id);
@@ -139,7 +143,7 @@
 
 	// Alt+Enter only unloads and keeps the picker open.
 	async function handleModelKeyAction(modelId: string, unload: boolean) {
-		if (!unload) {
+		if (IS_PICO_BUILD || !unload) {
 			void ms.handleSelect(modelId);
 
 			return;
@@ -179,6 +183,18 @@
 		untrack(() => {
 			if (isOpen) ms.handleOpenChange(false);
 		});
+	});
+
+	let lastOpenSignal = untrack(() => uiStore.modelsSelectorOpenSignal);
+
+	$effect(() => {
+		const signal = uiStore.modelsSelectorOpenSignal;
+
+		if (signal === lastOpenSignal) return;
+
+		lastOpenSignal = signal;
+
+		if (IS_PICO_BUILD && useGlobalSelection) untrack(() => ms.handleOpenChange(true));
 	});
 
 	// bits-ui auto-focuses the opened content, which can yank the page scroll: the
@@ -239,7 +255,8 @@
 
 {#snippet modelOption(item: ModelItem, hideOrgName: boolean)}
 	{@const { option } = item}
-	{@const isSelected = ms.activeId === option.id}
+	{@const isSelected =
+		ms.activeId === option.id || (IS_PICO_BUILD && displayModel === option.model)}
 	{@const isHighlighted = option.id === highlightedId}
 	{@const isFav = ms.isFavorite(option.model)}
 
@@ -257,6 +274,7 @@
 		onMouseEnter={() => (highlightedId = option.id)}
 		onSelect={ms.handleSelect}
 		{option}
+		showVariant={ms.ambiguousModelIds.has(option.id)}
 	/>
 {/snippet}
 
@@ -297,33 +315,52 @@
 			renderOption={modelOption}
 			sectionHeaderClass="[&:not(:first-child)]:mt-2 mb-1 px-2 py-2.5 text-sm font-semibold text-foreground/80 select-none"
 			{showOrgName}
+			simpleOptions={IS_PICO_BUILD ? ms.filteredOptions : undefined}
 		/>
 	</div>
 {/snippet}
 
-{#if ms.loading && ms.options.length === 0 && ms.isMultiModel}
+{#snippet manageModelsFooter()}
+	<button
+		class="w-full rounded-md px-3 py-3 text-left text-sm hover:bg-accent"
+		onclick={() => {
+			ms.handleOpenChange(false);
+			uiStore.openModelsManager();
+		}}
+		type="button">Manage models</button
+	>
+{/snippet}
+
+{#if ms.loading && ms.options.length === 0 && (ms.isMultiModel || IS_PICO_BUILD)}
 	<div class="flex items-center gap-2 text-xs text-muted-foreground">
 		<Loader2 class="h-3.5 w-3.5 animate-spin" />
 
 		Loading models...
 	</div>
-{:else if ms.options.length === 0 && ms.isMultiModel}
+{:else if ms.options.length === 0 && (ms.isMultiModel || IS_PICO_BUILD)}
 	{#if displayModel}
 		<span
 			class="inline-flex items-center gap-1.5 rounded-sm bg-muted-foreground/10 px-1.5 py-1 text-xs text-muted-foreground"
 			style="max-width: min(calc(100cqw - 10rem), 48rem)"
 		>
-			<MODEL_ICON class="h-3.5 w-3.5 shrink-0" />
+			{#if IS_PICO_BUILD}
+				<ModelId hideOrgName hideQuantization hideTags modelId={displayModel} />
+			{:else}
+				<MODEL_ICON class="h-3.5 w-3.5 shrink-0" />
+			{/if}
 		</span>
 	{:else}
 		<span class="text-xs text-muted-foreground"
 			>{IS_PICO_BUILD ? t('pico.models.empty') : 'No models yet.'}</span
 		>
 	{/if}
-{:else if ms.isMultiModel}
+{:else if ms.isMultiModel || IS_PICO_BUILD}
 	{#if isMobile}
 		<button
-			class="relative inline-grid cursor-pointer grid-cols-[1fr_auto_1fr] items-center gap-1 rounded-sm bg-background px-1.5 py-1 text-xs shadow-sm transition hover:bg-muted-foreground/20 max-md:gap-1.5 max-md:h-7 max-md:px-2.25 max-md:py-1 max-md:text-[13px] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-muted-foreground/15 dark:text-secondary-foreground"
+			aria-label={header ? 'Model for the next response' : undefined}
+			class={header
+				? 'relative inline-flex min-h-11 min-w-11 cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-base hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60'
+				: 'relative inline-grid cursor-pointer grid-cols-[1fr_auto_1fr] items-center gap-1 rounded-sm bg-background px-1.5 py-1 text-xs shadow-sm transition hover:bg-muted-foreground/20 max-md:gap-1.5 max-md:h-7 max-md:px-2.25 max-md:py-1 max-md:text-[13px] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-muted-foreground/15 dark:text-secondary-foreground'}
 			disabled={disabled || ms.updating}
 			onclick={() => ms.handleOpenChange(true)}
 			style="max-width: min(calc(100vw-4rem), 32rem)"
@@ -335,6 +372,7 @@
 		<ModelsSelectorDrawer
 			bind:open={isOpen}
 			emptyMessage={ms.emptyMessage}
+			footer={IS_PICO_BUILD ? manageModelsFooter : undefined}
 			isEmpty={ms.isEmpty && ms.isCurrentModelInCache}
 			onOpenChange={ms.handleOpenChange}
 			onSearchChange={(v) => ms.setSearchTerm(v)}
@@ -348,6 +386,7 @@
 			bind:open={isOpen}
 			currentModel={displayModel}
 			disabled={disabled || isOffline}
+			{header}
 			{highlightedId}
 			{ms}
 			onHighlight={(id) => (highlightedId = id)}

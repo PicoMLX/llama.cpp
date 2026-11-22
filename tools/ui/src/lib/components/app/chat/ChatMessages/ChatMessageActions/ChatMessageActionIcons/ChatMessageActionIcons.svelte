@@ -60,6 +60,16 @@
 		if (!messageActions.showForkDialog) return;
 
 		untrack(() => {
+			if (IS_PICO_BUILD) {
+				messageActions.setShowForkDialog(false);
+				messageActions.forkConversation?.({
+					includeAttachments: true,
+					name: `Branch of ${conversationsStore.activeConversation?.name ?? 'Conversation'}`
+				});
+
+				return;
+			}
+
 			forkName = `Fork of ${conversationsStore.activeConversation?.name ?? 'Conversation'}`;
 			forkIncludeAttachments = true;
 		});
@@ -155,41 +165,43 @@
 	variant="destructive"
 />
 
-<DialogConfirmation
-	cancelText="Cancel"
-	confirmText={IS_PICO_BUILD ? 'Create chat' : 'Fork'}
-	description="Create a new conversation branching from this message."
-	icon={GitBranch}
-	onCancel={() => messageActions.setShowForkDialog(false)}
-	onConfirm={handleConfirmFork}
-	open={messageActions.showForkDialog}
-	title={IS_PICO_BUILD ? 'Branch into new chat' : 'Fork Conversation'}
->
-	<div class="flex flex-col gap-4 py-2">
-		<div class="flex flex-col gap-2">
-			<Label for="fork-name">Title</Label>
+{#if !IS_PICO_BUILD}
+	<DialogConfirmation
+		cancelText="Cancel"
+		confirmText="Fork"
+		description="Create a new conversation branching from this message."
+		icon={GitBranch}
+		onCancel={() => messageActions.setShowForkDialog(false)}
+		onConfirm={handleConfirmFork}
+		open={messageActions.showForkDialog}
+		title="Fork Conversation"
+	>
+		<div class="flex flex-col gap-4 py-2">
+			<div class="flex flex-col gap-2">
+				<Label for="fork-name">Title</Label>
 
-			<Input
-				bind:value={forkName}
-				class="text-foreground"
-				id="fork-name"
-				placeholder="Enter fork name"
-				type="text"
-			/>
+				<Input
+					bind:value={forkName}
+					class="text-foreground"
+					id="fork-name"
+					placeholder="Enter fork name"
+					type="text"
+				/>
+			</div>
+
+			<div class="flex items-center gap-2">
+				<Checkbox
+					checked={forkIncludeAttachments}
+					id="fork-attachments"
+					onCheckedChange={(checked) => {
+						forkIncludeAttachments = checked === true;
+					}}
+				/>
+
+				<Label class="cursor-pointer text-sm font-normal" for="fork-attachments">
+					Include all attachments
+				</Label>
+			</div>
 		</div>
-
-		<div class="flex items-center gap-2">
-			<Checkbox
-				checked={forkIncludeAttachments}
-				id="fork-attachments"
-				onCheckedChange={(checked) => {
-					forkIncludeAttachments = checked === true;
-				}}
-			/>
-
-			<Label class="cursor-pointer text-sm font-normal" for="fork-attachments">
-				Include all attachments
-			</Label>
-		</div>
-	</div>
-</DialogConfirmation>
+	</DialogConfirmation>
+{/if}

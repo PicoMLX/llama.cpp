@@ -102,6 +102,10 @@
 		onSystemPromptAdd?.({ files: uploadedFiles, message });
 	}
 
+	export function editInstructions() {
+		handleSystemPromptClick();
+	}
+
 	function handleUploadedFileRemove(fileId: string) {
 		onFileRemove?.(fileId);
 	}

@@ -10,19 +10,20 @@
 		ModelsSelector
 	} from '$lib/components/app';
 	import { Button } from '$lib/components/ui/button';
-	import { ICON_CLASS_DEFAULT } from '$lib/constants';
+	import { ICON_CLASS_DEFAULT, IS_PICO_BUILD } from '$lib/constants';
 	import { setChatFormActionsContext } from '$lib/contexts';
 	import { FileTypeCategory, MessageRole } from '$lib/enums';
 	import { useChatFormModel } from '$lib/hooks/use-chat-form-model.svelte';
 	import { t } from '$lib/i18n';
 	import { ChatService } from '$lib/services';
-	import { chatStore, conversationsStore, settingsStore } from '$lib/stores';
+	import { chatStore, conversationsStore, settingsStore, uiStore } from '$lib/stores';
 	import { getFileTypeCategory } from '$lib/utils';
 
 	interface Props {
 		canSend?: boolean;
 		class?: string;
 		disabled?: boolean;
+		hideSubmitButton?: boolean;
 		isLoading?: boolean;
 		isReasoning?: boolean;
 		isRecording?: boolean;
@@ -39,6 +40,7 @@
 		canSend = false,
 		class: className = '',
 		disabled = false,
+		hideSubmitButton = false,
 		isLoading = false,
 		isReasoning = false,
 		isRecording = false,
@@ -53,7 +55,9 @@
 
 	let currentConfig = $derived(settingsStore.config);
 
-	const formModel = useChatFormModel();
+	const formModel = useChatFormModel({
+		synchronizeSelection: () => !IS_PICO_BUILD || showModelSelector
+	});
 
 	let hasAudioModality = $derived(formModel.hasAudioModality);
 	let hasVideoModality = $derived(formModel.hasVideoModality);
@@ -78,7 +82,11 @@
 	let selectorModelRef: ModelsSelector | undefined = $state(undefined);
 
 	export function openModelSelector() {
-		selectorModelRef?.open();
+		if (IS_PICO_BUILD) {
+			uiStore.openModelsSelector();
+		} else {
+			selectorModelRef?.open();
+		}
 	}
 	// the streaming assistant message carries both the completion id and the model that
 	// produced it, targeting reasoning control from the same source keeps them consistent
@@ -155,27 +163,33 @@
 	{#if showAddButton}
 		<div class="mr-auto flex items-center gap-2">
 			<ChatFormActionsAdd />
+
+			{#if IS_PICO_BUILD && showModelSelector}
+				<ChatFormActionReasoning />
+			{/if}
 		</div>
 	{/if}
 
-	<div class="flex items-center gap-1.5">
-		{#if hasProcessedTokens}
-			<ChatFormContextGauge />
-		{/if}
+	{#if !IS_PICO_BUILD}
+		<div class="flex items-center gap-1.5">
+			{#if hasProcessedTokens}
+				<ChatFormContextGauge />
+			{/if}
 
-		{#if showModelSelector}
-			<ChatFormActionReasoning />
+			{#if showModelSelector}
+				<ChatFormActionReasoning />
 
-			<ModelsSelector
-				bind:this={selectorModelRef}
-				{disabled}
-				forceForegroundText
-				useGlobalSelection
-			/>
-		{/if}
-	</div>
+				<ModelsSelector
+					bind:this={selectorModelRef}
+					{disabled}
+					forceForegroundText
+					useGlobalSelection
+				/>
+			{/if}
+		</div>
+	{/if}
 
-	{#if isReasoning && !canSend}
+	{#if !hideSubmitButton && isReasoning && !canSend}
 		<Button
 			class="group h-8 w-8 rounded-full p-0 max-md:h-9 max-md:w-9"
 			onclick={() =>
@@ -192,27 +206,29 @@
 		</Button>
 	{/if}
 
-	{#if isLoading && !canSend}
-		<Button
-			class="group h-8 w-8 rounded-full p-0 max-md:h-9 max-md:w-9 hover:bg-destructive/10!"
-			onclick={onStop}
-			type="button"
-			variant="secondary"
-		>
-			<span class="sr-only">{t('chat.form.stop')}</span>
+	{#if !hideSubmitButton}
+		{#if isLoading && !canSend}
+			<Button
+				class="group h-8 w-8 rounded-full p-0 max-md:h-9 max-md:w-9 hover:bg-destructive/10!"
+				onclick={onStop}
+				type="button"
+				variant="secondary"
+			>
+				<span class="sr-only">{t('chat.form.stop')}</span>
 
-			<Square
-				class="h-8 w-8 fill-muted-foreground stroke-muted-foreground group-hover:fill-destructive group-hover:stroke-destructive hover:fill-destructive hover:stroke-destructive"
+				<Square
+					class="h-8 w-8 fill-muted-foreground stroke-muted-foreground group-hover:fill-destructive group-hover:stroke-destructive hover:fill-destructive hover:stroke-destructive"
+				/>
+			</Button>
+		{:else if shouldShowRecordButton}
+			<ChatFormActionRecord {disabled} {hasAudioModality} {isLoading} {isRecording} {onMicClick} />
+		{:else}
+			<ChatFormActionSubmit
+				canSend={canSend && (showModelSelector ? hasModelSelected && isSelectedModelInCache : true)}
+				{disabled}
+				showErrorState={showModelSelector && hasModelSelected && !isSelectedModelInCache}
+				tooltipLabel={submitTooltip}
 			/>
-		</Button>
-	{:else if shouldShowRecordButton}
-		<ChatFormActionRecord {disabled} {hasAudioModality} {isLoading} {isRecording} {onMicClick} />
-	{:else}
-		<ChatFormActionSubmit
-			canSend={canSend && (showModelSelector ? hasModelSelected && isSelectedModelInCache : true)}
-			{disabled}
-			showErrorState={showModelSelector && hasModelSelected && !isSelectedModelInCache}
-			tooltipLabel={submitTooltip}
-		/>
+		{/if}
 	{/if}
 </div>

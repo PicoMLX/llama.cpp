@@ -2,6 +2,7 @@
 	import { Lightbulb } from '@lucide/svelte';
 	import { CollapsibleContentBlock, MarkdownContent } from '$lib/components/app';
 	import { REASONING_SCROLL_AT_BOTTOM_THRESHOLD_PX } from '$lib/constants';
+	import { IS_PICO_BUILD } from '$lib/constants/app.constants';
 	import { AgenticSectionType } from '$lib/enums';
 	import { settingsStore } from '$lib/stores';
 	import type { AgenticSection, DatabaseMessageExtra } from '$lib/types';
@@ -26,8 +27,8 @@
 
 	const currentConfig = settingsStore.config;
 
-	const REASONING_HEADER = 'Reasoning';
-	const REASONING_HEADER_PENDING = 'Reasoning...';
+	const REASONING_HEADER = IS_PICO_BUILD ? 'Thinking' : 'Reasoning';
+	const REASONING_HEADER_PENDING = IS_PICO_BUILD ? 'Thinking...' : 'Reasoning...';
 	const REASONING_SUBTITLE_ERROR = 'Error';
 	const REASONING_SUBTITLE_CANCELLED = 'Cancelled';
 

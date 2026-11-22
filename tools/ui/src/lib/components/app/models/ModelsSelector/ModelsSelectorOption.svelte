@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ModelLoadHighlight from '../ModelLoadHighlight.svelte';
+	import { Check, Loader2 } from '@lucide/svelte';
 	import {
 		ModelAvatar,
 		ModelCapabilities,
@@ -7,8 +8,8 @@
 		ModelLoadControl,
 		ModelRowActions
 	} from '$lib/components/app';
-	import { SETTINGS_KEYS } from '$lib/constants';
-	import { ServerModelStatus } from '$lib/enums';
+	import { IS_PICO_BUILD, SETTINGS_KEYS } from '$lib/constants';
+	import { ModelCapability, ServerModelStatus } from '$lib/enums';
 	import { modelsStore, settingsStore } from '$lib/stores';
 	import type { ModelOption } from '$lib/types/models';
 	import { modelLoadFraction, modelLoadProgressText } from '$lib/utils';
@@ -19,6 +20,7 @@
 		isHighlighted: boolean;
 		isFav: boolean;
 		hideOrgName?: boolean;
+		showVariant?: boolean;
 		onSelect: (modelId: string) => void;
 		onMouseEnter: () => void;
 		onKeyDown: (e: KeyboardEvent) => void;
@@ -32,7 +34,8 @@
 		onKeyDown,
 		onMouseEnter,
 		onSelect,
-		option
+		option,
+		showVariant = false
 	}: Props = $props();
 
 	let serverStatus = $derived(modelsStore.getModelStatus(option.model));
@@ -49,10 +52,18 @@
 	let showCapabilities = $derived(
 		settingsStore.config[SETTINGS_KEYS.SHOW_MODEL_CAPABILITIES_IN_SELECTOR] ?? false
 	);
+	let capabilityLabel = $derived(
+		[
+			...(modalities?.vision ? ['Images'] : []),
+			...(modalities?.audio ? ['Audio'] : []),
+			...(option.capabilities.includes(ModelCapability.REASONING) ? ['Thinking'] : []),
+			...(option.capabilities.includes(ModelCapability.TOOL_USE) ? ['Tools'] : [])
+		].join(' / ')
+	);
 </script>
 
 <div
-	aria-selected={isSelected || isHighlighted}
+	aria-selected={IS_PICO_BUILD ? isSelected : isSelected || isHighlighted}
 	class={[
 		'group relative flex w-full items-center gap-2 rounded-sm p-2 text-left text-sm transition focus:outline-none',
 		'cursor-pointer',
@@ -65,7 +76,7 @@
 		(isSelected || isHighlighted) && 'text-accent-foreground',
 		'hover:bg-accent',
 		'focus:bg-accent',
-		isLoaded ? 'text-popover-foreground' : 'text-muted-foreground'
+		IS_PICO_BUILD || isLoaded ? 'text-popover-foreground' : 'text-muted-foreground'
 	]}
 	onclick={() => onSelect(option.id)}
 	onkeydown={onKeyDown}
@@ -74,30 +85,50 @@
 	tabindex="0"
 	title={loadTitle}
 >
-	<ModelAvatar {option} size="size-5 max-md:size-7" />
+	{#if !IS_PICO_BUILD}
+		<ModelAvatar {option} size="size-5 max-md:size-7" />
+	{/if}
 
-	<ModelId
-		aliases={option.aliases}
-		class="min-w-0 flex-1"
-		draftSidecars={option.draftSidecars}
-		hideCapabilities
-		hideModalities
-		{hideOrgName}
-		{modalities}
-		modelId={option.model}
-		tags={option.tags}
-		title={option.model}
-	/>
+	<div class={IS_PICO_BUILD ? 'min-w-0 flex-1' : 'contents'}>
+		<ModelId
+			aliases={option.aliases}
+			class="min-w-0 flex-1"
+			draftSidecars={IS_PICO_BUILD && !showVariant ? undefined : option.draftSidecars}
+			hideCapabilities
+			hideModalities
+			hideOrgName={IS_PICO_BUILD ? !showVariant : hideOrgName}
+			hideQuantization={IS_PICO_BUILD ? !showVariant : undefined}
+			hideTags={IS_PICO_BUILD ? !showVariant : undefined}
+			{modalities}
+			modelId={option.model}
+			tags={option.tags}
+			title={option.model}
+		/>
 
-	{#if showCapabilities}
+		{#if IS_PICO_BUILD && capabilityLabel}
+			<p class="mt-0.5 text-xs text-muted-foreground">{capabilityLabel}</p>
+		{/if}
+	</div>
+
+	{#if !IS_PICO_BUILD && showCapabilities}
 		<ModelCapabilities {option} />
 	{/if}
 
-	<div class="flex shrink-0 items-center gap-1 max-md:gap-2.5">
-		<ModelRowActions {isFav} {option} />
+	{#if IS_PICO_BUILD}
+		{#if isLoading}
+			<Loader2 aria-label="Loading model" class="size-4 shrink-0 animate-spin" />
+		{:else if isFailed}
+			<span class="shrink-0 text-xs text-destructive">Load failed</span>
+		{:else if isSelected}
+			<Check aria-label="Selected" class="size-4 shrink-0" />
+		{/if}
+	{:else}
+		<div class="flex shrink-0 items-center gap-1 max-md:gap-2.5">
+			<ModelRowActions {isFav} {option} />
 
-		<ModelLoadControl {isFailed} {isLoaded} {isLoading} {isSleeping} {option} />
-	</div>
+			<ModelLoadControl {isFailed} {isLoaded} {isLoading} {isSleeping} {option} />
+		</div>
+	{/if}
 
 	{#if isLoading}
 		<ModelLoadHighlight percent={loadPercent} />

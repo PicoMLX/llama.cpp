@@ -14,6 +14,7 @@
 		CLIPBOARD_CONTENT_QUOTE_PREFIX,
 		INITIAL_FILE_SIZE,
 		INPUT_CLASSES,
+		IS_PICO_BUILD,
 		PROMPT_CONTENT_SEPARATOR,
 		SETTING_CONFIG_DEFAULT
 	} from '$lib/constants';
@@ -73,6 +74,7 @@
 		// UI State
 		class?: string;
 		disabled?: boolean;
+		hideSubmitButton?: boolean;
 		isLoading?: boolean;
 		placeholder?: string;
 		showAddButton?: boolean;
@@ -93,6 +95,7 @@
 		attachments = [],
 		class: className = '',
 		disabled = false,
+		hideSubmitButton = false,
 		isLoading = false,
 		onAttachmentRemove,
 		onFilesAdd,
@@ -213,7 +216,13 @@
 	let activeModelId = $derived(modelsStore.activeModelId);
 
 	let hasModelSelected = $derived(
-		!isRouter || !!conversationModel || !!modelsStore.selectedModelId
+		!isRouter ||
+			(IS_PICO_BUILD
+				? !!activeModelId &&
+					modelsStore.models.some(
+						(model) => model.id === activeModelId || model.model === activeModelId
+					)
+				: !!conversationModel || !!modelsStore.selectedModelId)
 	);
 	let hasLoadingAttachments = $derived(uploadedFiles.some((f) => f.isLoading));
 	let hasAttachments = $derived(
@@ -274,6 +283,10 @@
 		}
 
 		return true;
+	}
+
+	export function isReadyToSubmit(requireModel = false): boolean {
+		return canSubmit && !disabled && !hasLoadingAttachments && (!requireModel || hasModelSelected);
 	}
 
 	function handleFileSelect(files: File[]) {
@@ -637,6 +650,7 @@
 				canSend={canSubmit}
 				class="px-3"
 				{disabled}
+				{hideSubmitButton}
 				{isLoading}
 				isReasoning={chatStore.isReasoning}
 				{isRecording}
@@ -651,7 +665,9 @@
 		</div>
 	</div>
 
-	<ContextGaugePopup />
+	{#if !IS_PICO_BUILD}
+		<ContextGaugePopup />
+	{/if}
 
 	{#if conversationsStore.preferences.hasEnabledCwdTools()}
 		<ChatFormCurrentWorkingDirectory

@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { Check, Info, Lightbulb, LightbulbOff } from '@lucide/svelte';
+	import { Check, ChevronDown, Info, Lightbulb, LightbulbOff } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Drawer from '$lib/components/ui/drawer';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import * as Tooltip from '$lib/components/ui/tooltip';
-	import { ICON_CLASS_DEFAULT, REASONING_EFFORT_LABELS } from '$lib/constants';
+	import { ICON_CLASS_DEFAULT, IS_PICO_BUILD, REASONING_EFFORT_LABELS } from '$lib/constants';
 	import { ReasoningEffort } from '$lib/enums';
 	import { useReasoningMenu } from '$lib/hooks/use-reasoning-menu.svelte';
 	import { deviceStore } from '$lib/stores';
@@ -35,7 +35,13 @@
 			<Lightbulb class="size-3.25 max-md:size-4 shrink-0" />
 		{/if}
 
-		{#if !isDefault}
+		{#if IS_PICO_BUILD}
+			<span
+				>Thinking{!isDefault ? `: ${REASONING_EFFORT_LABELS[reasoning.currentEffort]}` : ''}</span
+			>
+
+			<ChevronDown class="size-3 shrink-0" />
+		{:else if !isDefault}
 			<span>{REASONING_EFFORT_LABELS[reasoning.currentEffort]}</span>
 		{/if}
 	</span>
@@ -58,7 +64,7 @@
 
 		<span class="min-w-0 flex-1 truncate">{level.label}</span>
 
-		{#if tokenLabel}
+		{#if tokenLabel && !IS_PICO_BUILD}
 			<span class="shrink-0 text-[11px] text-muted-foreground opacity-60">{tokenLabel}</span>
 		{/if}
 
@@ -70,78 +76,81 @@
 {/snippet}
 
 <!-- the level belongs to the chat, not to the model list -->
-{#if isMobile}
-	<Button
-		aria-label="Reasoning effort"
-		class="h-auto gap-1 rounded-sm bg-transparent! backdrop-blur-none! {isDefault
-			? 'px-1'
-			: 'px-1.75!'} py-1 text-xs max-md:h-8"
-		onclick={() => (isOpen = true)}
-		variant="ghost"
-	>
-		{@render triggerLabel()}
-	</Button>
+{#if !IS_PICO_BUILD || reasoning.modelSupportsThinking}
+	{#if isMobile}
+		<Button
+			aria-label={IS_PICO_BUILD ? 'Thinking' : 'Reasoning effort'}
+			class="h-auto gap-1 rounded-sm bg-transparent! backdrop-blur-none! {isDefault
+				? 'px-1'
+				: 'px-1.75!'} py-1 text-xs max-md:h-8"
+			onclick={() => (isOpen = true)}
+			variant="ghost"
+		>
+			{@render triggerLabel()}
+		</Button>
 
-	<Drawer.Root bind:open={isOpen}>
-		<Drawer.Content>
-			<Drawer.Header>
-				<Drawer.Title>Reasoning effort</Drawer.Title>
-			</Drawer.Header>
+		<Drawer.Root bind:open={isOpen}>
+			<Drawer.Content>
+				<Drawer.Header>
+					<Drawer.Title>{IS_PICO_BUILD ? 'Thinking' : 'Reasoning effort'}</Drawer.Title>
+				</Drawer.Header>
 
-			<div class="flex flex-col px-2 pb-4">
+				<div class="flex flex-col px-2 pb-4">
+					{#each reasoning.levels as level (level.value)}
+						{@render levelRow(level)}
+					{/each}
+				</div>
+			</Drawer.Content>
+		</Drawer.Root>
+	{:else}
+		<DropdownMenu.Root>
+			<DropdownMenu.Trigger>
+				{#snippet child({ props })}
+					<Button
+						{...props}
+						aria-label={IS_PICO_BUILD ? 'Thinking' : 'Reasoning effort'}
+						class="-mr-px h-6 min-w-6 gap-1 rounded-sm bg-transparent backdrop-blur-none! {isDefault
+							? 'px-1'
+							: 'px-1.75!'} py-0 text-xs hover:bg-muted-foreground/15 data-[state=open]:bg-muted-foreground/15"
+						variant="ghost"
+					>
+						{@render triggerLabel()}
+					</Button>
+				{/snippet}
+			</DropdownMenu.Trigger>
+
+			<DropdownMenu.Content align="end" class="min-w-56">
 				{#each reasoning.levels as level (level.value)}
-					{@render levelRow(level)}
+					{@const tokenLabel = reasoning.tokenLabel(level)}
+
+					<DropdownMenu.Item class="gap-3" onSelect={() => reasoning.select(level)}>
+						{#if reasoning.isSelected(level)}
+							<Check class="{ICON_CLASS_DEFAULT} shrink-0 text-foreground" />
+						{:else}
+							<div class="{ICON_CLASS_DEFAULT} shrink-0"></div>
+						{/if}
+
+						<span class="min-w-0 flex-1 truncate">{level.label}</span>
+
+						{#if tokenLabel && !IS_PICO_BUILD}
+							<span class="shrink-0 text-[11px] text-muted-foreground opacity-60">{tokenLabel}</span
+							>
+						{/if}
+
+						{#if level.hasInfo}
+							<Tooltip.Root>
+								<Tooltip.Trigger>
+									<Info class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+								</Tooltip.Trigger>
+
+								<Tooltip.Content side="right">
+									<p>{MAX_EFFORT_HINT}</p>
+								</Tooltip.Content>
+							</Tooltip.Root>
+						{/if}
+					</DropdownMenu.Item>
 				{/each}
-			</div>
-		</Drawer.Content>
-	</Drawer.Root>
-{:else}
-	<DropdownMenu.Root>
-		<DropdownMenu.Trigger>
-			{#snippet child({ props })}
-				<Button
-					{...props}
-					aria-label="Reasoning effort"
-					class="-mr-px h-6 min-w-6 gap-1 rounded-sm bg-transparent backdrop-blur-none! {isDefault
-						? 'px-1'
-						: 'px-1.75!'} py-0 text-xs hover:bg-muted-foreground/15 data-[state=open]:bg-muted-foreground/15"
-					variant="ghost"
-				>
-					{@render triggerLabel()}
-				</Button>
-			{/snippet}
-		</DropdownMenu.Trigger>
-
-		<DropdownMenu.Content align="end" class="min-w-56">
-			{#each reasoning.levels as level (level.value)}
-				{@const tokenLabel = reasoning.tokenLabel(level)}
-
-				<DropdownMenu.Item class="gap-3" onSelect={() => reasoning.select(level)}>
-					{#if reasoning.isSelected(level)}
-						<Check class="{ICON_CLASS_DEFAULT} shrink-0 text-foreground" />
-					{:else}
-						<div class="{ICON_CLASS_DEFAULT} shrink-0"></div>
-					{/if}
-
-					<span class="min-w-0 flex-1 truncate">{level.label}</span>
-
-					{#if tokenLabel}
-						<span class="shrink-0 text-[11px] text-muted-foreground opacity-60">{tokenLabel}</span>
-					{/if}
-
-					{#if level.hasInfo}
-						<Tooltip.Root>
-							<Tooltip.Trigger>
-								<Info class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-							</Tooltip.Trigger>
-
-							<Tooltip.Content side="right">
-								<p>{MAX_EFFORT_HINT}</p>
-							</Tooltip.Content>
-						</Tooltip.Root>
-					{/if}
-				</DropdownMenu.Item>
-			{/each}
-		</DropdownMenu.Content>
-	</DropdownMenu.Root>
+			</DropdownMenu.Content>
+		</DropdownMenu.Root>
+	{/if}
 {/if}

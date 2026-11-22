@@ -3,7 +3,7 @@
 	import { afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { DialogModelNotAvailable } from '$lib/components/app';
-	import { APP_NAME, ROUTES, URL_PARAMS } from '$lib/constants';
+	import { APP_NAME, IS_PICO_BUILD, ROUTES, URL_PARAMS } from '$lib/constants';
 	import { chatStore, conversationsStore, modelsStore } from '$lib/stores';
 
 	let chatId = $derived(page.params.id);
@@ -73,6 +73,8 @@
 	}
 
 	afterNavigate(() => {
+		if (IS_PICO_BUILD) return;
+
 		setTimeout(() => {
 			void modelsStore.selectModelFromLastAssistantResponse();
 		}, 100);

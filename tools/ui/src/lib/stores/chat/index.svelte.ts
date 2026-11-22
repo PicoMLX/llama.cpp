@@ -28,6 +28,7 @@ import { DatabaseService } from '$lib/services/database.service';
 // direct imports between stores, not via the barrel, to avoid circular deps
 import { agenticStore } from '$lib/stores/agentic/index.svelte';
 import { chatActivityStore } from '$lib/stores/chat/activity.svelte';
+import { draftMessagesStore } from '$lib/stores/chat/drafts.svelte';
 import { type ChatFlowsHost, ChatMessageFlows } from '$lib/stores/chat/flows.svelte';
 import { chatProcessingStore } from '$lib/stores/chat/processing.svelte';
 import { type ChatStreamHost, ChatStreamManager } from '$lib/stores/chat/streams.svelte';
@@ -80,6 +81,8 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 	streamConnectionState = $state<StreamConnectionState>(StreamConnectionState.STREAMING);
 	private abortControllers = new SvelteMap<string, AbortController>();
 	private addFilesHandler: ((files: File[]) => void) | null = $state(null);
+	private editConversationId = $state<string | null>(null);
+	private editModeOwner: symbol | null = null;
 	// message flows: edit, regenerate, continue, delete
 	private flows = new ChatMessageFlows(this);
 	private isEditModeActive = $state(false);
@@ -276,6 +279,8 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 	}
 	clearEditMode(): void {
 		this.isEditModeActive = false;
+		this.editConversationId = null;
+		this.editModeOwner = null;
 		this.addFilesHandler = null;
 	}
 
@@ -603,8 +608,11 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		return this.activity.isCompacting(convId);
 	}
 
-	isEditing(): boolean {
-		return this.isEditModeActive;
+	isEditing(convId?: string): boolean {
+		return (
+			this.isEditModeActive &&
+			(!convId || !this.editConversationId || this.editConversationId === convId)
+		);
 	}
 
 	/** True while the active conversation has a live streaming pipe. */
@@ -703,31 +711,60 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 
 			if (!rootMessage) return false;
 
-			if (allMessages.length === 2 && systemMessage.children.length === 0) {
+			const newChatDraft = draftMessagesStore.getDraftMessage(undefined);
+
+			if (
+				allMessages.length === 2 &&
+				systemMessage.children.length === 0 &&
+				!newChatDraft.message &&
+				newChatDraft.files.length === 0
+			) {
+				if (conversationsStore.activeConversation?.id !== activeConv.id) return false;
+
+				const draft = draftMessagesStore.getDraftMessage(activeConv.id);
+
+				if (draft.message || draft.files.length)
+					draftMessagesStore.saveDraftMessage(undefined, draft.message, draft.files);
+
 				await conversationsStore.deleteConversation(activeConv.id);
+				draftMessagesStore.clearDraftMessage(activeConv.id);
 
 				return true;
 			}
 
+			const parentMessage = allMessages.find((message) => message.id === systemMessage.parent);
+
+			if (!parentMessage) return false;
+
 			for (const childId of systemMessage.children) {
-				await DatabaseService.updateMessage(childId, { parent: rootMessage.id });
+				await DatabaseService.updateMessage(childId, { parent: parentMessage.id });
 				const childIndex = conversationsStore.findMessageIndex(childId);
 
 				if (childIndex !== -1)
-					conversationsStore.updateMessageAtIndex(childIndex, { parent: rootMessage.id });
+					conversationsStore.updateMessageAtIndex(childIndex, { parent: parentMessage.id });
 			}
-			await DatabaseService.updateMessage(rootMessage.id, {
-				children: [
-					...rootMessage.children.filter((id: string) => id !== messageId),
-					...systemMessage.children
-				]
-			});
+			const children = parentMessage.children.flatMap((id: string) =>
+				id === messageId ? systemMessage.children : [id]
+			);
+
+			await DatabaseService.updateMessage(parentMessage.id, { children });
+			const parentIndex = conversationsStore.findMessageIndex(parentMessage.id);
+
+			if (parentIndex !== -1) conversationsStore.updateMessageAtIndex(parentIndex, { children });
+
+			if (activeConv.currNode === messageId) {
+				await DatabaseService.updateConversation(activeConv.id, { currNode: parentMessage.id });
+
+				if (conversationsStore.activeConversation?.id === activeConv.id)
+					conversationsStore.activeConversation.currNode = parentMessage.id;
+			}
+
 			await DatabaseService.deleteMessage(messageId);
 			const systemIndex = conversationsStore.findMessageIndex(messageId);
 
 			if (systemIndex !== -1) conversationsStore.activeMessages.splice(systemIndex, 1);
 
-			conversationsStore.updateConversationTimestamp();
+			conversationsStore.updateConversationTimestamp(activeConv.id);
 
 			return false;
 		} catch (error) {
@@ -891,9 +928,20 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		});
 	}
 
-	setEditModeActive(handler: (files: File[]) => void): void {
+	setEditModeActive(
+		handler: ((files: File[]) => void) | null,
+		conversationId: string | null = conversationsStore.activeConversation?.id ?? null
+	): () => void {
+		const owner = Symbol();
+
+		this.editModeOwner = owner;
+		this.editConversationId = conversationId;
 		this.isEditModeActive = true;
 		this.addFilesHandler = handler;
+
+		return () => {
+			if (this.editModeOwner === owner) this.clearEditMode();
+		};
 	}
 
 	showErrorDialog(state: ErrorDialogState | null): void {

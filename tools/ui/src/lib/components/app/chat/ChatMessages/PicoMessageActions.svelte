@@ -6,7 +6,7 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { getChatMessageActionsContext, getChatMessageEditContext } from '$lib/contexts';
 	import { MessageRole, ServerModelStatus } from '$lib/enums';
-	import { modelsStore } from '$lib/stores';
+	import { agenticStore, chatStore, modelsStore } from '$lib/stores';
 	import type { Snippet } from 'svelte';
 
 	interface Props {
@@ -40,6 +40,13 @@
 	const actions = getChatMessageActionsContext();
 	const edit = getChatMessageEditContext();
 	const isUser = $derived(edit.messageRole === MessageRole.USER && !onRegenerate);
+	const editBusy = $derived(
+		edit.conversationId
+			? chatStore.isChatLoadingInternal(edit.conversationId) ||
+					agenticStore.isRunning(edit.conversationId) ||
+					chatStore.activity.isRemote(edit.conversationId)
+			: isLoading
+	);
 	const buttonClass =
 		'flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-40 md:size-8';
 	let showModelRetry = $state(false);
@@ -59,7 +66,8 @@
 			<button
 				aria-label="Edit"
 				class={buttonClass}
-				onclick={edit.startEdit}
+				disabled={editBusy}
+				onclick={() => !editBusy && edit.startEdit()}
 				title="Edit"
 				type="button"
 			>
@@ -91,7 +99,9 @@
 
 			<DropdownMenu.Content align={justify === 'end' ? 'end' : 'start'} class="min-w-52">
 				{#if !isUser}
-					<DropdownMenu.Item onSelect={edit.startEdit}>Edit response</DropdownMenu.Item>
+					<DropdownMenu.Item disabled={editBusy} onSelect={() => !editBusy && edit.startEdit()}
+						>Edit response</DropdownMenu.Item
+					>
 				{/if}
 
 				{#if onRegenerate && allowModelRetry}

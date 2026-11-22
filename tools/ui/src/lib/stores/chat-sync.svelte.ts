@@ -27,7 +27,9 @@ import { isAbortError } from '$lib/utils/abort';
 /** Whether this window is replying or editing in the chat; edit forms only open in the open chat. */
 function isBusy(convId: string): boolean {
 	return (
-		chatActivityStore.isLocal(convId) || agenticStore.isRunning(convId) || chatStore.isEditing()
+		chatActivityStore.isLocal(convId) ||
+		agenticStore.isRunning(convId) ||
+		chatStore.isEditing(convId)
 	);
 }
 

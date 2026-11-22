@@ -1,6 +1,7 @@
 <script lang="ts">
 	import ChatMessage from './ChatMessage/ChatMessage.svelte';
-	import { MessageType } from '$lib/enums';
+	import { IS_PICO_BUILD } from '$lib/constants/app.constants';
+	import { MessageRole, MessageType } from '$lib/enums';
 	import { chatStore } from '$lib/stores';
 	import type { ChatMessageActions } from '$lib/types';
 
@@ -41,7 +42,8 @@
 	// eager rows render in the same pass as the list, so a conversation
 	// landing at its bottom never paints empty placeholders there; latch it,
 	// since a row stops being eager once newer messages push it up
-	let shouldMount = $derived(mounted || eager);
+	const isInstructions = $derived(IS_PICO_BUILD && message.role === MessageRole.SYSTEM);
+	let shouldMount = $derived(mounted || eager || isInstructions);
 
 	$effect(() => {
 		if (eager) mounted = true;
@@ -79,6 +81,7 @@
 <div
 	bind:this={wrapperEl}
 	class:chat-message--eager={eager}
+	class:chat-message--instructions={isInstructions}
 	class:chat-message--synthetic={Boolean(message.isSynthetic) &&
 		message.type !== MessageType.COMPACTION}
 	class="chat-message"
@@ -125,5 +128,10 @@
 	 */
 	.chat-message--eager {
 		content-visibility: visible;
+	}
+
+	.chat-message--instructions {
+		content-visibility: visible;
+		contain-intrinsic-size: 0;
 	}
 </style>

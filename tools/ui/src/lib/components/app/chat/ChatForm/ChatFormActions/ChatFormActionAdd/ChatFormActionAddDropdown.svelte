@@ -12,6 +12,7 @@
 		ATTACHMENT_TOOLTIP_TEXT,
 		ICON_CLASS_DEFAULT
 	} from '$lib/constants';
+	import { IS_PICO_BUILD } from '$lib/constants/app.constants';
 	import { getChatFormActionsContext } from '$lib/contexts';
 	import { AttachmentAction, AttachmentItemEnabledWhen } from '$lib/enums';
 	import { useAttachmentMenu } from '$lib/hooks/use-attachment-menu.svelte';
@@ -23,6 +24,7 @@
 	let { class: className = '' }: Props = $props();
 
 	const chatFormActions = getChatFormActionsContext();
+	const tooltip = IS_PICO_BUILD ? 'Add files and tools' : ATTACHMENT_TOOLTIP_TEXT;
 
 	let dropdownOpen = $state(false);
 	// The system message action moves focus to the message editor, so the menu
@@ -82,7 +84,7 @@
 						)}
 						disabled={chatFormActions.disabled}
 					>
-						<span class="sr-only">{ATTACHMENT_TOOLTIP_TEXT}</span>
+						<span class="sr-only">{tooltip}</span>
 
 						<Plus class={ICON_CLASS_DEFAULT} />
 					</DropdownMenu.Trigger>
@@ -90,7 +92,7 @@
 			</Tooltip.Trigger>
 
 			<Tooltip.Content>
-				<p>{ATTACHMENT_TOOLTIP_TEXT}</p>
+				<p>{tooltip}</p>
 			</Tooltip.Content>
 		</Tooltip.Root>
 
@@ -131,17 +133,19 @@
 				</span>
 			</DropdownMenu.Item>
 
-			<DropdownMenu.Item
-				class="flex cursor-pointer items-center gap-2"
-				onclick={() => {
-					suppressCloseAutoFocus = true;
-					chatFormActions.onSystemPromptClick?.();
-				}}
-			>
-				<MessageSquare class={ICON_CLASS_DEFAULT} />
+			{#if !IS_PICO_BUILD}
+				<DropdownMenu.Item
+					class="flex cursor-pointer items-center gap-2"
+					onclick={() => {
+						suppressCloseAutoFocus = true;
+						chatFormActions.onSystemPromptClick?.();
+					}}
+				>
+					<MessageSquare class={ICON_CLASS_DEFAULT} />
 
-				<span>{ATTACHMENT_MENU_TEXT.SYSTEM_MESSAGE}</span>
-			</DropdownMenu.Item>
+					<span>{ATTACHMENT_MENU_TEXT.SYSTEM_MESSAGE}</span>
+				</DropdownMenu.Item>
+			{/if}
 
 			<ChatFormActionAddToolsSubmenu />
 		</DropdownMenu.Content>

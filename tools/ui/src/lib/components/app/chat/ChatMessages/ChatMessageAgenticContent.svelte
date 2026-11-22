@@ -7,6 +7,7 @@
 		ChatMessageStatistics,
 		MarkdownContent
 	} from '$lib/components/app';
+	import { IS_PICO_BUILD } from '$lib/constants/app.constants';
 	import { AgenticSectionType, ChatMessageStatsView, ToolPermissionDecision } from '$lib/enums';
 	import { dispatchOpenUICardAction } from '$lib/pico-cards/renderers/openui/chat-action';
 	import type { PicoCardAction } from '$lib/pico-cards/types';
@@ -70,14 +71,18 @@
 		}
 	}
 
-	const showThoughtInProgress = $derived(Boolean(settingsStore.config.showThoughtInProgress));
-	const showToolCallInProgress = $derived(Boolean(settingsStore.config.showToolCallInProgress));
+	const showThoughtInProgress = $derived(
+		!IS_PICO_BUILD && Boolean(settingsStore.config.showThoughtInProgress)
+	);
+	const showToolCallInProgress = $derived(
+		!IS_PICO_BUILD && Boolean(settingsStore.config.showToolCallInProgress)
+	);
 	const alwaysShowToolCallContent = $derived(
-		Boolean(settingsStore.config.alwaysShowToolCallContent)
+		!IS_PICO_BUILD && Boolean(settingsStore.config.alwaysShowToolCallContent)
 	);
 	const showMessageStats = $derived(Boolean(settingsStore.config.showMessageStats));
 	const showAgenticTurnStats = $derived(
-		showMessageStats && Boolean(settingsStore.config.showAgenticTurnStats)
+		!IS_PICO_BUILD && showMessageStats && Boolean(settingsStore.config.showAgenticTurnStats)
 	);
 
 	const hasReasoningError = $derived(
