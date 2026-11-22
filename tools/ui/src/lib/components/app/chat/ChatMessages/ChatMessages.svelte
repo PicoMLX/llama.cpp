@@ -119,7 +119,9 @@
 				allConversationMessages = preloaded;
 			} else {
 				conversationsStore.getConversationMessages(conversation.id).then((messages) => {
-					allConversationMessages = messages;
+					if (conversationsStore.activeConversation?.id === conversation.id) {
+						allConversationMessages = messages;
+					}
 				});
 			}
 		} else {
@@ -273,7 +275,13 @@
 		chatStore.dismissResponseError(error.conversationId);
 
 		if (error.operation === 'compaction') await chatStore.compactConversation();
-		else if (error.messageId) await chatStore.regenerateMessageWithBranching(error.messageId);
+		else if (error.messageId) {
+			const message = messages.find(
+				(message) => message.id === error.messageId && message.convId === error.conversationId
+			);
+
+			if (message) await chatActions.regenerateWithBranching(message);
+		}
 	}
 
 	async function summarizeAfterError() {
