@@ -8,9 +8,10 @@
 		McpServerCardToolsList,
 		McpServerInfo
 	} from '$lib/components/app/mcp';
+	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import { Skeleton } from '$lib/components/ui/skeleton';
-	import { ICON_CLASS_DEFAULT } from '$lib/constants';
+	import { ICON_CLASS_DEFAULT, IS_PICO_BUILD } from '$lib/constants';
 	import { HealthCheckStatus } from '$lib/enums';
 	import { mcpStore } from '$lib/stores';
 	import type { HealthCheckState, MCPServerSettingsEntry } from '$lib/types';
@@ -108,6 +109,56 @@
 	}
 </script>
 
+{#snippet connectionDetails()}
+	{#if IS_PICO_BUILD && capabilities?.server.resources && onBrowseResources}
+		<Button onclick={onBrowseResources} size="sm" variant="outline">Browse resources</Button>
+	{/if}
+
+	<div class="grid gap-3">
+		{#if showSkeleton}
+			<div class="space-y-2">
+				<div class="flex items-center gap-2">
+					<Skeleton class="{ICON_CLASS_DEFAULT} rounded" />
+
+					<Skeleton class="h-3 w-24" />
+				</div>
+
+				<div class="flex flex-wrap gap-1.5">
+					<Skeleton class="h-5 w-16 rounded-full" />
+
+					<Skeleton class="h-5 w-20 rounded-full" />
+
+					<Skeleton class="h-5 w-14 rounded-full" />
+				</div>
+			</div>
+
+			<div class="space-y-1.5">
+				<div class="flex items-center gap-2">
+					<Skeleton class="{ICON_CLASS_DEFAULT} rounded" />
+
+					<Skeleton class="h-3 w-32" />
+				</div>
+			</div>
+		{:else}
+			{#if isConnected && instructions}
+				<McpServerInfo {instructions} />
+			{/if}
+
+			{#if tools.length > 0}
+				<McpServerCardToolsList {tools} />
+			{/if}
+
+			{#if connectionLogs.length > 0}
+				<McpConnectionLogs {connectionTimeMs} logs={connectionLogs} />
+			{/if}
+		{/if}
+	</div>
+
+	{#if IS_PICO_BUILD && protocolVersion}
+		<p class="text-xs text-muted-foreground">Protocol version: {protocolVersion}</p>
+	{/if}
+{/snippet}
+
 <Card.Root class="!gap-3 bg-muted/30 p-4">
 	{#if isEditing}
 		<McpServerCardEditForm
@@ -122,7 +173,7 @@
 	{:else}
 		<McpServerCardHeader
 			{capabilities}
-			disabled={isError}
+			disabled={IS_PICO_BUILD ? isHealthChecking : isError}
 			{displayName}
 			enabled={enabled ?? server.enabled}
 			{faviconUrl}
@@ -131,6 +182,20 @@
 			{serverInfo}
 			{transportType}
 		/>
+
+		{#if IS_PICO_BUILD}
+			<p class="text-xs text-muted-foreground" role="status">
+				{!server.enabled
+					? 'Off'
+					: isConnected
+						? 'Connected'
+						: isError
+							? 'Connection failed'
+							: showSkeleton
+								? 'Connecting...'
+								: 'Not connected'}
+			</p>
+		{/if}
 
 		{#if isError && errorMessage}
 			<p class="text-xs text-destructive">{errorMessage}</p>
@@ -142,50 +207,20 @@
 			</p>
 		{/if}
 
-		<div class="grid gap-3">
-			{#if showSkeleton}
-				<div class="space-y-2">
-					<div class="flex items-center gap-2">
-						<Skeleton class="{ICON_CLASS_DEFAULT} rounded" />
+		{#if IS_PICO_BUILD}
+			<details class="rounded-lg border border-border/60 px-3 py-2">
+				<summary class="cursor-pointer text-sm text-muted-foreground">Connection details</summary>
 
-						<Skeleton class="h-3 w-24" />
-					</div>
-
-					<div class="flex flex-wrap gap-1.5">
-						<Skeleton class="h-5 w-16 rounded-full" />
-
-						<Skeleton class="h-5 w-20 rounded-full" />
-
-						<Skeleton class="h-5 w-14 rounded-full" />
-					</div>
-				</div>
-
-				<div class="space-y-1.5">
-					<div class="flex items-center gap-2">
-						<Skeleton class="{ICON_CLASS_DEFAULT} rounded" />
-
-						<Skeleton class="h-3 w-32" />
-					</div>
-				</div>
-			{:else}
-				{#if isConnected && instructions}
-					<McpServerInfo {instructions} />
-				{/if}
-
-				{#if tools.length > 0}
-					<McpServerCardToolsList {tools} />
-				{/if}
-
-				{#if connectionLogs.length > 0}
-					<McpConnectionLogs {connectionTimeMs} logs={connectionLogs} />
-				{/if}
-			{/if}
-		</div>
+				<div class="space-y-3 pt-3">{@render connectionDetails()}</div>
+			</details>
+		{:else}
+			{@render connectionDetails()}
+		{/if}
 
 		<div class="mt-auto flex justify-between gap-4">
-			{#if showSkeleton}
+			{#if !IS_PICO_BUILD && showSkeleton}
 				<Skeleton class="h-3 w-28" />
-			{:else if protocolVersion}
+			{:else if !IS_PICO_BUILD && protocolVersion}
 				<div class="flex flex-wrap items-center gap-1">
 					<span class="text-[10px] text-muted-foreground">
 						Protocol version: {protocolVersion}

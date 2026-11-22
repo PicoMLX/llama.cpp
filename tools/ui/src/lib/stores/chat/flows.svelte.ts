@@ -12,6 +12,7 @@ import {
 	ErrorDialogType,
 	MessageRole,
 	MessageType,
+	type ReasoningEffort,
 	StreamConnectionState
 } from '$lib/enums';
 import { ChatService } from '$lib/services/chat.service';
@@ -26,6 +27,7 @@ import type {
 	DatabaseMessageExtra,
 	ErrorDialogState
 } from '$lib/types';
+import type { AgenticToolPolicy } from '$lib/types/agentic';
 import {
 	classifyContinueIntent,
 	filterByLeafNodeId,
@@ -35,6 +37,12 @@ import {
 	isAbortError,
 	sliceAtLastCompaction
 } from '$lib/utils';
+
+export interface ChatRequestSnapshot {
+	options: Record<string, unknown>;
+	reasoningEffort: ReasoningEffort;
+	toolPolicy: AgenticToolPolicy;
+}
 
 /**
  * The slice of chatStore the flows drive. Kept narrow on purpose so the flows
@@ -49,6 +57,7 @@ export interface ChatFlowsHost {
 	cleanupStreaming(convId: string): void;
 	createAssistantMessage(parentId?: string): Promise<DatabaseMessage>;
 	getApiOptions(): Record<string, unknown>;
+	getRequestSnapshot(): ChatRequestSnapshot;
 	getOrCreateAbortController(convId: string): AbortController;
 	isChatLoadingInternal(convId: string): boolean;
 	setChatLoading(convId: string, loading: boolean): void;
@@ -67,7 +76,8 @@ export interface ChatFlowsHost {
 		onComplete?: (content: string) => Promise<void>,
 		onError?: (error: Error) => void,
 		modelOverride?: string | null,
-		firstUserMessageContent?: string
+		firstUserMessageContent?: string,
+		requestSnapshot?: ChatRequestSnapshot
 	): Promise<void>;
 }
 
@@ -230,7 +240,9 @@ export class ChatMessageFlows {
 
 						this.host.cleanupStreaming(msg.convId);
 						this.host.showErrorDialog({
+							conversationId: msg.convId,
 							message: error.message,
+							messageId: msg.id,
 							type: error.name === 'TimeoutError' ? ErrorDialogType.TIMEOUT : ErrorDialogType.SERVER
 						});
 					},
@@ -583,23 +595,33 @@ export class ChatMessageFlows {
 
 		if (!activeConv || this.host.isChatLoadingInternal(activeConv.id)) return;
 
+		const msg = conversationsStore.activeMessages.find(
+			(message) => message.id === messageId && message.convId === activeConv.id
+		);
+
+		if (!msg || msg.role !== MessageRole.ASSISTANT) return;
+
+		const convId = activeConv.id;
+		const selectedNode = activeConv.currNode;
+		const abortController = this.host.getOrCreateAbortController(convId);
+		const requestSnapshot = this.host.getRequestSnapshot();
+		const modelToUse =
+			modelOverride || msg.model || (requestSnapshot.options.model as string | undefined);
+
+		let streamStarted = false;
+
 		this.host.cancelPreEncode();
+		this.host.setChatLoading(convId, true);
+		this.host.clearChatStreaming(convId);
 		try {
-			const idx = conversationsStore.findMessageIndex(messageId);
+			const allMessages = await conversationsStore.getConversationMessages(convId);
 
-			if (idx === -1) return;
+			if (abortController.signal.aborted) return;
 
-			const msg = conversationsStore.activeMessages[idx];
-
-			if (msg.role !== MessageRole.ASSISTANT) return;
-
-			const allMessages = await conversationsStore.getConversationMessages(activeConv.id);
 			const parentMessage = findMessageById(allMessages, msg.parent);
 
 			if (!parentMessage) return;
 
-			this.host.setChatLoading(activeConv.id, true);
-			this.host.clearChatStreaming(activeConv.id);
 			const newAssistantMessage = await DatabaseService.createMessageBranch(
 				{
 					children: [],
@@ -614,28 +636,46 @@ export class ChatMessageFlows {
 				parentMessage.id
 			);
 
-			await conversationsStore.updateCurrentNode(newAssistantMessage.id);
-			conversationsStore.updateConversationTimestamp();
-			await conversationsStore.refreshActiveMessages();
+			if (abortController.signal.aborted) return;
+
 			const conversationPath = filterByLeafNodeId(
 				allMessages,
 				parentMessage.id,
 				false
 			) as DatabaseMessage[];
-			const modelToUse = modelOverride || msg.model || undefined;
 
+			// The branch transaction already moved this conversation's persisted cursor.
+			if (
+				conversationsStore.activeConversation?.id === convId &&
+				conversationsStore.activeConversation.currNode === selectedNode
+			) {
+				conversationsStore.activeMessages = [...conversationPath, newAssistantMessage];
+				conversationsStore.applyConversationUpdate(convId, { currNode: newAssistantMessage.id });
+			} else if (conversationsStore.activeConversation?.id !== convId) {
+				conversationsStore.applyConversationUpdate(convId, { currNode: newAssistantMessage.id });
+			}
+
+			conversationsStore.updateConversationTimestamp(convId);
+			streamStarted = true;
 			await this.host.streamChatCompletion(
 				conversationPath,
 				newAssistantMessage,
 				undefined,
 				undefined,
-				modelToUse
+				modelToUse,
+				undefined,
+				requestSnapshot
 			);
 		} catch (error) {
+			if (abortController.signal.aborted) return;
+
 			if (!isAbortError(error))
 				console.error('Failed to regenerate message with branching:', error);
 
-			this.host.setChatLoading(activeConv?.id || '', false);
+			this.host.setChatLoading(convId, false);
+		} finally {
+			if (!streamStarted && !abortController.signal.aborted)
+				this.host.setChatLoading(convId, false);
 		}
 	}
 

@@ -8,7 +8,12 @@
  */
 
 import { browser } from '$app/environment';
-import { SETTING_CONFIG_DEFAULT, SETTINGS_KEYS } from '$lib/constants';
+import {
+	IS_PICO_BUILD,
+	PICO_RETIRED_VISUAL_DEFAULTS,
+	SETTING_CONFIG_DEFAULT,
+	SETTINGS_KEYS
+} from '$lib/constants';
 import { ColorMode } from '$lib/enums';
 import { ParameterSyncService } from '$lib/services/parameter-sync.service';
 import { SettingsService } from '$lib/services/settings.service';
@@ -187,6 +192,27 @@ class SettingsStore {
 		);
 	}
 
+	hasCustomSettingsForKeys(keys: readonly string[]): boolean {
+		const defaults = this.getResetValues();
+		const serverDefaults = this.getServerDefaults();
+
+		return keys.some((key) => {
+			if (!this.canResetPreference(key) || !(key in defaults)) return false;
+
+			const current = this.config[key];
+
+			if (defaults[key] === '' && serverDefaults[key] !== undefined) {
+				return (
+					current !== '' &&
+					current !== undefined &&
+					normalizeFloatingPoint(current) !== normalizeFloatingPoint(serverDefaults[key])
+				);
+			}
+
+			return current !== defaults[key];
+		});
+	}
+
 	/**
 	 * Import settings from a previously exported object.
 	 * Restores config (including theme) and user overrides.
@@ -199,10 +225,39 @@ class SettingsStore {
 			throw new Error('Invalid settings data: missing config');
 		}
 
-		// Restore config (theme is included in config)
+		const importedConfig = { ...data.config };
+
+		if (IS_PICO_BUILD && typeof importedConfig.mcpServers === 'string') {
+			try {
+				const current = JSON.parse(String(this.config.mcpServers ?? '[]'));
+				const incoming = JSON.parse(importedConfig.mcpServers);
+
+				if (Array.isArray(current) && Array.isArray(incoming)) {
+					importedConfig.mcpServers = JSON.stringify(
+						incoming.map((server) => {
+							const previous = current.find(
+								(saved) => saved?.id === server?.id && saved?.url === server?.url
+							);
+
+							return server &&
+								typeof server === 'object' &&
+								!('headers' in server) &&
+								previous?.headers
+								? { ...server, headers: previous.headers }
+								: server;
+						})
+					);
+				}
+			} catch {
+				// Leave malformed connection data to the existing parser.
+			}
+		}
+
 		this.config = {
 			...SETTING_CONFIG_DEFAULT,
-			...data.config
+			...(IS_PICO_BUILD ? this.config : {}),
+			...importedConfig,
+			...(IS_PICO_BUILD ? PICO_RETIRED_VISUAL_DEFAULTS : {})
 		};
 
 		// Restore user overrides (derived state — may be stale if server defaults differ)
@@ -278,6 +333,22 @@ class SettingsStore {
 		this.saveConfig();
 	}
 
+	resetSettingsForKeys(keys: readonly string[]): void {
+		const defaults = this.getResetValues();
+
+		for (const key of keys) {
+			if (!this.canResetPreference(key) || !(key in defaults)) continue;
+
+			setConfigValue(this.config, key, defaults[key]);
+			this.userOverrides.delete(key);
+
+			if (key === SETTINGS_KEYS.THEME) setMode(defaults[key] as ColorMode);
+		}
+
+		this.enforceDiscoverCoupling();
+		this.saveConfig();
+	}
+
 	/**
 	 * Reset theme to default value.
 	 * Theme is now stored inside the config object.
@@ -328,6 +399,8 @@ class SettingsStore {
 
 			for (const [key, value] of Object.entries(uiSettings)) {
 				if (value === undefined || this.userOverrides.has(key)) continue;
+
+				if (IS_PICO_BUILD && key in PICO_RETIRED_VISUAL_DEFAULTS) continue;
 
 				if (getConfigValue(this.config, key) !== getConfigValue(SETTING_CONFIG_DEFAULT, key)) {
 					continue;
@@ -403,14 +476,6 @@ class SettingsStore {
 	}
 
 	/**
-	 *
-	 *
-	 * Import / Export
-	 *
-	 *
-	 */
-
-	/**
 	 * Update the theme setting.
 	 * @param newTheme - The new theme value
 	 */
@@ -418,6 +483,18 @@ class SettingsStore {
 		this.updateConfig(SETTINGS_KEYS.THEME, newTheme);
 
 		setMode(newTheme as ColorMode);
+	}
+
+	/**
+	 *
+	 *
+	 * Import / Export
+	 *
+	 *
+	 */
+
+	private canResetPreference(key: string): boolean {
+		return key !== SETTINGS_KEYS.API_KEY && key !== SETTINGS_KEYS.MCP_SERVERS;
 	}
 
 	/**

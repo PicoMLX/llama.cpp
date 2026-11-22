@@ -16,9 +16,11 @@ import {
 	IDXDB_STORES_V1,
 	IDXDB_TABLES,
 	IDXDB_VERSION,
+	IS_PICO_BUILD,
 	LEGACY_AGENTIC_REGEX,
 	LEGACY_REASONING_TAGS,
 	NEW_TO_DEPRECATED_MAP,
+	PICO_RETIRED_VISUAL_DEFAULTS,
 	SETTINGS_KEYS,
 	STORAGE_APP_NAME,
 	STORAGE_APP_NAME_DEPRECATED
@@ -830,6 +832,38 @@ const mcpServerOverridesToToolPolicyMigration: Migration = {
 			);
 	}
 };
+const picoPresentationMigration: Migration = {
+	description: 'Adopt Pico chat presentation while preserving saved preferences',
+	id: 'pico-chat-presentation-v1',
+	async run(): Promise<void> {
+		const raw = localStorage.getItem(CONFIG_LOCALSTORAGE_KEY);
+
+		if (raw === null) return;
+
+		const config = JSON.parse(raw);
+
+		if (!config || typeof config !== 'object' || Array.isArray(config)) {
+			throw new Error('Saved preferences must be an object');
+		}
+
+		const backupKey = `${CONFIG_LOCALSTORAGE_KEY}.pico-ux-v1-backup`;
+
+		if (localStorage.getItem(backupKey) === null) {
+			const previous = Object.fromEntries(
+				Object.keys(PICO_RETIRED_VISUAL_DEFAULTS)
+					.filter((key) => Object.hasOwn(config, key))
+					.map((key) => [key, config[key]])
+			);
+
+			localStorage.setItem(backupKey, JSON.stringify(previous));
+		}
+
+		localStorage.setItem(
+			CONFIG_LOCALSTORAGE_KEY,
+			JSON.stringify({ ...config, ...PICO_RETIRED_VISUAL_DEFAULTS })
+		);
+	}
+};
 const migrations: Migration[] = [
 	localStorageMigration,
 	idxdbMigration,
@@ -841,7 +875,8 @@ const migrations: Migration[] = [
 	configTypesMigration,
 	renderKeysMigration,
 	modelOrgNameKeyMigration,
-	mcpServerOverridesToToolPolicyMigration
+	mcpServerOverridesToToolPolicyMigration,
+	...(IS_PICO_BUILD ? [picoPresentationMigration] : [])
 ];
 
 export const MigrationService = {

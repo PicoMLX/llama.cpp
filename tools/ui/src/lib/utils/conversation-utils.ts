@@ -51,7 +51,7 @@ export interface ConversationTreeItem {
 }
 
 // Pinned conversations first, then by lastModified descending
-const comparePinnedThenRecent = (a: DatabaseConversation, b: DatabaseConversation) => {
+export const comparePinnedThenRecent = (a: DatabaseConversation, b: DatabaseConversation) => {
 	if (a.pinned && !b.pinned) return -1;
 
 	if (!a.pinned && b.pinned) return 1;

@@ -6,6 +6,7 @@
 	import {
 		DISMISSED_RECOMMENDED_MCP_SERVERS_LOCALSTORAGE_KEY,
 		HEADERS,
+		IS_PICO_BUILD,
 		MCP_SERVER_ID_PREFIX,
 		RECOMMENDED_MCP_SERVERS
 	} from '$lib/constants';
@@ -243,36 +244,50 @@
 	}
 </script>
 
+{#snippet recommendations()}
+	{#if recommendationsToShow.length > 0}
+		<div class="space-y-3 pt-2">
+			<div class="flex items-center justify-between gap-3">
+				<h3 class="text-sm font-medium">Recommended Servers</h3>
+
+				<Button class="text-muted-foreground" onclick={handleDismissAll} size="sm" variant="ghost"
+					>Dismiss</Button
+				>
+			</div>
+
+			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+				{#each recommendationsToShow as recommendation (recommendation.id)}
+					<McpServerCardCompact
+						dimmed={hasSelection && selectedRecommendationId !== recommendation.id}
+						onClick={() => handleRecommendationClick(recommendation.id)}
+						selected={selectedRecommendationId === recommendation.id}
+						server={recommendation}
+					/>
+				{/each}
+			</div>
+		</div>
+	{/if}
+{/snippet}
+
 <Dialog.Root onOpenChange={handleOpenChange} {open}>
 	<Dialog.Content
 		class="max-w-2xl! p-4"
 		onOpenAutoFocus={(event) => deviceStore.isMobile && event.preventDefault()}
 	>
 		<Dialog.Header>
-			<Dialog.Title class="select-none">Add New MCP Server</Dialog.Title>
+			<Dialog.Title class="select-none"
+				>{IS_PICO_BUILD ? 'Add connection' : 'Add New MCP Server'}</Dialog.Title
+			>
 		</Dialog.Header>
 
-		{#if recommendationsToShow.length > 0}
-			<div class="space-y-3 pt-2">
-				<div class="flex items-center justify-between gap-3">
-					<h3 class="text-sm font-medium">Recommended Servers</h3>
+		{#if IS_PICO_BUILD && recommendationsToShow.length > 0}
+			<details class="rounded-lg border px-3 py-2">
+				<summary class="cursor-pointer text-sm">Suggested connections</summary>
 
-					<Button class="text-muted-foreground" onclick={handleDismissAll} size="sm" variant="ghost"
-						>Dismiss</Button
-					>
-				</div>
-
-				<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-					{#each recommendationsToShow as recommendation (recommendation.id)}
-						<McpServerCardCompact
-							dimmed={hasSelection && selectedRecommendationId !== recommendation.id}
-							onClick={() => handleRecommendationClick(recommendation.id)}
-							selected={selectedRecommendationId === recommendation.id}
-							server={recommendation}
-						/>
-					{/each}
-				</div>
-			</div>
+				{@render recommendations()}
+			</details>
+		{:else}
+			{@render recommendations()}
 		{/if}
 
 		<form class="contents" onsubmit={handleSubmit}>
@@ -298,8 +313,14 @@
 					Cancel
 				</Button>
 
-				<Button aria-label="Save" disabled={!canSave} size="sm" type="submit" variant="default">
-					Add
+				<Button
+					aria-label={IS_PICO_BUILD ? 'Connect' : 'Save'}
+					disabled={!canSave}
+					size="sm"
+					type="submit"
+					variant="default"
+				>
+					{IS_PICO_BUILD ? 'Connect' : 'Add'}
 				</Button>
 			</Dialog.Footer>
 		</form>

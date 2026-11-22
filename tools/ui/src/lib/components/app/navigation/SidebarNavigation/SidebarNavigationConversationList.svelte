@@ -8,6 +8,7 @@
 	import { FolderPlus, MoreHorizontal, Pin } from '@lucide/svelte';
 	import { CollapsibleRegion, ContextMenuActions, DropdownMenuActions } from '$lib/components/app';
 	import {
+		IS_PICO_BUILD,
 		SIDEBAR_ROW_SLIDE_MS,
 		SIDEBAR_SECTION_IDS,
 		SIDEBAR_SECTION_PREVIEW_COUNT,
@@ -23,7 +24,7 @@
 		uiStore
 	} from '$lib/stores';
 	import type { MenuAction } from '$lib/types';
-	import { buildConversationTree } from '$lib/utils';
+	import { buildConversationTree, comparePinnedThenRecent } from '$lib/utils';
 	import { flip } from 'svelte/animate';
 	import { slide } from 'svelte/transition';
 
@@ -89,7 +90,13 @@
 		{ icon: FolderPlus, label: 'New group', onclick: () => uiStore.openGroupDialog() }
 	];
 
-	let conversationTree = $derived(buildConversationTree(conversations));
+	let conversationTree = $derived(
+		IS_PICO_BUILD
+			? [...conversations]
+					.sort(comparePinnedThenRecent)
+					.map((conversation) => ({ conversation, depth: 0 }))
+			: buildConversationTree(conversations)
+	);
 
 	// beside group sections it holds the chats in none of them
 	let recentLabel = $derived(groupsStore.groups.length > 0 ? 'Ungrouped' : 'Recent conversations');

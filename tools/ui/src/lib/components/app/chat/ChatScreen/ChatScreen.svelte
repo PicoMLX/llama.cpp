@@ -45,10 +45,17 @@
 	let emptyFileNames = $state<string[]>([]);
 	let showDeleteDialog = $state(false);
 	let showEmptyFileDialog = $state(false);
+	let hasResponseError = $derived(
+		IS_PICO_BUILD &&
+			!!conversationsStore.activeConversation &&
+			!!chatStore.getResponseError(conversationsStore.activeConversation.id)
+	);
 	let isEmpty = $derived(
 		(IS_PICO_BUILD
 			? !conversationsStore.activeMessages.some((message) => message.role !== MessageRole.SYSTEM)
-			: showCenteredEmpty && conversationsStore.activeMessages.length === 0) && !chatStore.isLoading
+			: showCenteredEmpty && conversationsStore.activeMessages.length === 0) &&
+			!chatStore.isLoading &&
+			!hasResponseError
 	);
 	// where the form is drawn: follows `isEmpty` once the form has faded out
 	let isFormCentered = $state(untrack(() => isEmpty));
@@ -210,7 +217,11 @@
 
 	function handleErrorDialogOpenChange(open: boolean) {
 		if (!open) {
-			chatStore.dismissErrorDialog();
+			if (IS_PICO_BUILD && activeErrorDialog && !activeErrorDialog.conversationId) {
+				chatStore.errorDialogState = null;
+			} else {
+				chatStore.dismissErrorDialog();
+			}
 		}
 	}
 

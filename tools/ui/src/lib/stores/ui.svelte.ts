@@ -71,6 +71,7 @@ function loadSidebarSectionOrder(): string[] {
 }
 
 class UiStore {
+	chatManagementRequested = $state(false);
 	/** Sidebar conversation sections the user folded, kept across reloads. */
 	collapsedSidebarSections = loadCollapsedSidebarSections();
 	/** Set when a flow outside the chat wants the composer focused once it can take it. */

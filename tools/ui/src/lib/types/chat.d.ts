@@ -172,6 +172,9 @@ export interface ChatStreamCallbacks {
  * Error dialog state for displaying server/timeout errors
  */
 export interface ErrorDialogState {
+	conversationId?: string;
+	messageId?: string;
+	operation?: 'response' | 'compaction';
 	type: ErrorDialogType;
 	message: string;
 	contextInfo?: { n_prompt_tokens: number; n_ctx: number };

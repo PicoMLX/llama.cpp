@@ -33,6 +33,7 @@
 	import {
 		chatStore,
 		conversationsStore,
+		deviceStore,
 		groupsStore,
 		settingsStore,
 		sidebarDragStore,
@@ -184,7 +185,7 @@
 		},
 		{
 			icon: Pencil,
-			label: 'Edit',
+			label: IS_PICO_BUILD ? 'Rename' : 'Edit',
 			onclick: handleEdit,
 			shortcut: isActive ? SHORTCUT_EDIT_CONVERSATION : undefined
 		},
@@ -198,11 +199,15 @@
 			},
 			shortcut: isActive ? SHORTCUT_EXPORT_CONVERSATION : undefined
 		},
-		{
-			icon: ListChecks,
-			label: 'Select',
-			onclick: handleEnterSelectionMode
-		},
+		...(!IS_PICO_BUILD
+			? [
+					{
+						icon: ListChecks,
+						label: 'Select',
+						onclick: handleEnterSelectionMode
+					}
+				]
+			: []),
 		{
 			icon: Trash2,
 			label: 'Delete',
@@ -391,7 +396,7 @@
 			<TruncatedText class="text-sm" showTooltip={false} text={conversation.name} />
 		</div>
 
-		{#if !isSelectionMode && renderActionsDropdown}
+		{#if !isSelectionMode && (renderActionsDropdown || (IS_PICO_BUILD && deviceStore.isMobile))}
 			<div class="actions flex items-center">
 				<DropdownMenuActions
 					bind:open={dropdownOpen}

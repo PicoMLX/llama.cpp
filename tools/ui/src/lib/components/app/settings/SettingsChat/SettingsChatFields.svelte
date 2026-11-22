@@ -20,13 +20,22 @@
 	import type { Component } from 'svelte';
 
 	interface Props {
+		errors?: Record<string, string>;
 		fields: SettingsFieldConfig[];
 		localConfig: SettingsConfigType;
 		onConfigChange: (key: string, value: string | boolean) => void;
 		onThemeChange?: (theme: string) => void;
+		onParameterReset?: (key: string) => void;
 	}
 
-	let { fields, localConfig, onConfigChange, onThemeChange }: Props = $props();
+	let {
+		errors = {},
+		fields,
+		localConfig,
+		onConfigChange,
+		onParameterReset,
+		onThemeChange
+	}: Props = $props();
 
 	// discover needs the hub metadata reads, so its checkbox is read-only while discover is on
 	let hubLocked = $derived(
@@ -98,6 +107,8 @@
 
 				<div class="relative w-full">
 					<Input
+						aria-describedby={errors[field.key] ? `${field.key}-error` : undefined}
+						aria-invalid={Boolean(errors[field.key]) || undefined}
 						autocomplete={field.isPrivate ? 'new-password' : undefined}
 						id={field.key}
 						type={field.isPrivate ? 'password' : field.isPositiveInteger ? 'number' : 'text'}
@@ -121,8 +132,12 @@
 							aria-label="Reset to default"
 							class="absolute top-1/2 right-2 inline-flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded transition-colors hover:bg-muted"
 							onclick={() => {
-								settingsStore.resetParameterToServerDefault(field.key);
-								onConfigChange(field.key, '');
+								if (onParameterReset) {
+									onParameterReset(field.key);
+								} else {
+									settingsStore.resetParameterToServerDefault(field.key);
+									onConfigChange(field.key, '');
+								}
 							}}
 							title="Reset to default"
 							type="button"
@@ -151,6 +166,8 @@
 				{/if}
 
 				<Textarea
+					aria-describedby={errors[field.key] ? `${field.key}-error` : undefined}
+					aria-invalid={Boolean(errors[field.key]) || undefined}
 					class="min-h-[10rem] w-full md:max-w-3xl"
 					id={field.key}
 					oninput={(e) => onConfigChange(field.key, e.currentTarget.value)}
@@ -164,7 +181,7 @@
 					</p>
 				{/if}
 
-				{#if field.key === SETTINGS_KEYS.SYSTEM_MESSAGE}
+				{#if field.key === SETTINGS_KEYS.SYSTEM_MESSAGE && !IS_PICO_BUILD}
 					<div class="mt-3 flex items-center gap-2">
 						<Checkbox
 							checked={Boolean(localConfig.showSystemMessage ?? true)}
@@ -219,7 +236,7 @@
 					value={currentValue}
 				>
 					<div class="relative w-full md:w-auto">
-						<Select.Trigger class="w-full">
+						<Select.Trigger class="w-full" id={field.key}>
 							<div class="flex items-center gap-2">
 								{#if selectedOption?.icon}
 									{@const IconComponent = selectedOption.icon}
@@ -235,8 +252,12 @@
 								aria-label="Reset to default"
 								class="absolute top-1/2 right-8 inline-flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded transition-colors hover:bg-muted"
 								onclick={() => {
-									settingsStore.resetParameterToServerDefault(field.key);
-									onConfigChange(field.key, '');
+									if (onParameterReset) {
+										onParameterReset(field.key);
+									} else {
+										settingsStore.resetParameterToServerDefault(field.key);
+										onConfigChange(field.key, '');
+									}
 								}}
 								title="Reset to default"
 								type="button"
@@ -348,6 +369,12 @@
 						{/if}
 					</div>
 				</div>
+			{/if}
+
+			{#if errors[field.key]}
+				<p class="text-sm text-destructive" id="{field.key}-error" role="alert">
+					{errors[field.key]}
+				</p>
 			{/if}
 		</div>
 	{/if}

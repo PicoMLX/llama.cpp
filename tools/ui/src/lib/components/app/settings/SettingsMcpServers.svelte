@@ -6,6 +6,7 @@
 	import { DialogMcpResourcesBrowser, DialogMcpServerAddNew } from '$lib/components/app/dialogs';
 	import { Button } from '$lib/components/ui/button';
 	import * as Empty from '$lib/components/ui/empty';
+	import { IS_PICO_BUILD } from '$lib/constants';
 	import { HealthCheckStatus } from '$lib/enums';
 	import { mcpStore, toolsStore } from '$lib/stores';
 	import { onMount } from 'svelte';
@@ -62,27 +63,35 @@
 						<Plus />
 					</Empty.Media>
 
-					<Empty.Title>Add your first MCP server</Empty.Title>
+					<Empty.Title
+						>{IS_PICO_BUILD
+							? 'Add your first connection'
+							: 'Add your first MCP server'}</Empty.Title
+					>
 
-					<Empty.Description>Connect a remote MCP server by URL.</Empty.Description>
+					<Empty.Description
+						>{IS_PICO_BUILD
+							? 'Connect an app or service using its MCP URL.'
+							: 'Connect a remote MCP server by URL.'}</Empty.Description
+					>
 				</Empty.Header>
 
 				<Empty.Content>
 					<Button onclick={() => (isAddingServer = true)} size="sm">
 						<Plus />
 
-						Add New Server
+						{IS_PICO_BUILD ? 'Add connection' : 'Add New Server'}
 					</Button>
 				</Empty.Content>
 			</Empty.Root>
 		</div>
 	{:else}
 		<div
-			class="grid gap-4 {className}"
+			class="{IS_PICO_BUILD ? 'flex flex-col' : 'grid'} gap-4 {className}"
 			style="grid-template-columns: repeat(auto-fill, minmax(min(25rem, calc(100dvw - 4rem)), 1fr));"
 		>
 			{#each servers as server (server.id)}
-				{#if isServerPending(server.id, server.enabled)}
+				{#if !IS_PICO_BUILD && isServerPending(server.id, server.enabled)}
 					<McpServerCardSkeleton />
 				{:else}
 					<McpServerCard
@@ -114,16 +123,22 @@
 							<Plus />
 						</Empty.Media>
 
-						<Empty.Title>Add another MCP server</Empty.Title>
+						<Empty.Title
+							>{IS_PICO_BUILD ? 'Add another connection' : 'Add another MCP server'}</Empty.Title
+						>
 
-						<Empty.Description>Connect a remote MCP server by URL.</Empty.Description>
+						<Empty.Description
+							>{IS_PICO_BUILD
+								? 'Connect an app or service using its MCP URL.'
+								: 'Connect a remote MCP server by URL.'}</Empty.Description
+						>
 					</Empty.Header>
 
 					<Empty.Content>
 						<Button onclick={() => (isAddingServer = true)} size="sm">
 							<Plus />
 
-							Add New Server
+							{IS_PICO_BUILD ? 'Add connection' : 'Add New Server'}
 						</Button>
 					</Empty.Content>
 				</Empty.Root>

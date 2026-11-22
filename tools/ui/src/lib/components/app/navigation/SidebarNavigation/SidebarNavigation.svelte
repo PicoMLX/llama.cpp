@@ -35,7 +35,7 @@
 	import { DatabaseService } from '$lib/services/database.service';
 	import { RouterService } from '$lib/services/router.service';
 	import { chatStore, conversationsStore, deviceStore, settingsStore, uiStore } from '$lib/stores';
-	import { buildConversationTree, remToPx } from '$lib/utils';
+	import { buildConversationTree, comparePinnedThenRecent, remToPx } from '$lib/utils';
 	import { circIn } from 'svelte/easing';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { fade } from 'svelte/transition';
@@ -183,7 +183,11 @@
 	let renameVersion: Promise<number | undefined> = Promise.resolve(undefined);
 
 	const renderedOrderIds = $derived(
-		buildConversationTree(conversationsStore.conversations).map((t) => t.conversation.id)
+		IS_PICO_BUILD
+			? [...conversationsStore.conversations]
+					.sort(comparePinnedThenRecent)
+					.map((conversation) => conversation.id)
+			: buildConversationTree(conversationsStore.conversations).map((t) => t.conversation.id)
 	);
 
 	const allSelectedArePinned = $derived.by(() => {
@@ -244,6 +248,14 @@
 			selectedIds.add(id);
 		}
 	}
+
+	$effect(() => {
+		if (IS_PICO_BUILD && uiStore.chatManagementRequested) {
+			uiStore.chatManagementRequested = false;
+			uiStore.isSidebarExpanded = true;
+			enterSelectionMode();
+		}
+	});
 
 	function exitSelectionMode() {
 		isSelectionMode = false;
