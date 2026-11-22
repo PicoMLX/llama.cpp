@@ -711,10 +711,8 @@ class ConversationsStore implements ConversationsPreferencesHost {
 	 * Reads the open chat again after another window changed it. This window
 	 * keeps its own branch and follows it to its newest message, and the
 	 * fields it changed while the reads ran; a chat that is gone gives way to
-	 * the new-chat screen. Nothing changes when another chat opened before the
-	 * reads came back, or when `isBusy` says this window began work in the
-	 * chat, or this window changed its messages while the reads ran: the
-	 * server may have read before those writes landed.
+	 * the new-chat screen.
+	 * Nothing changes when another chat opened before the reads came back, or when `isBusy` says this window began work in the chat, or this window changed its messages while the reads ran: the server may have read before those writes landed.
 	 *
 	 * @param isBusy - Whether this window is replying or editing in the chat
 	 * @returns False when it skipped the chat for `isBusy` or this window's own message changes; a later reload reads them

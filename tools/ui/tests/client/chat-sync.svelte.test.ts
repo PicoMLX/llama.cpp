@@ -4,8 +4,8 @@
 // open chat it is replying or editing in, are left alone, also when they land
 // while a reload reads. A failed reload is tried again a few times. After a
 // reconnect, or a first stream that opens late, it reads everything again,
-// and the stream closes when chats leave Pico Server. A store's first read of
-// the chats and each stream's reloads run one after another.
+// and the stream closes when chats leave Pico Server.
+// A store's first read of the chats and each stream's reloads run one after another.
 
 import { vi } from 'vitest';
 

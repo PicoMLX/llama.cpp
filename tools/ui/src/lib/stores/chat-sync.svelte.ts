@@ -7,10 +7,10 @@
  * edit ends. A deleted chat leaves the list, and the screen
  * when it is open. Group notices reload the groups and the list. Notices that
  * arrive close together share one reload, and a reload that fails is tried
- * again a few times. Each stream's reloads, and the store's first read of the
- * chats, run one after another. The server replays nothing, so the chats are
- * read once the stream is open, and after a reconnect the groups, the list and
- * the open chat are read again.
+ * again a few times. The server replays nothing, so the chats are read once
+ * the stream is open, and after a reconnect the groups, the list and the open
+ * chat are read again.
+ * Each stream's reloads, and the store's first read of the chats, run one after another.
  */
 
 import { CONVERSATION_EVENTS } from '$lib/constants';
@@ -55,9 +55,8 @@ class ChatSyncStore {
 	private stream: AbortController | null = null;
 
 	/**
-	 * Runs `read` in turn with the reloads of the open stream, or at once when
-	 * none is open. For the store's first read of the chats: a reload that a
-	 * notice starts meanwhile then reads after it, so an older list never lands last.
+	 * Runs `read` in turn with the reloads of the open stream, or at once when none is open.
+	 * For the store's first read of the chats: a reload that a notice starts meanwhile then reads after it, so an older list never lands last.
 	 */
 	async inTurn(read: () => Promise<void>): Promise<void> {
 		const run = this.reloads.then(read);
@@ -110,8 +109,8 @@ class ChatSyncStore {
 	}
 
 	/**
-	 * Closes the stream and drops the reloads it has not run yet. A reload
-	 * still reading is not waited for: the store switch makes its calls abort.
+	 * Closes the stream and drops the reloads it has not run yet.
+	 * A reload still reading is not waited for: the store switch makes its calls abort.
 	 */
 	stop(): void {
 		this.stream?.abort();
