@@ -577,9 +577,13 @@ export class ServerChatStore implements ChatStore {
 		if (options?.ifVersion !== undefined) patch.if_version = options.ifVersion;
 
 		await this.enqueue(id, async () => {
-			this.trackWrite(
-				await request(() => apiPost<ApiConversation>(conversationPath(id), patch, this.auth))
+			const record = await request(() =>
+				apiPost<ApiConversation>(conversationPath(id), patch, this.auth)
 			);
+
+			// only a name change moves a chat's version; other writes answer with whatever version it has
+			if ('name' in patch) this.trackWrite(record);
+			else this.track(record);
 		});
 	}
 
@@ -674,7 +678,7 @@ export class ServerChatStore implements ChatStore {
 					)
 				);
 
-				this.trackWrite(deleted);
+				this.track(deleted);
 				deletedIds = deleted.deleted_ids;
 			} catch (error) {
 				if (!isMissing(error)) throw error;
@@ -736,7 +740,7 @@ export class ServerChatStore implements ChatStore {
 		this.versions.set(id, own);
 	}
 
-	/** {@link track} for the answer to this window's own write, whose version a later rename starts from. */
+	/** {@link track} for the answer to this window's own create or rename, whose version a later rename starts from. */
 	private trackWrite(record: ApiConversation): DatabaseConversation {
 		this.trackVersion(record.id, record.version);
 
