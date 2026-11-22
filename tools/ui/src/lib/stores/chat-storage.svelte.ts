@@ -198,7 +198,8 @@ class ChatStorageStore {
 	/**
 	 * Points DatabaseService at a store once the current one's writes settle.
 	 * A Pico Server store sends `apiKey` with all its requests, also the ones
-	 * still queued when the key changes, and its notices stream opens.
+	 * still queued when the key changes, and its notices stream opens before
+	 * any chat is read from it.
 	 */
 	private async use(target: ChatStorageLocation, apiKey: string): Promise<void> {
 		const isServer = target === ChatStorageLocation.SERVER;
@@ -207,7 +208,7 @@ class ChatStorageStore {
 			const store = new ServerChatStore(apiKey);
 
 			await DatabaseService.useStore(store, showStoreError);
-			chatSyncStore.start(store);
+			await chatSyncStore.start(store);
 		} else {
 			await DatabaseService.useStore(localChatStore);
 		}

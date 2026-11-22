@@ -27,7 +27,9 @@ import {
 	collectForkFamily,
 	filterByLeafNodeId,
 	findLeafNode,
-	generateConversationTitle
+	generateConversationTitle,
+	keepLocalChanges,
+	snapshotById
 } from '$lib/utils';
 import { SvelteSet } from 'svelte/reactivity';
 import { toast } from 'svelte-sonner';
@@ -707,10 +709,10 @@ class ConversationsStore implements ConversationsPreferencesHost {
 
 	/**
 	 * Reads the open chat again after another window changed it. This window
-	 * keeps its own branch and follows it to its newest message; a chat that
-	 * is gone gives way to the new-chat screen. Nothing changes when another
-	 * chat opened, or `isBusy` says this window began work in it, before the
-	 * reads came back.
+	 * keeps its own branch and follows it to its newest message, and the
+	 * fields it changed while the reads ran; a chat that is gone gives way to
+	 * the new-chat screen. Nothing changes when another chat opened, or
+	 * `isBusy` says this window began work in it, before the reads came back.
 	 *
 	 * @param isBusy - Whether this window is replying or editing in the chat
 	 * @returns False when it skipped the chat because `isBusy` said so
@@ -722,6 +724,7 @@ class ConversationsStore implements ConversationsPreferencesHost {
 
 		if (isBusy(active.id)) return false;
 
+		const before: Record<string, unknown> = { ...active };
 		const conversation = await DatabaseService.getConversation(active.id);
 		const allMessages = conversation
 			? await DatabaseService.getConversationMessages(active.id)
@@ -741,10 +744,17 @@ class ConversationsStore implements ConversationsPreferencesHost {
 		const leafNodeId = allMessages.some((m) => m.id === active.currNode)
 			? findLeafNode(allMessages, active.currNode)
 			: conversation.currNode;
+		// fields this window changed while the reads ran (rename, pin, preferences) keep its value: the server may have read before those writes landed
+		const now = active as unknown as Record<string, unknown>;
+		const local = Object.fromEntries(
+			[...new Set([...Object.keys(before), ...Object.keys(now)])]
+				.filter((key) => before[key] !== now[key])
+				.map((key) => [key, now[key]])
+		);
 
 		// one sync block, as in loadConversation; the new object makes the chat screen take the handed-off messages
 		this.lastLoadedMessages = { convId: active.id, messages: allMessages };
-		this.activeConversation = { ...conversation, currNode: leafNodeId };
+		this.activeConversation = { ...conversation, ...local, currNode: leafNodeId };
 		this.activeMessages = leafNodeId
 			? (filterByLeafNodeId(allMessages, leafNodeId, false) as DatabaseMessage[])
 			: allMessages;
@@ -758,23 +768,15 @@ class ConversationsStore implements ConversationsPreferencesHost {
 	 * state: the server may have read the list before those writes landed.
 	 */
 	async reloadConversations(): Promise<void> {
-		const before = new Map(this.conversations.map((c) => [c.id, JSON.stringify(c)]));
+		const before = snapshotById(this.conversations);
 		const conversations = await DatabaseService.getAllConversations();
-		const after = new Map(this.conversations.map((c) => [c.id, JSON.stringify(c)]));
-		const touched = new Set(
-			[...before.keys(), ...after.keys()].filter((id) => before.get(id) !== after.get(id))
+
+		this.conversations = keepLocalChanges(
+			before,
+			this.conversations,
+			conversations,
+			(a, b) => b.lastModified - a.lastModified
 		);
-
-		if (touched.size === 0) {
-			this.conversations = conversations;
-
-			return;
-		}
-
-		this.conversations = [
-			...conversations.filter((c) => !touched.has(c.id)),
-			...this.conversations.filter((c) => touched.has(c.id))
-		].sort((a, b) => b.lastModified - a.lastModified);
 	}
 
 	/**

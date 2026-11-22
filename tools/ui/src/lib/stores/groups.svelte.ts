@@ -13,7 +13,7 @@ import { DatabaseService } from '$lib/services/database.service';
 import { conversationsStore } from '$lib/stores/conversations/index.svelte';
 import { uiStore } from '$lib/stores/ui.svelte';
 import type { DatabaseConversation, Group } from '$lib/types';
-import { uuid } from '$lib/utils';
+import { keepLocalChanges, snapshotById, uuid } from '$lib/utils';
 
 function normalizeName(name: string): string {
 	return name.trim().slice(0, GROUP_NAME_MAX_LENGTH);
@@ -91,9 +91,22 @@ class GroupsStore {
 		return this.initPromise;
 	}
 
-	/** Reads the groups again, e.g. after an import added some. */
+	/**
+	 * Reads the groups again, e.g. after an import added some or another
+	 * window changed them. Groups this window made, renamed or deleted while
+	 * the read ran keep this window's state: the server may have read the
+	 * groups before those writes landed.
+	 */
 	async reload(): Promise<void> {
-		this.groups = await DatabaseService.getAllGroups();
+		const before = snapshotById(this.groups);
+		const groups = await DatabaseService.getAllGroups();
+
+		this.groups = keepLocalChanges(
+			before,
+			this.groups,
+			groups,
+			(a, b) => b.createdAt - a.createdAt
+		);
 	}
 
 	/**

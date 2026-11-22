@@ -6,8 +6,10 @@
  * replying or editing in it; then the open chat reloads once the reply or
  * edit ends. A deleted chat leaves the list, and the screen
  * when it is open. Group notices reload the groups and the list. Notices that
- * arrive close together share one reload. The server replays nothing, so
- * after a reconnect the groups, the list and the open chat are read again.
+ * arrive close together share one reload, and a reload that fails is tried
+ * again a few times. The server replays nothing, so the chats are read once
+ * the stream is open, and after a reconnect the groups, the list and the open
+ * chat are read again.
  */
 
 import { CONVERSATION_EVENTS } from '$lib/constants';
@@ -33,6 +35,9 @@ class ChatSyncStore {
 	/** Chats changed since the last reload, by id. */
 	private changed = new Set<string>();
 
+	/** Reloads that failed in a row, while the same stream was open. */
+	private failures = 0;
+
 	private groupsChanged = false;
 
 	/** Reloads run one after another, so an older list never lands last. */
@@ -48,19 +53,47 @@ class ChatSyncStore {
 
 	private stream: AbortController | null = null;
 
-	/** Opens the notices stream of `store`, as its account; one already open is closed first. */
-	start(store: ServerChatStore): void {
+	/**
+	 * Opens the notices stream of `store`, as its account; one already open is
+	 * closed first. Resolves once the stream is open, so reads made after it
+	 * miss no notice, or after OPEN_WAIT_MS at most; a stream that opens later
+	 * reads everything again.
+	 */
+	async start(store: ServerChatStore): Promise<void> {
 		this.stop();
 
-		this.stream = new AbortController();
+		const stream = new AbortController();
+
+		let waiting = true;
+		let opened = () => {};
+
+		const open = new Promise<void>((resolve) => {
+			const timer = setTimeout(resolve, CONVERSATION_EVENTS.OPEN_WAIT_MS);
+
+			opened = () => {
+				clearTimeout(timer);
+				resolve();
+			};
+		});
+
+		this.stream = stream;
 		this.stopIdleWatch = $effect.root(() => {
 			$effect(() => this.retryWhenIdle());
 		});
+		stream.signal.addEventListener('abort', () => opened());
 		void store.watchEvents(
-			this.stream.signal,
+			stream.signal,
 			(event) => this.apply(event),
-			() => this.resync()
+			() => {
+				// chats are read once start() returns, so a stream that opens sooner missed nothing
+				if (!waiting) this.resync();
+
+				opened();
+			}
 		);
+
+		await open;
+		waiting = false;
 	}
 
 	/** Closes the stream and drops the reloads it has not run yet. */
@@ -76,6 +109,7 @@ class ChatSyncStore {
 		this.reloadTimer = null;
 		this.changed.clear();
 		this.groupsChanged = false;
+		this.failures = 0;
 	}
 
 	private apply(event: ApiConversationEvent): void {
@@ -122,18 +156,41 @@ class ChatSyncStore {
 
 			const openId = conversationsStore.activeConversation?.id;
 
-			if (!openId || !changed.has(openId)) return;
+			if (openId && changed.has(openId)) {
+				const reloaded = await conversationsStore.reloadActiveConversation(isBusy);
 
-			const reloaded = await conversationsStore.reloadActiveConversation(isBusy);
+				if (!reloaded && this.stream === stream) this.skipped = openId;
+			}
 
-			if (!reloaded && this.stream === stream) this.skipped = openId;
+			this.failures = 0;
 		} catch (error) {
 			// an abort means the store changed meanwhile; a failed call already showed its error
-			if (!isAbortError(error)) console.error('Failed to reload chats changed elsewhere:', error);
+			if (isAbortError(error)) return;
+
+			console.error('Failed to reload chats changed elsewhere:', error);
+
+			// a closed stream drops the batch
+			if (this.stream !== stream) return;
+
+			// kept for the next reload; tried again by itself a few times, with backoff
+			for (const id of changed) this.changed.add(id);
+
+			this.groupsChanged ||= groupsChanged;
+
+			if (this.failures >= CONVERSATION_EVENTS.RELOAD_RETRIES) {
+				this.failures = 0;
+
+				return;
+			}
+
+			this.scheduleReload(
+				CONVERSATION_EVENTS.INITIAL_RECONNECT_DELAY_MS *
+					CONVERSATION_EVENTS.BACKOFF_MULTIPLIER ** this.failures++
+			);
 		}
 	}
 
-	/** After a reconnect: anything may have changed while the stream was down. */
+	/** After a stream opened once the chats were read: anything may have changed before. */
 	private resync(): void {
 		const openId = conversationsStore.activeConversation?.id;
 
@@ -157,13 +214,13 @@ class ChatSyncStore {
 		this.scheduleReload();
 	}
 
-	private scheduleReload(): void {
+	private scheduleReload(delay: number = CONVERSATION_EVENTS.RELOAD_DEBOUNCE_MS): void {
 		if (this.reloadTimer) clearTimeout(this.reloadTimer);
 
 		this.reloadTimer = setTimeout(() => {
 			this.reloadTimer = null;
 			this.reloads = this.reloads.then(() => this.reload());
-		}, CONVERSATION_EVENTS.RELOAD_DEBOUNCE_MS);
+		}, delay);
 	}
 }
 

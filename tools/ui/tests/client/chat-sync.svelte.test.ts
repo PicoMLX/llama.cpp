@@ -1,9 +1,10 @@
 // While chats are on Pico Server, a window follows what other windows change:
 // their changes reload the list and the open chat, a chat they delete leaves
 // the screen, and group changes reload the groups. Its own changes, and an
-// open chat it is replying or editing in, are left alone. After a reconnect
-// it reads everything again, and the stream closes when chats leave Pico
-// Server.
+// open chat it is replying or editing in, are left alone, also when they land
+// while a reload reads. A failed reload is tried again a few times. After a
+// reconnect, or a first stream that opens late, it reads everything again,
+// and the stream closes when chats leave Pico Server.
 
 import { vi } from 'vitest';
 
@@ -127,6 +128,64 @@ function replyElsewhere(convId: string, id: string, parentId: string, text: stri
 
 function createChatElsewhere(id: string, name: string) {
 	return server.sendAs(OTHER_WINDOW, 'POST', API_CONVERSATIONS.CONVERSATIONS, { id, name });
+}
+
+function createGroupElsewhere(id: string, name: string) {
+	return server.sendAs(OTHER_WINDOW, 'POST', API_CONVERSATIONS.GROUPS, { id, name });
+}
+
+const isGet = (input: RequestInfo | URL, init: RequestInit | undefined, path: string) =>
+	(init?.method ?? 'GET') === 'GET' &&
+	new URL(input instanceof Request ? input.url : String(input), 'http://pico.test').pathname ===
+		path;
+
+/** Holds the answer to the next GET of `path` until `release`; the server reads at once. */
+function holdAnswer(path: string) {
+	const send = vi.mocked(globalThis.fetch).getMockImplementation()!;
+
+	let release!: () => void;
+	let started!: () => void;
+	let held = false;
+
+	const answered = new Promise<void>((resolve) => (release = resolve));
+	const read = new Promise<void>((resolve) => (started = resolve));
+
+	vi.mocked(globalThis.fetch).mockImplementation(async (input, init) => {
+		const response = await send(input, init);
+
+		if (!held && isGet(input, init, path)) {
+			held = true;
+			started();
+			await answered;
+		}
+
+		return response;
+	});
+
+	return { read, release };
+}
+
+/** Answers the next `times` GETs of `path` with 503, as a server that is down for a moment; `left = 0` ends it. */
+function failReads(path: string, times: number) {
+	const send = vi.mocked(globalThis.fetch).getMockImplementation()!;
+	const failed = { count: 0, left: times };
+
+	vi.mocked(globalThis.fetch).mockImplementation(async (input, init) => {
+		if (failed.left <= 0 || !isGet(input, init, path)) return send(input, init);
+
+		failed.count++;
+		failed.left--;
+
+		return new Response(
+			JSON.stringify({ error: { code: 'unavailable', message: 'unavailable' } }),
+			{
+				headers: { 'Content-Type': 'application/json' },
+				status: 503
+			}
+		);
+	});
+
+	return failed;
 }
 
 beforeEach(async () => {
@@ -343,6 +402,45 @@ describe("another window's changes", () => {
 		expect(listName(chat.id)).toBe('Renamed here');
 	});
 
+	it('keeps what this window changed in the open chat while a reload read it', async () => {
+		const { chat, user } = await openChat();
+		const held = holdAnswer(`${API_CONVERSATIONS.CONVERSATIONS}/${chat.id}`);
+
+		await editElsewhere(chat.id, user.id, 'edited elsewhere');
+		await held.read;
+		await conversationsStore.updateConversationName(chat.id, 'Renamed here');
+		await conversationsStore.toggleConversationPin(chat.id);
+		await conversationsStore.preferences.setCwd('/work');
+		held.release();
+		await vi.waitFor(() => expect(shownText()).toEqual(['edited elsewhere']));
+
+		expect(conversationsStore.activeConversation).toMatchObject({
+			cwd: '/work',
+			name: 'Renamed here',
+			pinned: true
+		});
+	});
+
+	it('keeps the groups this window made, renamed or deleted while a reload read them', async () => {
+		const kept = (await groupsStore.create('Kept'))!;
+		const gone = (await groupsStore.create('Gone'))!;
+		const held = holdAnswer(API_CONVERSATIONS.GROUPS);
+
+		await createGroupElsewhere(THEIR_GROUP, 'Work');
+		await held.read;
+
+		const made = (await groupsStore.create('Made here'))!;
+
+		await groupsStore.rename(kept.id, 'Renamed here');
+		await groupsStore.remove(gone.id);
+		held.release();
+		await vi.waitFor(() => expect(groupsStore.get(THEIR_GROUP)?.name).toBe('Work'));
+
+		expect(groupsStore.get(made.id)?.name).toBe('Made here');
+		expect(groupsStore.get(kept.id)?.name).toBe('Renamed here');
+		expect(groupsStore.get(gone.id)).toBeUndefined();
+	});
+
 	it('removes a chat deleted elsewhere, and leaves it when it is open', async () => {
 		await createChatElsewhere(THEIR_CHAT, 'Theirs');
 
@@ -414,6 +512,124 @@ describe('the notices stream', () => {
 		expect(listName(chat.id)).toBe('Renamed while disconnected');
 		expect(groupsStore.get(THEIR_GROUP)?.name).toBe('Work');
 		expect(eventConnections()).toBe(2);
+	});
+
+	it('reads everything again when the first stream opens after the chats were read', async () => {
+		await chatStorageStore.select(ChatStorageLocation.BROWSER);
+
+		let open!: () => void;
+
+		const opened = new Promise<void>((resolve) => (open = resolve));
+		const listReads = reads();
+
+		server.gate = async (request) => {
+			if (request.path === API_CONVERSATIONS.EVENTS) await opened;
+		};
+		await chatStorageStore.select(ChatStorageLocation.SERVER);
+
+		expect(reads() - listReads).toBe(1);
+
+		// after the switch read the list, before the stream listens
+		await createChatElsewhere(THEIR_CHAT, 'Theirs');
+		open();
+		await vi.waitFor(() => expect(listName(THEIR_CHAT)).toBe('Theirs'));
+	});
+
+	it('reads the chats once when the stream opens before them', async () => {
+		await chatStorageStore.select(ChatStorageLocation.BROWSER);
+
+		const listReads = reads();
+
+		await chatStorageStore.select(ChatStorageLocation.SERVER);
+		await createChatElsewhere(THEIR_CHAT, 'Theirs');
+		await vi.waitFor(() => expect(listName(THEIR_CHAT)).toBe('Theirs'));
+		await settle(CONVERSATION_EVENTS.RELOAD_DEBOUNCE_MS + 100);
+
+		// the switch's read, then the one for the notice
+		expect(reads() - listReads).toBe(2);
+	});
+
+	it.each([
+		[
+			'the groups',
+			() => API_CONVERSATIONS.GROUPS,
+			() => createGroupElsewhere(THEIR_GROUP, 'Work'),
+			() => expect(groupsStore.get(THEIR_GROUP)?.name).toBe('Work')
+		],
+		[
+			'the list',
+			() => API_CONVERSATIONS.CONVERSATIONS,
+			() => createChatElsewhere(THEIR_CHAT, 'Theirs'),
+			() => expect(listName(THEIR_CHAT)).toBe('Theirs')
+		],
+		[
+			'the open chat',
+			(chat: DatabaseConversation) => `${API_CONVERSATIONS.CONVERSATIONS}/${chat.id}`,
+			(chat: DatabaseConversation, user: DatabaseMessage) =>
+				editElsewhere(chat.id, user.id, 'edited elsewhere'),
+			() => expect(shownText()).toEqual(['edited elsewhere'])
+		]
+	])(
+		'reads %s again after a read failed while the stream stayed up',
+		async (_, path, change, shown) => {
+			const { chat, user } = await openChat();
+
+			vi.spyOn(console, 'error').mockImplementation(() => {});
+
+			const failed = failReads(path(chat), 1);
+
+			await change(chat, user);
+			await vi.waitFor(() => expect(failed.count).toBe(1));
+			await vi.waitFor(shown, { timeout: CONVERSATION_EVENTS.INITIAL_RECONNECT_DELAY_MS + 2000 });
+			chatStore.showErrorDialog(null);
+		}
+	);
+
+	it('tries a failed read a few times, and keeps its notices for the next reload', async () => {
+		const { chat, user } = await openChat();
+		const realTimeout = globalThis.setTimeout;
+		/** Moves the faked clock on, then lets the reads it started come back. */
+		const tick = async (ms: number) => {
+			await vi.advanceTimersByTimeAsync(ms);
+			await new Promise((resolve) => realTimeout(resolve, 10));
+		};
+
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+
+		const failed = failReads(`${API_CONVERSATIONS.CONVERSATIONS}/${chat.id}`, Infinity);
+
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+		try {
+			await editElsewhere(chat.id, user.id, 'edited elsewhere');
+
+			for (let i = 0; i < 120; i++) await tick(500);
+		} finally {
+			vi.useRealTimers();
+		}
+
+		expect(failed.count).toBe(1 + CONVERSATION_EVENTS.RELOAD_RETRIES);
+		expect(shownText()).toEqual(['hi']);
+
+		// a notice about another chat reloads the open one too
+		failed.left = 0;
+		await createChatElsewhere(THEIR_CHAT, 'Theirs');
+		await vi.waitFor(() => expect(shownText()).toEqual(['edited elsewhere']));
+		chatStore.showErrorDialog(null);
+	});
+
+	it('drops a failed reload when the stream closes before it is tried again', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+
+		const failed = failReads(API_CONVERSATIONS.CONVERSATIONS, Infinity);
+
+		await createChatElsewhere(THEIR_CHAT, 'Theirs');
+		await vi.waitFor(() => expect(failed.count).toBe(1));
+		await chatStorageStore.select(ChatStorageLocation.BROWSER);
+		await settle(CONVERSATION_EVENTS.INITIAL_RECONNECT_DELAY_MS + 200);
+
+		expect(failed.count).toBe(1);
+		chatStore.showErrorDialog(null);
 	});
 
 	it('closes when chats go back to this browser', async () => {

@@ -692,17 +692,16 @@ export class ServerChatStore implements ChatStore {
 	/**
 	 * Reads Pico Server's change notices until `signal` aborts, and hands
 	 * `onEvent` the ones other windows caused. A dropped stream reconnects
-	 * with backoff. The server replays nothing, so `onReconnect` runs each
-	 * time a stream is back after a drop. The stream goes out as this store's
-	 * account.
+	 * with backoff. The server replays nothing, so `onOpen` runs each time a
+	 * stream opens, the first one too: a change made before it is never
+	 * notified. The stream goes out as this store's account.
 	 */
 	async watchEvents(
 		signal: AbortSignal,
 		onEvent: (event: ApiConversationEvent) => void,
-		onReconnect: () => void
+		onOpen: () => void
 	): Promise<void> {
 		let delay: number = CONVERSATION_EVENTS.INITIAL_RECONNECT_DELAY_MS;
-		let dropped = false;
 
 		while (!signal.aborted) {
 			try {
@@ -718,8 +717,7 @@ export class ServerChatStore implements ChatStore {
 					let buffer = '';
 
 					delay = CONVERSATION_EVENTS.INITIAL_RECONNECT_DELAY_MS;
-
-					if (dropped) onReconnect();
+					onOpen();
 
 					while (!signal.aborted) {
 						const { done, value } = await reader.read();
@@ -745,7 +743,6 @@ export class ServerChatStore implements ChatStore {
 
 			if (signal.aborted) return;
 
-			dropped = true;
 			await new Promise((resolve) => setTimeout(resolve, delay));
 			delay = Math.min(
 				delay * CONVERSATION_EVENTS.BACKOFF_MULTIPLIER,

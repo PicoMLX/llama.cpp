@@ -1,7 +1,7 @@
 // Each window sends its own id with every Pico Server chat request, so the
 // change notices its writes cause come back with its id as their origin. The
-// events stream hands over only other windows' notices, and reconnects with
-// backoff after a drop.
+// events stream hands over only other windows' notices, reports each stream
+// that opens, and reconnects with backoff after a drop.
 
 import { MockConversationsServer } from '../fixtures/mock-conversations-server';
 import { API_CONVERSATIONS, HEADERS } from '$lib/constants';
@@ -104,13 +104,13 @@ describe('ServerChatStore watchEvents', () => {
 		const previousKey = settingsStore.config.apiKey;
 		const stop = new AbortController();
 		const events: ApiConversationEvent[] = [];
-		const onReconnect = vi.fn();
+		const onOpen = vi.fn();
 		const store = new ServerChatStore('secret-key');
 
 		// the stream goes out as the store's account, not the one in the settings
 		settingsStore.config.apiKey = 'other-key';
 		await DatabaseService.useStore(store);
-		void store.watchEvents(stop.signal, (event) => events.push(event), onReconnect);
+		void store.watchEvents(stop.signal, (event) => events.push(event), onOpen);
 		await vi.waitFor(() => expect(server.eventStreams.size).toBe(1));
 
 		await DatabaseService.createConversation('Mine');
@@ -136,7 +136,8 @@ describe('ServerChatStore watchEvents', () => {
 				event: ConversationEventType.CONVERSATION_CHANGED
 			}
 		]);
-		expect(onReconnect).not.toHaveBeenCalled();
+		// the first stream counts too: the server replays nothing from before it
+		expect(onOpen).toHaveBeenCalledTimes(1);
 
 		const [stream, create] = server.requests;
 
@@ -148,11 +149,11 @@ describe('ServerChatStore watchEvents', () => {
 		await vi.waitFor(() => expect(server.eventStreams.size).toBe(0));
 	});
 
-	it('reconnects with backoff from 1 s doubling to 30 s, and reports each reconnect', async () => {
+	it('reconnects with backoff from 1 s doubling to 30 s, and reports each stream that opens', async () => {
 		vi.useFakeTimers();
 
 		const stop = new AbortController();
-		const onReconnect = vi.fn();
+		const onOpen = vi.fn();
 		const attempts: number[] = [];
 		const gaps = () => attempts.slice(1).map((at, i) => at - attempts[i]);
 
@@ -160,19 +161,19 @@ describe('ServerChatStore watchEvents', () => {
 			if (request.path === API_CONVERSATIONS.EVENTS) attempts.push(Date.now());
 		};
 		server.eventsDown = true;
-		void new ServerChatStore('test-key').watchEvents(stop.signal, () => {}, onReconnect);
+		void new ServerChatStore('test-key').watchEvents(stop.signal, () => {}, onOpen);
 		await vi.advanceTimersByTimeAsync(0);
 
 		for (let i = 0; i < 7; i++) await vi.advanceTimersToNextTimerAsync();
 
 		expect(gaps()).toEqual([1000, 2000, 4000, 8000, 16000, 30000, 30000]);
-		expect(onReconnect).not.toHaveBeenCalled();
+		expect(onOpen).not.toHaveBeenCalled();
 
 		server.eventsDown = false;
 		await vi.advanceTimersToNextTimerAsync();
 
 		expect(server.eventStreams.size).toBe(1);
-		expect(onReconnect).toHaveBeenCalledTimes(1);
+		expect(onOpen).toHaveBeenCalledTimes(1);
 
 		// a stream that was up starts over from 1 s once it drops
 		server.dropEvents();
@@ -181,7 +182,7 @@ describe('ServerChatStore watchEvents', () => {
 
 		expect(gaps().at(-1)).toBe(1000);
 		expect(server.eventStreams.size).toBe(1);
-		expect(onReconnect).toHaveBeenCalledTimes(2);
+		expect(onOpen).toHaveBeenCalledTimes(2);
 
 		stop.abort();
 		await vi.advanceTimersByTimeAsync(5000);
