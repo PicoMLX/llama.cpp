@@ -1,3 +1,4 @@
+import { expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import http from 'node:http';
@@ -185,6 +186,201 @@ const server = http.createServer(async (request, response) => {
 await new Promise((done) => server.listen(0, '127.0.0.1', done));
 const origin = `http://${lanHTTP ? 'pico.test' : '127.0.0.1'}:${server.address().port}`;
 
+async function assertPicoChatSurface(page) {
+	const picker = page.getByRole('button', { exact: true, name: 'Model for the next response' });
+
+	await expect(picker).toHaveCount(1);
+	await expect(picker).toBeVisible();
+	await expect(
+		page.locator('form').getByRole('button', { name: 'Model for the next response' })
+	).toHaveCount(0);
+	await expect(page.getByRole('navigation', { name: 'Open conversations' })).toHaveCount(0);
+	await expect(page.locator('[data-context-gauge-trigger]')).toHaveCount(0);
+	const sidebar = page.locator('aside');
+
+	await expect(sidebar.getByRole('button', { name: /^New chat/ })).toBeVisible();
+	await expect(sidebar.getByRole('button', { name: /^Search/ })).toBeVisible();
+	await expect(sidebar.getByRole('button', { name: /^Settings/ })).toBeVisible();
+	await expect(sidebar.getByRole('button', { exact: true, name: 'MCP' })).toHaveCount(0);
+	await expect(sidebar.getByRole('button', { name: /^Models/ })).toHaveCount(0);
+}
+
+async function assertPicoSettings(page) {
+	await page
+		.locator('aside')
+		.getByRole('button', { name: /^Settings/ })
+		.click();
+	const settings = page.getByRole('dialog', { exact: true, name: 'Settings' });
+
+	for (const name of ['General', 'Personalization', 'Connections', 'Data', 'Advanced']) {
+		await expect(settings.getByRole('button', { exact: true, name })).toBeVisible();
+	}
+	await expect(settings.getByRole('button', { name: 'Save settings' })).toHaveCount(0);
+	const enter = settings.getByRole('checkbox', { name: 'Send message on Enter' });
+	const wasChecked = await enter.isChecked();
+
+	await enter.click();
+	await expect
+		.poll(() =>
+			page.evaluate(() => JSON.parse(localStorage.getItem('LlamaUi.config') ?? '{}').sendOnEnter)
+		)
+		.toBe(!wasChecked);
+	await settings.getByRole('button', { exact: true, name: 'Connections' }).click();
+	await expect(settings.getByRole('heading', { name: 'Connections' })).toBeVisible();
+	await expect(settings.getByRole('button', { exact: true, name: 'Add connection' })).toBeVisible();
+	await settings.getByText('Pico access', { exact: true }).click();
+	const key = settings.getByLabel('Access key', { exact: true });
+
+	await key.fill('incorrect-settings-key');
+	await settings.getByRole('button', { exact: true, name: 'Connect' }).click();
+	await expect(settings.getByRole('alert')).toContainText('This access key is not valid');
+	assert.equal(
+		await page.evaluate(() => JSON.parse(localStorage.getItem('LlamaUi.config') ?? '{}').apiKey),
+		token
+	);
+	await key.fill(token);
+	await settings.getByRole('button', { exact: true, name: 'Connect' }).click();
+	await expect(settings.getByRole('status')).toHaveText('Connected to Pico.');
+	await settings.getByRole('button', { exact: true, name: 'Close' }).click();
+	await page
+		.locator('aside')
+		.getByRole('button', { name: /^Settings/ })
+		.click();
+	await expect(
+		page
+			.getByRole('dialog', { exact: true, name: 'Settings' })
+			.getByRole('checkbox', { name: 'Send message on Enter' })
+	).toBeChecked({ checked: !wasChecked });
+	await page
+		.getByRole('dialog', { exact: true, name: 'Settings' })
+		.getByRole('button', { exact: true, name: 'Close' })
+		.click();
+}
+
+async function assertNoHorizontalOverflow(page, surface) {
+	await expect
+		.poll(
+			() =>
+				page.evaluate(
+					() =>
+						Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) -
+						document.documentElement.clientWidth
+				),
+			{ message: `Mobile ${surface} must fit the viewport` }
+		)
+		.toBeLessThanOrEqual(1);
+}
+
+async function assertPicoMobile(browser) {
+	const context = await browser.newContext({
+		hasTouch: true,
+		isMobile: true,
+		locale: 'en-US',
+		viewport: { height: 844, width: 390 }
+	});
+	const legacyVisuals = {
+		alwaysShowSidebarOnDesktop: true,
+		alwaysShowToolCallContent: true,
+		conversationTabs: true,
+		showModelQuantization: true,
+		showSystemMessage: true
+	};
+	const savedConnection = {
+		enabled: false,
+		headers: JSON.stringify({ Authorization: 'Bearer saved-mobile-tool-key' }),
+		id: 'mobile-saved-connection',
+		url: 'http://127.0.0.1/mcp'
+	};
+
+	try {
+		await context.addInitScript(
+			({ appOrigin, config }) => {
+				if (location.origin === appOrigin && !localStorage.getItem('LlamaUi.config')) {
+					localStorage.setItem('LlamaUi.config', JSON.stringify(config));
+				}
+			},
+			{
+				appOrigin: origin,
+				config: {
+					...legacyVisuals,
+					apiKey: token,
+					mcpServers: JSON.stringify([savedConnection]),
+					sendOnEnter: false,
+					unknownSetting: 'mobile-package-preserved'
+				}
+			}
+		);
+		const page = await context.newPage();
+
+		page.on('pageerror', (error) => pageErrors.push(String(error)));
+		await page.goto(origin, { waitUntil: 'networkidle' });
+		const picker = page.getByRole('button', { exact: true, name: 'Model for the next response' });
+
+		await expect(picker).toHaveCount(1);
+		await expect(picker).toBeVisible();
+		await expect(
+			page.locator('form').getByRole('button', { name: 'Model for the next response' })
+		).toHaveCount(0);
+		await expect(page.getByRole('navigation', { name: 'Open conversations' })).toHaveCount(0);
+		await assertNoHorizontalOverflow(page, 'chat');
+		await page.getByRole('button', { exact: true, name: 'Expand navigation' }).click();
+		const sidebar = page.locator('aside');
+
+		await expect(sidebar.getByRole('button', { name: /^New chat/ })).toBeVisible();
+		await expect(sidebar.getByRole('button', { name: /^Search/ })).toBeVisible();
+		await assertNoHorizontalOverflow(page, 'navigation');
+		await sidebar.getByRole('button', { name: /^Settings/ }).click();
+		const settings = page.getByRole('dialog', { exact: true, name: 'Settings' });
+		const enter = settings.getByRole('checkbox', { name: 'Send message on Enter' });
+
+		await expect(enter).not.toBeChecked();
+		await enter.click();
+		await settings.getByRole('button', { exact: true, name: 'Connections' }).click();
+		await expect(
+			settings.getByRole('button', { exact: true, name: 'Add connection' })
+		).toBeVisible();
+		await assertNoHorizontalOverflow(page, 'Settings');
+		await expect
+			.poll(() =>
+				page.evaluate(() => JSON.parse(localStorage.getItem('LlamaUi.config') ?? '{}').sendOnEnter)
+			)
+			.toBe(true);
+		const saved = await page.evaluate(() => ({
+			backup: JSON.parse(localStorage.getItem('LlamaUi.config.pico-ux-v1-backup') ?? 'null'),
+			config: JSON.parse(localStorage.getItem('LlamaUi.config') ?? '{}')
+		}));
+
+		for (const key of Object.keys(legacyVisuals)) assert.equal(saved.config[key], false, key);
+		assert.deepEqual(saved.backup, legacyVisuals);
+		assert.equal(saved.config.apiKey, token);
+		assert.equal(saved.config.unknownSetting, 'mobile-package-preserved');
+		assert.deepEqual(JSON.parse(saved.config.mcpServers), [savedConnection]);
+		await settings.getByRole('button', { exact: true, name: 'Close' }).click();
+		await page.getByRole('button', { exact: true, name: 'Add files and tools' }).click();
+		const add = page.getByRole('dialog', { exact: true, name: 'Add files and tools' });
+
+		await expect(add.getByRole('button', { exact: true, name: 'Add files' })).toBeVisible();
+		await expect(add.getByRole('button', { exact: true, name: 'System message' })).toHaveCount(0);
+		await assertNoHorizontalOverflow(page, 'Add drawer');
+		const chooser = page.waitForEvent('filechooser');
+
+		await add.getByRole('button', { exact: true, name: 'Add files' }).click();
+		await (
+			await chooser
+		).setFiles({
+			buffer: Buffer.from('A mobile attachment from the packaged UI.'),
+			mimeType: 'text/plain',
+			name: 'mobile-smoke.txt'
+		});
+		await expect(add).toHaveCount(0);
+		await expect(page.locator('form').getByText('mobile-smoke.txt', { exact: true })).toBeVisible();
+		await expect(page.getByRole('button', { exact: true, name: 'Send' })).toBeEnabled();
+		await assertNoHorizontalOverflow(page, 'composer with attachment');
+	} finally {
+		await context.close();
+	}
+}
+
 let browser;
 
 try {
@@ -217,6 +413,7 @@ try {
 			`Bearer ${token}`
 		);
 		assert.ok(!page.url().includes('apikey='), 'Invite key must be removed after navigation');
+		await assertPicoChatSurface(page);
 
 		if (suffix === '/#/?apikey=') {
 			await page
@@ -225,6 +422,15 @@ try {
 				.fill('Tell a joke.');
 			await page.getByRole('button', { exact: true, name: 'Send' }).click();
 			await page.getByText("Because they don't have the guts!", { exact: true }).waitFor();
+			await expect(page.locator('.chat-message-user .pico-response-metrics')).toHaveCount(0);
+			const metrics = page.locator('.chat-message-assistant .pico-response-metrics').first();
+
+			await expect(metrics).toContainText('Prefill');
+			await expect(metrics).toContainText('Decode');
+			await page.mouse.move(0, 0);
+			await expect(metrics).toHaveCSS('opacity', '0');
+			await page.getByRole('button', { exact: true, name: 'Retry' }).first().focus();
+			await expect(metrics).toHaveCSS('opacity', '1');
 			for (const kind of cardKinds) {
 				const card = page.locator(`[data-pico-card="${kind}"]`);
 
@@ -273,14 +479,13 @@ try {
 
 	page.on('pageerror', (error) => pageErrors.push(String(error)));
 	await page.goto(`${origin}/#?apikey=${token}`, { waitUntil: 'networkidle' });
-	await page.locator('button[aria-label="Expand navigation"]').click();
-	await page
-		.getByRole('button', { name: /^Models/ })
-		.first()
-		.click();
-	await page.getByText('smoke/second-4bit', { exact: true }).hover();
+	await assertPicoChatSurface(page);
+	await assertPicoSettings(page);
+	await page.getByRole('button', { exact: true, name: 'Model for the next response' }).click();
+	await page.getByRole('menuitem', { exact: true, name: 'Manage models' }).click();
+	await page.getByTitle('smoke/second-4bit', { exact: true }).hover();
 	await page.getByTitle('Load model', { exact: true }).first().click();
-	await page.getByText('smoke/test-4bit', { exact: true }).hover();
+	await page.getByTitle('smoke/test-4bit', { exact: true }).hover();
 	await page.getByTitle('Unload model', { exact: true }).first().click();
 	await page.getByRole('button', { exact: true, name: 'Model actions' }).first().click();
 	assert.ok(
@@ -308,6 +513,7 @@ try {
 	await accessPage.locator('textarea:visible,[contenteditable="true"]:visible').first().waitFor();
 	assert.equal(await accessPage.title(), 'Pico');
 	await accessContext.close();
+	await assertPicoMobile(browser);
 
 	const translatedContext = await browser.newContext({ locale: 'nl' });
 	const translatedPage = await translatedContext.newPage();
@@ -318,7 +524,7 @@ try {
 	assert.deepEqual(pageErrors, []);
 	assert.deepEqual(missingAssets, []);
 	console.log(
-		`Pico packaged UI smoke passed (${lanHTTP ? 'LAN HTTP' : 'loopback'}): assets, invite authentication, Responses, model lifecycle.`
+		`Pico packaged UI smoke passed (${lanHTTP ? 'LAN HTTP' : 'loopback'}): assets, Pico UX, mobile navigation and attachments, saved-profile migration, settings autosave, access validation, invite authentication, Responses, model lifecycle.`
 	);
 } finally {
 	await browser?.close();

@@ -41,6 +41,13 @@ jobs:
       - run: npm run test:unit -- --run
       - run: npx playwright install --with-deps chromium
       - run: npm run test:client -- --run --browser.headless
+      - name: Test Pico UX
+        env:
+          LLAMA_UI_PICO_BUILD: '1'
+        run: >-
+          npm run test:client -- --run --browser.headless
+          tests/client/pico-*.svelte.test.ts
+          tests/client/settings-connections.svelte.test.ts
       - run: npm run test:pico-openui
       - name: Build and validate Pico resources
         env:
