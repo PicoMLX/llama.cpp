@@ -1,10 +1,15 @@
 // In-memory Pico Server for the conversations API contract, served through a
 // fetch mock. One account; ids, versions, stale edits, moves, forks and the
 // tree rules follow the contract so the web UI's server store can be tested
-// without PicoServer.
+// without PicoServer. Every write sends a change notice to the open
+// /v1/conversation_events streams, naming the X-Pico-Client-Id it came with.
 
+import { API_CONVERSATIONS, HEADERS } from '$lib/constants';
+import { ConversationEventType } from '$lib/enums';
 import type {
 	ApiConversation,
+	ApiConversationDeleted,
+	ApiConversationEvent,
 	ApiConversationGroup,
 	ApiConversationItem,
 	ApiList
@@ -69,6 +74,10 @@ function clone<T>(value: T): T {
 
 export class MockConversationsServer {
 	conversations = new Map<string, ApiConversation>();
+	/** When true, the events route answers 503, as a server that is down. */
+	eventsDown = false;
+	/** Open event streams; a stream leaves when its reader aborts or the server drops it. */
+	eventStreams = new Set<ReadableStreamDefaultController<Uint8Array>>();
 	/** The fetch implementation to install with vi.spyOn(globalThis, 'fetch'). */
 	fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
 		const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
@@ -85,8 +94,14 @@ export class MockConversationsServer {
 		await this.gate?.(request);
 		this.requests.push(request);
 
+		if (request.path === API_CONVERSATIONS.EVENTS) return this.openEvents(init?.signal);
+
 		try {
-			return this.json(200, this.route(request));
+			const result = this.route(request);
+
+			this.notify(request, result);
+
+			return this.json(200, result);
 		} catch (error) {
 			if (!(error instanceof HttpError)) throw error;
 
@@ -109,6 +124,13 @@ export class MockConversationsServer {
 
 	private serverIds = 0;
 
+	/** Closes every open event stream, as a dropped connection. */
+	dropEvents(): void {
+		for (const stream of this.eventStreams) stream.close();
+
+		this.eventStreams.clear();
+	}
+
 	/** Changes an item as another window would. */
 	editElsewhere(convId: string, itemId: string, text: string): void {
 		const item = this.items.get(convId)?.get(itemId);
@@ -119,9 +141,28 @@ export class MockConversationsServer {
 		item.version++;
 	}
 
+	/** Sends a `: keep-alive` comment to every open event stream. */
+	keepAlive(): void {
+		this.send(': keep-alive\n\n');
+	}
+
 	/** Writes the requests sent so far, as `METHOD path`. */
 	log(filter: (request: MockRequest) => boolean = () => true): string[] {
 		return this.requests.filter(filter).map((r) => `${r.method} ${r.path}`);
+	}
+
+	/** Sends a change notice to every open event stream. */
+	publish(event: ApiConversationEvent): void {
+		this.send(`event: ${event.event}\ndata: ${JSON.stringify(event.data)}\n\n`);
+	}
+
+	/** Makes a request as another window, the one with id `clientId`, would. */
+	sendAs(clientId: string, method: string, path: string, body?: unknown): Promise<Response> {
+		return this.fetch(path, {
+			body: body === undefined ? undefined : JSON.stringify(body),
+			headers: { [HEADERS.X_PICO_CLIENT_ID_HEADER]: clientId },
+			method
+		});
 	}
 
 	private addItems(convId: string, body: Body) {
@@ -311,6 +352,73 @@ export class MockConversationsServer {
 		});
 	}
 
+	/** The change notices of a write that succeeded, as Pico Server publishes them. */
+	private notify(request: MockRequest, result: unknown): void {
+		if (request.method === 'GET') return;
+
+		const origin = request.headers.get(HEADERS.X_PICO_CLIENT_ID_HEADER);
+		const [, kind, id, sub] = request.path.split('/').filter(Boolean).map(decodeURIComponent);
+
+		if (kind === 'conversation_groups') {
+			this.publish({
+				data: { group_id: id ?? (result as ApiConversationGroup).id, origin_client_id: origin },
+				event:
+					request.method === 'DELETE'
+						? ConversationEventType.GROUP_DELETED
+						: ConversationEventType.GROUP_CHANGED
+			});
+
+			return;
+		}
+
+		if (request.method === 'DELETE' && !sub) {
+			for (const deleted of (result as ApiConversationDeleted).deleted_ids) {
+				this.publish({
+					data: { conversation_id: deleted, origin_client_id: origin },
+					event: ConversationEventType.CONVERSATION_DELETED
+				});
+			}
+
+			return;
+		}
+
+		const conversation = this.conversations.get(id ?? (result as ApiConversation).id)!;
+
+		this.publish({
+			data: {
+				conversation_id: conversation.id,
+				last_modified_ms: conversation.last_modified_ms,
+				origin_client_id: origin,
+				version: conversation.version
+			},
+			event: ConversationEventType.CONVERSATION_CHANGED
+		});
+	}
+
+	/** Answers the events route with a stream that stays open until its reader aborts. */
+	private openEvents(signal: AbortSignal | null | undefined): Response {
+		if (this.eventsDown) {
+			return this.json(503, { error: { code: 'unavailable', message: 'unavailable' } });
+		}
+
+		let controller!: ReadableStreamDefaultController<Uint8Array>;
+
+		const body = new ReadableStream<Uint8Array>({
+			start: (c) => {
+				controller = c;
+			}
+		});
+
+		this.eventStreams.add(controller);
+		signal?.addEventListener('abort', () => {
+			if (!this.eventStreams.delete(controller)) return;
+
+			controller.error(new DOMException('The stream was aborted', 'AbortError'));
+		});
+
+		return new Response(body, { headers: { 'Content-Type': 'text/event-stream' }, status: 200 });
+	}
+
 	private patchSettings(settings: Body, patch: Body | undefined): Body {
 		const next = { ...settings };
 
@@ -438,6 +546,12 @@ export class MockConversationsServer {
 		}
 
 		throw new HttpError(404, 'not_found');
+	}
+
+	private send(text: string): void {
+		const bytes = new TextEncoder().encode(text);
+
+		for (const stream of this.eventStreams) stream.enqueue(bytes);
 	}
 
 	private serverId(): string {

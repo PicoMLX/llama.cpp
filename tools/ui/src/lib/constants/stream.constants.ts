@@ -20,5 +20,8 @@ export const SSE_LINE_SEPARATOR = '\n';
 // data field prefix, the value follows after an optional space
 export const SSE_DATA_PREFIX = 'data:';
 
+// event name field prefix, the name follows after an optional space
+export const SSE_EVENT_PREFIX = 'event:';
+
 // end-of-stream marker on the chat completion stream
 export const SSE_DONE_MARKER = '[DONE]';

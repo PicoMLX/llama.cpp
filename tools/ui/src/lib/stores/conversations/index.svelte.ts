@@ -27,7 +27,9 @@ import {
 	collectForkFamily,
 	filterByLeafNodeId,
 	findLeafNode,
-	generateConversationTitle
+	generateConversationTitle,
+	keepLocalChanges,
+	snapshotById
 } from '$lib/utils';
 import { SvelteSet } from 'svelte/reactivity';
 import { toast } from 'svelte-sonner';
@@ -455,6 +457,25 @@ class ConversationsStore implements ConversationsPreferencesHost {
 	}
 
 	/**
+	 * Drops a chat another window deleted. An open chat gives way to the
+	 * new-chat screen.
+	 *
+	 * @param convId - The deleted conversation's ID
+	 */
+	async forgetConversation(convId: string): Promise<void> {
+		const wasOpen = this.activeConversation?.id === convId;
+
+		this.conversations = this.conversations.filter((c) => c.id !== convId);
+		tabsStore.removeTabs([convId]);
+		this.notifyConversationsDeleted([convId]);
+
+		if (!wasOpen) return;
+
+		this.clearActiveConversation();
+		await goto(ROUTES.START);
+	}
+
+	/**
 	 * Forks a conversation at a specific message, creating a new conversation
 	 * containing messages from root up to the target message, then navigates to it.
 	 *
@@ -684,6 +705,78 @@ class ConversationsStore implements ConversationsPreferencesHost {
 		const currentPath = filterByLeafNodeId(allMessages, leafNodeId, false) as DatabaseMessage[];
 
 		this.activeMessages = currentPath;
+	}
+
+	/**
+	 * Reads the open chat again after another window changed it. This window
+	 * keeps its own branch and follows it to its newest message, and the
+	 * fields it changed while the reads ran; a chat that is gone gives way to
+	 * the new-chat screen. Nothing changes when another chat opened, or
+	 * `isBusy` says this window began work in it, before the reads came back.
+	 *
+	 * @param isBusy - Whether this window is replying or editing in the chat
+	 * @returns False when it skipped the chat because `isBusy` said so
+	 */
+	async reloadActiveConversation(isBusy: (convId: string) => boolean): Promise<boolean> {
+		const active = this.activeConversation;
+
+		if (!active) return true;
+
+		if (isBusy(active.id)) return false;
+
+		const before: Record<string, unknown> = { ...active };
+		const conversation = await DatabaseService.getConversation(active.id);
+		const allMessages = conversation
+			? await DatabaseService.getConversationMessages(active.id)
+			: [];
+
+		if (this.activeConversation !== active) return true;
+
+		if (isBusy(active.id)) return false;
+
+		if (!conversation) {
+			await this.forgetConversation(active.id);
+
+			return true;
+		}
+
+		// this window's branch, followed to its newest message; the stored one once that branch is gone
+		const leafNodeId = allMessages.some((m) => m.id === active.currNode)
+			? findLeafNode(allMessages, active.currNode)
+			: conversation.currNode;
+		// fields this window changed while the reads ran (rename, pin, preferences) keep its value: the server may have read before those writes landed
+		const now = active as unknown as Record<string, unknown>;
+		const local = Object.fromEntries(
+			[...new Set([...Object.keys(before), ...Object.keys(now)])]
+				.filter((key) => before[key] !== now[key])
+				.map((key) => [key, now[key]])
+		);
+
+		// one sync block, as in loadConversation; the new object makes the chat screen take the handed-off messages
+		this.lastLoadedMessages = { convId: active.id, messages: allMessages };
+		this.activeConversation = { ...conversation, ...local, currNode: leafNodeId };
+		this.activeMessages = leafNodeId
+			? (filterByLeafNodeId(allMessages, leafNodeId, false) as DatabaseMessage[])
+			: allMessages;
+
+		return true;
+	}
+
+	/**
+	 * Reads the chat list again after another window changed it. Chats this
+	 * window made, changed or dropped while the read ran keep this window's
+	 * state: the server may have read the list before those writes landed.
+	 */
+	async reloadConversations(): Promise<void> {
+		const before = snapshotById(this.conversations);
+		const conversations = await DatabaseService.getAllConversations();
+
+		this.conversations = keepLocalChanges(
+			before,
+			this.conversations,
+			conversations,
+			(a, b) => b.lastModified - a.lastModified
+		);
 	}
 
 	/**

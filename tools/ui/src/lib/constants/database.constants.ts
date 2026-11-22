@@ -48,3 +48,15 @@ export const CONVERSATION_SETTINGS_KEYS = [
 	'reasoningEffort',
 	'thinkingEnabled'
 ] as const;
+
+/**
+ * Pico Server's change notices: how long a burst of them waits before one reload, the reconnect backoff (also used to try a failed reload again, up to RELOAD_RETRIES times), and how long the chats wait for the stream to open before they are read.
+ */
+export const CONVERSATION_EVENTS = {
+	BACKOFF_MULTIPLIER: 2,
+	INITIAL_RECONNECT_DELAY_MS: 1000,
+	MAX_RECONNECT_DELAY_MS: 30_000,
+	OPEN_WAIT_MS: 1000,
+	RELOAD_DEBOUNCE_MS: 300,
+	RELOAD_RETRIES: 3
+} as const;

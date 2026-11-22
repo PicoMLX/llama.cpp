@@ -145,6 +145,9 @@ export { isTextFileByName, readFileAsText, isLikelyTextFile } from './text-files
 // Debounce utilities
 export { debounce } from './debounce';
 
+// Reloads that keep this window's changes
+export { keepLocalChanges, snapshotById } from './local-changes';
+
 // Sanitization utilities
 export { sanitizeKeyValuePairKey, sanitizeKeyValuePairValue } from './sanitize';
 
