@@ -1,4 +1,5 @@
 // direct imports, not via the barrel, to avoid circular deps
+import { chatStorageStore } from './chat-storage.svelte';
 import { conversationsStore } from './conversations/index.svelte';
 import { groupsStore } from './groups.svelte';
 import { permissionsStore } from './permissions.svelte';
@@ -39,6 +40,9 @@ export function initStores(): Promise<void> {
 		if (inviteApiKey) {
 			settingsStore.updateConfig(SETTINGS_KEYS.API_KEY, inviteApiKey);
 		}
+
+		// before anything reads chats, so a saved Pico Server choice is in use from the first read
+		await chatStorageStore.initialize();
 
 		permissionsStore.initialize();
 		toolsStore.initialize();

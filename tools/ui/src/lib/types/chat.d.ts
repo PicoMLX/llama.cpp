@@ -269,20 +269,24 @@ export interface ChatMessageActions {
 	copy: (message: DatabaseMessage, contentOverride?: string) => void;
 	delete: (message: DatabaseMessage) => void;
 	navigateToSibling: (siblingId: string) => void;
+	/** `ifVersion` is the message's version from when the edit began, see DatabaseService.versionForEdit */
 	editWithBranching: (
 		message: DatabaseMessage,
 		newContent: string,
-		newExtras?: DatabaseMessageExtra[]
+		newExtras?: DatabaseMessageExtra[],
+		ifVersion?: number
 	) => void;
 	editWithReplacement: (
 		message: DatabaseMessage,
 		newContent: string,
-		shouldBranch: boolean
+		shouldBranch: boolean,
+		ifVersion?: number
 	) => void;
 	editUserMessagePreserveResponses: (
 		message: DatabaseMessage,
 		newContent: string,
-		newExtras?: DatabaseMessageExtra[]
+		newExtras?: DatabaseMessageExtra[],
+		ifVersion?: number
 	) => void;
 	regenerateWithBranching: (message: DatabaseMessage, modelOverride?: string) => void;
 	/** Re-runs the summary of an existing compaction node and replaces it. */

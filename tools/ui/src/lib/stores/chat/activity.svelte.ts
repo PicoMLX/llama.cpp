@@ -39,6 +39,11 @@ export class ChatActivityStore {
 	 */
 	private compacting = new SvelteMap<string, string>();
 
+	/** True while this browser pipes a stream for any conversation. */
+	get hasLocal(): boolean {
+		return this.local.size > 0;
+	}
+
 	/**
 	 * Apply a backend snapshot of running sessions (mount / visibilitychange).
 	 * Diffed so unchanged entries do not re-trigger reactivity.

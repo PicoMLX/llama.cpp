@@ -291,13 +291,14 @@ function hasLegacyMarkers(content: string): boolean {
 	return LEGACY_AGENTIC_REGEX.HAS_LEGACY_MARKERS.test(content);
 }
 
-let DatabaseService: typeof import('./database.service').DatabaseService | null = null;
+// migrations rewrite this browser's legacy rows, so they use the browser store even when chats live on Pico Server
+let DatabaseService: typeof import('./local-chat-store').localChatStore | null = null;
 
 async function getDatabaseService() {
 	if (!DatabaseService) {
-		const module = await import('./database.service');
+		const module = await import('./local-chat-store');
 
-		DatabaseService = module.DatabaseService;
+		DatabaseService = module.localChatStore;
 	}
 
 	return DatabaseService;

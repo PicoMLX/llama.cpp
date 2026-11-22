@@ -17,6 +17,7 @@ export {
 export {
 	ChatMessageStatsView,
 	ChatMessageStatisticsMode,
+	ChatStorageLocation,
 	StreamConnectionState,
 	ContentPartType,
 	ConversationSelectionMode,

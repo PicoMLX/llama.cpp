@@ -16,6 +16,9 @@ export const DB_APP_NAME_DEPRECATED = 'LlamacppWebui';
 
 export const ALWAYS_ALLOWED_TOOLS_LOCALSTORAGE_KEY = `${STORAGE_APP_NAME}.alwaysAllowedTools`;
 
+/** Where chats are kept, by server and account; the account is a hash of its API key, never the key */
+export const CHAT_STORAGE_LOCALSTORAGE_KEY = `${STORAGE_APP_NAME}.chatStorage`;
+
 export const CONFIG_LOCALSTORAGE_KEY = `${STORAGE_APP_NAME}.config`;
 export const DISABLED_TOOLS_LOCALSTORAGE_KEY = `${STORAGE_APP_NAME}.disabledTools`;
 

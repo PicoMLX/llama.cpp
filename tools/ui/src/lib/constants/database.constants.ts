@@ -39,3 +39,12 @@ export const IDXDB_STORES_V1 = {
 
 /** Schema version new Dexie instances open the database at; bump with a new version block. */
 export const IDXDB_VERSION = 2;
+
+/** Per-chat settings Pico Server keeps in a conversation's `settings`, under their web UI names. */
+export const CONVERSATION_SETTINGS_KEYS = [
+	'cwd',
+	'disabledToolCategories',
+	'disabledTools',
+	'reasoningEffort',
+	'thinkingEnabled'
+] as const;

@@ -111,6 +111,8 @@
 	let editedExtras = $derived<DatabaseMessageExtra[]>(message.extra ? [...message.extra] : []);
 	let editedUploadedFiles = $state<ChatUploadedFile[]>([]);
 	let isEditing = $state(false);
+	// the message's version when the edit began, sent with the save so an edit made elsewhere since is not overwritten
+	let editVersion: Promise<number | undefined> = Promise.resolve(undefined);
 	let showDeleteDialog = $state(false);
 	let showForkDialog = $state(false);
 	let shouldBranchAfterEdit = $state(false);
@@ -293,6 +295,7 @@
 
 	function handleEdit() {
 		isEditing = true;
+		editVersion = DatabaseService.versionForEdit(message).catch(() => undefined);
 
 		// Clear temporary placeholder content for system messages
 		if (message.role === MessageRole.SYSTEM && message.content === SYSTEM_MESSAGE_PLACEHOLDER) {
@@ -365,7 +368,18 @@
 				return;
 			}
 
-			await DatabaseService.updateMessage(message.id, { content: newContent });
+			try {
+				await DatabaseService.updateMessage(
+					message.id,
+					{ content: newContent },
+					{ ifVersion: await editVersion }
+				);
+			} catch (error) {
+				console.error('Failed to save system message:', error);
+
+				return;
+			}
+
 			const index = conversationsStore.findMessageIndex(message.id);
 
 			if (index !== -1) {
@@ -376,11 +390,16 @@
 		} else if (message.role === MessageRole.USER) {
 			const finalExtras = await getMergedExtras();
 
-			chatActions.editWithBranching(message, editedContent.trim(), finalExtras);
+			chatActions.editWithBranching(message, editedContent.trim(), finalExtras, await editVersion);
 		} else {
 			// For assistant messages, preserve exact content including trailing whitespace
 			// This is important for the Continue feature to work properly
-			chatActions.editWithReplacement(message, editedContent, shouldBranchAfterEdit);
+			chatActions.editWithReplacement(
+				message,
+				editedContent,
+				shouldBranchAfterEdit,
+				await editVersion
+			);
 		}
 
 		isEditing = false;
@@ -393,7 +412,12 @@
 			// For user messages, trim to avoid accidental whitespace
 			const finalExtras = await getMergedExtras();
 
-			chatActions.editUserMessagePreserveResponses(message, editedContent.trim(), finalExtras);
+			chatActions.editUserMessagePreserveResponses(
+				message,
+				editedContent.trim(),
+				finalExtras,
+				await editVersion
+			);
 		}
 
 		isEditing = false;

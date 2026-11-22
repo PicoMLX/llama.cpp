@@ -687,6 +687,30 @@ class ConversationsStore implements ConversationsPreferencesHost {
 	}
 
 	/**
+	 * Drops the loaded chats and messages and reads the list from the chat
+	 * store again, after the store changed. An open chat gives way to the
+	 * new-chat screen, and tabs of chats the store does not have close. The
+	 * group picked for the next chat is dropped: the new store may not have it.
+	 */
+	async reloadFromStore(): Promise<void> {
+		const wasOpen = this.activeConversation !== null;
+
+		this.clearActiveConversation();
+		this.preferences.pendingGroupId = null;
+		this.conversations = [];
+		this.lastLoadedMessages = null;
+		this.lastMessageIndex = null;
+
+		if (wasOpen) await goto(ROUTES.START);
+
+		await this.loadConversations();
+
+		const ids = new Set(this.conversations.map((c) => c.id));
+
+		tabsStore.removeTabs(tabsStore.openTabs.filter((id) => id !== NEW_CHAT_TAB_ID && !ids.has(id)));
+	}
+
+	/**
 	 * Removes a message from active messages by index
 	 */
 	removeMessageAtIndex(index: number): DatabaseMessage | undefined {
@@ -754,10 +778,11 @@ class ConversationsStore implements ConversationsPreferencesHost {
 	 * Updates the name of a conversation.
 	 * @param convId - The conversation ID to update
 	 * @param name - The new name for the conversation
+	 * @param ifVersion - For a rename a person made: the chat's version when the rename began
 	 */
-	async updateConversationName(convId: string, name: string): Promise<void> {
+	async updateConversationName(convId: string, name: string, ifVersion?: number): Promise<void> {
 		try {
-			await DatabaseService.updateConversation(convId, { name });
+			await DatabaseService.updateConversation(convId, { name }, { ifVersion });
 
 			this.applyConversationUpdate(convId, { name });
 		} catch (error) {

@@ -30,6 +30,7 @@
 	import { SidebarAction, TooltipSide } from '$lib/enums';
 	import { useKeyboardShortcuts } from '$lib/hooks/use-keyboard-shortcuts.svelte';
 	import { useMarqueeSelection } from '$lib/hooks/use-marquee-selection.svelte';
+	import { DatabaseService } from '$lib/services/database.service';
 	import { RouterService } from '$lib/services/router.service';
 	import { chatStore, conversationsStore, deviceStore, settingsStore, uiStore } from '$lib/stores';
 	import { buildConversationTree, remToPx } from '$lib/utils';
@@ -171,6 +172,8 @@
 	let renameTargetConversationId = $state<string | null>(null);
 	let renameDraft = $state('');
 	let renameOriginalTitle = $state('');
+	// the chat's version when the rename began, so a rename made elsewhere since is not overwritten
+	let renameVersion: Promise<number | undefined> = Promise.resolve(undefined);
 
 	const renderedOrderIds = $derived(
 		buildConversationTree(conversationsStore.conversations).map((t) => t.conversation.id)
@@ -318,6 +321,7 @@
 		renameTargetConversationId = id;
 		renameOriginalTitle = conversation.name;
 		renameDraft = conversation.name;
+		renameVersion = DatabaseService.versionForEdit(conversation).catch(() => undefined);
 		renameDialogOpen = true;
 	}
 
@@ -330,7 +334,7 @@
 
 		if (!nextName || nextName === renameOriginalTitle.trim()) return;
 
-		await conversationsStore.updateConversationName(id, nextName);
+		await conversationsStore.updateConversationName(id, nextName, await renameVersion);
 
 		renameDialogOpen = false;
 		renameTargetConversationId = null;

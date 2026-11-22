@@ -73,6 +73,14 @@ export enum ConversationSelectionMode {
 }
 
 /**
+ * Where chats are kept: this browser's database or Pico Server.
+ */
+export enum ChatStorageLocation {
+	BROWSER = 'browser',
+	SERVER = 'server'
+}
+
+/**
  * PDF view mode options for previewing PDF attachments.
  */
 export enum PdfViewMode {

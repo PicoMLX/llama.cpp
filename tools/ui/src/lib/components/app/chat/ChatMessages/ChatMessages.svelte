@@ -48,28 +48,36 @@
 		editUserMessagePreserveResponses: async (
 			message: DatabaseMessage,
 			newContent: string,
-			newExtras?: DatabaseMessageExtra[]
+			newExtras?: DatabaseMessageExtra[],
+			ifVersion?: number
 		) => {
 			// in-place edit: the store already updated activeMessages and no
 			// branch is created, so sibling info stays valid without a refetch
-			await chatStore.editUserMessagePreserveResponses(message.id, newContent, newExtras);
+			await chatStore.editUserMessagePreserveResponses(
+				message.id,
+				newContent,
+				newExtras,
+				ifVersion
+			);
 		},
 
 		editWithBranching: async (
 			message: DatabaseMessage,
 			newContent: string,
-			newExtras?: DatabaseMessageExtra[]
+			newExtras?: DatabaseMessageExtra[],
+			ifVersion?: number
 		) => {
-			await chatStore.editMessageWithBranching(message.id, newContent, newExtras);
+			await chatStore.editMessageWithBranching(message.id, newContent, newExtras, ifVersion);
 			refreshAllMessages();
 		},
 
 		editWithReplacement: async (
 			message: DatabaseMessage,
 			newContent: string,
-			shouldBranch: boolean
+			shouldBranch: boolean,
+			ifVersion?: number
 		) => {
-			await chatStore.editAssistantMessage(message.id, newContent, shouldBranch);
+			await chatStore.editAssistantMessage(message.id, newContent, shouldBranch, ifVersion);
 
 			// only a branch changes sibling info; an in-place edit already
 			// landed in activeMessages

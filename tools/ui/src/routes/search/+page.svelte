@@ -8,6 +8,7 @@
 		SidebarNavigationSearchResults
 	} from '$lib/components/app';
 	import { ROUTES } from '$lib/constants';
+	import { DatabaseService } from '$lib/services/database.service';
 	import { RouterService } from '$lib/services/router.service';
 	import { chatStore, conversationsStore, deviceStore } from '$lib/stores';
 
@@ -41,10 +42,11 @@
 
 		if (!conversation) return;
 
+		const version = DatabaseService.versionForEdit(conversation).catch(() => undefined);
 		const newName = window.prompt('Rename conversation', conversation.name);
 
 		if (newName && newName.trim()) {
-			await conversationsStore.updateConversationName(id, newName.trim());
+			await conversationsStore.updateConversationName(id, newName.trim(), await version);
 		}
 	}
 

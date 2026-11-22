@@ -1,4 +1,4 @@
-import type { ChatMessagePromptProgress, ChatRole } from './chat';
+import type { ChatMessagePromptProgress, ChatMessageType, ChatRole } from './chat';
 import type { ModelSidecar } from '$lib/constants';
 import type {
 	ContentPartType,
@@ -306,6 +306,8 @@ export interface ApiLlamaCppServerProps {
 	webui_settings?: Record<string, string | number | boolean>;
 	ui_settings?: Record<string, string | number | boolean>;
 	cors_proxy_enabled?: boolean;
+	/** Pico Server can keep this account's chats (only when user accounts are on) */
+	conversation_storage?: boolean;
 }
 
 export interface ApiChatCompletionRequest {
@@ -535,4 +537,79 @@ export interface ApiStreamSession {
 	total_bytes: number;
 	started_at: number;
 	completed_at: number;
+}
+
+/** OpenAI's list envelope, as the Pico Server conversation routes return it (always whole) */
+export interface ApiList<T> {
+	object: 'list';
+	data: T[];
+	first_id: string | null;
+	last_id: string | null;
+	has_more: boolean;
+}
+
+/** A chat stored on Pico Server: OpenAI's conversation object plus Pico fields */
+export interface ApiConversation {
+	id: string;
+	object: 'conversation';
+	created_at: number;
+	metadata: Record<string, string>;
+	name: string;
+	last_modified_ms: number;
+	version: number;
+	current_item_id: string | null;
+	pinned: boolean;
+	group_id: string | null;
+	forked_from_conversation_id: string | null;
+	settings: Record<string, unknown>;
+}
+
+export type ApiConversationTextPart =
+	| { type: 'input_text'; text: string }
+	| { type: 'output_text'; text: string; annotations: [] };
+
+/** A web UI message stored on Pico Server: OpenAI's message item plus Pico fields */
+export interface ApiConversationItem {
+	id: string;
+	type: 'message';
+	role: ChatRole;
+	status: 'completed';
+	content: ApiConversationTextPart[];
+	parent_id: string | null;
+	children_ids: string[];
+	message_type: ChatMessageType;
+	timestamp_ms: number;
+	version: number;
+	model?: string;
+	is_synthetic?: boolean;
+	reasoning_content?: string;
+	tool_calls?: unknown[];
+	tool_call_id?: string;
+	tool_cwd?: string;
+	completion_id?: string;
+	kept?: number;
+	timings?: Record<string, unknown>;
+	attachments?: Record<string, unknown>[];
+}
+
+/** What the web UI sends to create an item; the server derives the rest */
+export type ApiConversationItemInput = Omit<
+	ApiConversationItem,
+	'type' | 'status' | 'children_ids' | 'version'
+>;
+
+/** A sidebar group stored on Pico Server */
+export interface ApiConversationGroup {
+	id: string;
+	object: 'conversation_group';
+	name: string;
+	created_at_ms: number;
+	updated_at_ms: number;
+	version: number;
+}
+
+/** Answer to deleting a chat or a message on Pico Server */
+export interface ApiConversationDeleted {
+	id: string;
+	deleted_ids: string[];
 }
