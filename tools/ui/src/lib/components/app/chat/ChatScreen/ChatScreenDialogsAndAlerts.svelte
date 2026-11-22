@@ -40,7 +40,7 @@
 	}}
 />
 
-{#if !IS_PICO_BUILD}
+{#if !IS_PICO_BUILD || (activeErrorDialog && !activeErrorDialog.conversationId)}
 	<DialogChatError
 		contextInfo={activeErrorDialog?.contextInfo}
 		message={activeErrorDialog?.message ?? ''}

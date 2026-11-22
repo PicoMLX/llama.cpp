@@ -217,7 +217,11 @@
 
 	function handleErrorDialogOpenChange(open: boolean) {
 		if (!open) {
-			chatStore.dismissErrorDialog();
+			if (IS_PICO_BUILD && activeErrorDialog && !activeErrorDialog.conversationId) {
+				chatStore.errorDialogState = null;
+			} else {
+				chatStore.dismissErrorDialog();
+			}
 		}
 	}
 

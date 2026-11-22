@@ -285,62 +285,63 @@
 
 <div in:fade={{ duration: 150 }} class="space-y-12">
 	{#if scope !== 'settings'}
-	{#if chatStorageStore.available}
-		<SettingsGroup title="Storage">
-			<div class="grid gap-1">
-				<h4 class="mt-0 mb-2 text-sm font-medium">Store chats in</h4>
+		{#if chatStorageStore.available}
+			<SettingsGroup title="Storage">
+				<div class="grid gap-1">
+					<h4 class="mt-0 mb-2 text-sm font-medium">Store chats in</h4>
 
-				<p class="mb-4 text-sm text-muted-foreground">
-					On Pico Server, every browser signed in with this key shows the same chats. Chats already
-					in this browser stay here and do not move.
-				</p>
-
-				<RadioGroup.Root
-					class="gap-3"
-					disabled={chatStorageStore.pending !== null}
-					onValueChange={(value) => void chatStorageStore.select(value as ChatStorageLocation)}
-					value={storageValue}
-				>
-					{#each storageOptions as option (option.value)}
-						{@const itemId = `chat-storage-${option.value}`}
-						<div class="flex items-center gap-2">
-							<RadioGroup.Item id={itemId} value={option.value} />
-
-							<Label class="cursor-pointer text-sm font-normal" for={itemId}>{option.label}</Label>
-						</div>
-					{/each}
-				</RadioGroup.Root>
-
-				{#if chatStorageStore.pending}
-					<p class="mt-2 text-xs text-muted-foreground">
-						Waiting for replies and saves to finish...
+					<p class="mb-4 text-sm text-muted-foreground">
+						On Pico Server, every browser signed in with this key shows the same chats. Chats
+						already in this browser stay here and do not move.
 					</p>
-				{/if}
-			</div>
-		</SettingsGroup>
-	{/if}
 
-	<SettingsGroup title={IS_PICO_BUILD ? 'Chats' : 'Conversations'}>
-		<SettingsChatImportExportSection
-			IconComponent={Download}
-			buttonText="Export conversations"
-			description="Download your conversations as a ZIP of JSONL files. This includes all messages, attachments, and conversation history."
-			onclick={handleExportClick}
-			summary={{ items: exportedConversations, show: showExportSummary, verb: 'Exported' }}
-			title="Export"
-		/>
+					<RadioGroup.Root
+						class="gap-3"
+						disabled={chatStorageStore.pending !== null}
+						onValueChange={(value) => void chatStorageStore.select(value as ChatStorageLocation)}
+						value={storageValue}
+					>
+						{#each storageOptions as option (option.value)}
+							{@const itemId = `chat-storage-${option.value}`}
+							<div class="flex items-center gap-2">
+								<RadioGroup.Item id={itemId} value={option.value} />
 
-		<SettingsChatImportExportSection
-			IconComponent={Upload}
-			buttonText="Import conversations"
-			description={importUnavailable
-				? ERROR_MESSAGES.CHAT_STORAGE.IMPORT_UNAVAILABLE
-				: 'Import one or more conversations from a previously exported ZIP or JSONL file. This will merge with your existing conversations.'}
-			disabled={importUnavailable}
-			onclick={handleImportClick}
-			summary={{ items: importedConversations, show: showImportSummary, verb: 'Imported' }}
-			title="Import"
-		/>
+								<Label class="cursor-pointer text-sm font-normal" for={itemId}>{option.label}</Label
+								>
+							</div>
+						{/each}
+					</RadioGroup.Root>
+
+					{#if chatStorageStore.pending}
+						<p class="mt-2 text-xs text-muted-foreground">
+							Waiting for replies and saves to finish...
+						</p>
+					{/if}
+				</div>
+			</SettingsGroup>
+		{/if}
+
+		<SettingsGroup title={IS_PICO_BUILD ? 'Chats' : 'Conversations'}>
+			<SettingsChatImportExportSection
+				IconComponent={Download}
+				buttonText="Export conversations"
+				description="Download your conversations as a ZIP of JSONL files. This includes all messages, attachments, and conversation history."
+				onclick={handleExportClick}
+				summary={{ items: exportedConversations, show: showExportSummary, verb: 'Exported' }}
+				title="Export"
+			/>
+
+			<SettingsChatImportExportSection
+				IconComponent={Upload}
+				buttonText="Import conversations"
+				description={importUnavailable
+					? ERROR_MESSAGES.CHAT_STORAGE.IMPORT_UNAVAILABLE
+					: 'Import one or more conversations from a previously exported ZIP or JSONL file. This will merge with your existing conversations.'}
+				disabled={importUnavailable}
+				onclick={handleImportClick}
+				summary={{ items: importedConversations, show: showImportSummary, verb: 'Imported' }}
+				title="Import"
+			/>
 
 			<SettingsChatImportExportSection
 				IconComponent={Trash2}

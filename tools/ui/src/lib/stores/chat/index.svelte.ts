@@ -973,11 +973,14 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 
 	showErrorDialog(state: ErrorDialogState | null): void {
 		if (IS_PICO_BUILD) {
-			const convId = state?.conversationId ?? conversationsStore.activeConversation?.id;
+			const convId = state ? state.conversationId : conversationsStore.activeConversation?.id;
 
 			if (convId) {
-				if (state) this.responseErrors.set(convId, { ...state, conversationId: convId });
-				else this.responseErrors.delete(convId);
+				if (state) {
+					this.responseErrors.set(convId, { ...state, conversationId: convId });
+
+					return;
+				} else this.responseErrors.delete(convId);
 			}
 		}
 

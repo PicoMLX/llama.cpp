@@ -1,14 +1,30 @@
-import { MessageRole, MessageType, ReasoningEffort, ServerRole, ToolSource } from '$lib/enums';
+import { MockConversationsServer } from '../fixtures/mock-conversations-server';
+import { IS_PICO_BUILD } from '$lib/constants';
+import {
+	ChatStorageLocation,
+	MessageRole,
+	MessageType,
+	ReasoningEffort,
+	ServerRole,
+	ToolSource
+} from '$lib/enums';
 import { ChatService } from '$lib/services/chat.service';
 import { DatabaseService } from '$lib/services/database.service';
+import { localChatStore } from '$lib/services/local-chat-store';
 import { agenticStore } from '$lib/stores/agentic/index.svelte';
 import { chatStore } from '$lib/stores/chat/index.svelte';
+import { chatStorageStore } from '$lib/stores/chat-storage.svelte';
 import { conversationsStore } from '$lib/stores/conversations/index.svelte';
 import { modelsStore } from '$lib/stores/models/index.svelte';
 import { serverStore } from '$lib/stores/server.svelte';
 import { settingsStore } from '$lib/stores/settings/index.svelte';
 import type { DatabaseMessage, ExportedConversation } from '$lib/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('$app/navigation', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$app/navigation')>()),
+	goto: vi.fn(async () => {})
+}));
 
 function gate() {
 	let resolve!: () => void;
@@ -79,6 +95,7 @@ async function storedMessage(id: string): Promise<DatabaseMessage | undefined> {
 }
 
 beforeEach(async () => {
+	await DatabaseService.useStore(localChatStore);
 	const prefix = `error-lifecycle-${crypto.randomUUID()}`;
 
 	origin = makeSession(`${prefix}-a`);
@@ -101,6 +118,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+	await DatabaseService.useStore(localChatStore);
 	vi.restoreAllMocks();
 	for (const session of [origin, other]) {
 		chatStore.cleanupStreaming(session.conv.id);
@@ -118,6 +136,103 @@ afterEach(async () => {
 });
 
 describe('response lifecycle across navigation', () => {
+	it('keeps server storage selected until an actual retry finishes its first asynchronous read', async () => {
+		const server = new MockConversationsServer();
+		const previousProps = serverStore.props;
+		const entered = gate();
+		const release = gate();
+
+		let retry: Promise<void> | undefined;
+		let retryConversationId: string | undefined;
+
+		vi.spyOn(globalThis, 'fetch').mockImplementation(server.fetch);
+		serverStore.props = { conversation_storage: true } as ApiLlamaCppServerProps;
+		settingsStore.config.apiKey = 'retry-storage-key';
+		try {
+			await chatStorageStore.select(ChatStorageLocation.SERVER);
+			const conversation = await DatabaseService.createConversation('Server retry');
+			const root = await DatabaseService.createRootMessage(conversation.id);
+			const user = await DatabaseService.createMessageBranch(
+				{
+					children: [],
+					content: 'Question',
+					convId: conversation.id,
+					parent: root,
+					role: MessageRole.USER,
+					timestamp: 1,
+					type: MessageType.TEXT
+				},
+				root
+			);
+			const response = await DatabaseService.createMessageBranch(
+				{
+					children: [],
+					content: 'Original response',
+					convId: conversation.id,
+					model: 'origin-model',
+					parent: user.id,
+					role: MessageRole.ASSISTANT,
+					timestamp: 2,
+					type: MessageType.TEXT
+				},
+				user.id
+			);
+
+			retryConversationId = conversation.id;
+			conversationsStore.activeConversation = (await DatabaseService.getConversation(
+				conversation.id
+			))!;
+			conversationsStore.activeMessages = [user, response];
+			let held = false;
+
+			server.gate = async (request) => {
+				if (
+					!held &&
+					request.method === 'GET' &&
+					request.path.endsWith(`/${conversation.id}/items`)
+				) {
+					held = true;
+					entered.resolve();
+					await release.promise;
+				}
+			};
+			const localWrite = vi.spyOn(localChatStore, 'createMessageBranch');
+			const stream = vi.spyOn(chatStore, 'streamChatCompletion').mockImplementation(async () => {
+				chatStore.cleanupStreaming(conversation.id);
+			});
+
+			retry = chatStore.regenerateMessageWithBranching(response.id);
+			await entered.promise;
+			expect(chatStore.isChatLoadingInternal(conversation.id)).toBe(true);
+			const switching = chatStorageStore.select(ChatStorageLocation.BROWSER);
+
+			await expect.poll(() => chatStorageStore.pending).toBe(ChatStorageLocation.BROWSER);
+			expect(chatStorageStore.location).toBe(ChatStorageLocation.SERVER);
+			release.resolve();
+			await Promise.all([retry, switching]);
+
+			expect(stream).toHaveBeenCalledTimes(1);
+			const [, assistant, , , model] = stream.mock.calls[0];
+
+			expect(assistant.convId).toBe(conversation.id);
+			expect(model).toBe('origin-model');
+			expect(server.items.get(conversation.id)?.has(assistant.id)).toBe(true);
+			expect(server.conversations.get(conversation.id)?.current_item_id).toBe(assistant.id);
+			expect(localWrite).not.toHaveBeenCalled();
+			expect(chatStorageStore.location).toBe(ChatStorageLocation.BROWSER);
+			expect(await DatabaseService.getConversation(conversation.id)).toBeUndefined();
+		} finally {
+			release.resolve();
+			await retry;
+
+			if (retryConversationId) chatStore.cleanupStreaming(retryConversationId);
+
+			server.gate = null;
+			await chatStorageStore.select(ChatStorageLocation.BROWSER);
+			serverStore.props = previousProps;
+		}
+	});
+
 	it('resolves the originating reasoning choice after its model finishes loading', async () => {
 		const entered = gate();
 		const release = gate();
@@ -277,8 +392,15 @@ describe('response lifecycle across navigation', () => {
 			expect((await DatabaseService.getConversation(other.conv.id))?.currNode).toBe(
 				other.conv.currNode
 			);
-			expect(chatStore.errorDialogState?.conversationId).toBe(origin.conv.id);
-			expect(chatStore.errorDialogState?.messageId).toBe(reply.id);
+			const error = IS_PICO_BUILD
+				? chatStore.getResponseError(origin.conv.id)
+				: chatStore.errorDialogState;
+
+			expect(error?.conversationId).toBe(origin.conv.id);
+			expect(error?.messageId).toBe(reply.id);
+
+			if (IS_PICO_BUILD) expect(chatStore.errorDialogState).toBeNull();
+
 			expect(chatStore.isChatLoadingInternal(origin.conv.id)).toBe(false);
 		}
 	);
