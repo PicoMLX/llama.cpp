@@ -14,10 +14,11 @@
 		ROUTES,
 		SYSTEM_MESSAGE_PLACEHOLDER
 	} from '$lib/constants';
+	import { IS_PICO_BUILD } from '$lib/constants/app.constants';
 	import { setChatMessageActionsContext, setChatMessageEditContext } from '$lib/contexts';
 	import { AgenticSectionType, AttachmentType, MessageRole, MessageType } from '$lib/enums';
 	import { DatabaseService } from '$lib/services/database.service';
-	import { chatStore, conversationsStore, deviceStore } from '$lib/stores';
+	import { agenticStore, chatStore, conversationsStore, deviceStore } from '$lib/stores';
 	import type {
 		ChatMessageActions,
 		ChatMessageDeletionInfo,
@@ -123,6 +124,9 @@
 
 	setChatMessageEditContext({
 		cancel: handleCancelEdit,
+		get conversationId() {
+			return message.convId;
+		},
 		get editedContent() {
 			return editedContent;
 		},
@@ -294,6 +298,8 @@
 	}
 
 	function handleEdit() {
+		if (!canEditOrigin()) return;
+
 		isEditing = true;
 		editVersion = DatabaseService.versionForEdit(message).catch(() => undefined);
 
@@ -349,6 +355,8 @@
 	}
 
 	async function handleSaveEdit() {
+		if (!canEditOrigin()) return;
+
 		if (message.role === MessageRole.SYSTEM) {
 			// System messages: update in place without branching
 			const newContent = editedContent.trim();
@@ -390,7 +398,11 @@
 		} else if (message.role === MessageRole.USER) {
 			const finalExtras = await getMergedExtras();
 
-			chatActions.editWithBranching(message, editedContent.trim(), finalExtras, await editVersion);
+			const version = await editVersion;
+
+			if (!canEditOrigin()) return;
+
+			chatActions.editWithBranching(message, editedContent.trim(), finalExtras, version);
 		} else {
 			// For assistant messages, preserve exact content including trailing whitespace
 			// This is important for the Continue feature to work properly
@@ -408,20 +420,35 @@
 	}
 
 	async function handleSaveEditOnly() {
+		if (!canEditOrigin()) return;
+
 		if (message.role === MessageRole.USER) {
 			// For user messages, trim to avoid accidental whitespace
 			const finalExtras = await getMergedExtras();
+
+			const version = await editVersion;
+
+			if (!canEditOrigin()) return;
 
 			chatActions.editUserMessagePreserveResponses(
 				message,
 				editedContent.trim(),
 				finalExtras,
-				await editVersion
+				version
 			);
 		}
 
 		isEditing = false;
 		editedUploadedFiles = [];
+	}
+
+	function canEditOrigin(): boolean {
+		return (
+			!IS_PICO_BUILD ||
+			(!chatStore.isChatLoadingInternal(message.convId) &&
+				!agenticStore.isRunning(message.convId) &&
+				!chatStore.activity.isRemote(message.convId))
+		);
 	}
 
 	async function getMergedExtras(): Promise<DatabaseMessageExtra[]> {

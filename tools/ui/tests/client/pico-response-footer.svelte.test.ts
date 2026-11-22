@@ -193,7 +193,7 @@ describe.runIf(IS_PICO_BUILD)('Pico response footer', () => {
 			.toBeVisible();
 		const pickerTrigger = page
 			.getByRole('dialog', { name: 'Retry with another model' })
-			.getByRole('button', { name: 'example/model', exact: true });
+			.getByRole('button', { name: /model/i });
 
 		await pickerTrigger.click();
 		await expect.element(page.getByRole('option', { name: /other/ })).toBeVisible();
@@ -205,7 +205,7 @@ describe.runIf(IS_PICO_BUILD)('Pico response footer', () => {
 		expect(chatActions.regenerateWithBranching).not.toHaveBeenCalled();
 	});
 
-	it('keeps right-click Retry disabled while generating and shares one branch dialog', async () => {
+	it('keeps right-click Retry disabled while generating and branches in one step', async () => {
 		const assistant = message();
 
 		conversationsStore.activeConversation = {
@@ -224,12 +224,12 @@ describe.runIf(IS_PICO_BUILD)('Pico response footer', () => {
 			.toHaveAttribute('aria-disabled', 'true');
 		expect(chatActions.regenerateWithBranching).not.toHaveBeenCalled();
 		await page.getByRole('menuitem', { name: 'Branch into new chat' }).click();
-		await expect
-			.element(page.getByRole('alertdialog', { name: 'Branch into new chat' }))
-			.toBeVisible();
-		expect(document.querySelectorAll('[role="alertdialog"]')).toHaveLength(1);
-		await page.getByRole('button', { exact: true, name: 'Create chat' }).click();
-		expect(chatActions.forkConversation).toHaveBeenCalledOnce();
+		await expect.poll(() => vi.mocked(chatActions.forkConversation).mock.calls.length).toBe(1);
+		expect(chatActions.forkConversation).toHaveBeenCalledWith(assistant, {
+			includeAttachments: true,
+			name: 'Branch of Footer test'
+		});
+		expect(document.querySelector('[role="alertdialog"]')).toBeNull();
 	});
 
 	it('keeps descendant-aware deletion behind More and its existing confirmation', async () => {

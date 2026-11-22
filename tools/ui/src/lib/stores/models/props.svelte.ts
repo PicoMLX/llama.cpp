@@ -60,8 +60,7 @@ export class ModelPropsManager {
 	 *
 	 * - MODEL mode: the global /props already describes the single loaded model,
 	 *   so its chat_template is used directly and no per-model cache is involved
-	 * - ROUTER mode: fetches /props?model=<id> for the selected model (cached),
-	 *   triggering an async fetch if not yet cached
+	 * - ROUTER mode: reads the selected model's cached props
 	 */
 	get supportsThinking(): boolean {
 		if (!serverStore.isRouterMode) {
@@ -71,10 +70,6 @@ export class ModelPropsManager {
 		const modelId = this.host.selectedModelName;
 
 		if (!modelId) return false;
-
-		if (!this.cache.get(modelId)) {
-			this.fetchModelProps(modelId);
-		}
 
 		const props = this.getModelProps(modelId);
 
@@ -99,7 +94,7 @@ export class ModelPropsManager {
 	/**
 	 * Check if a specific model supports thinking.
 	 * In MODEL mode the global /props describes the single loaded model.
-	 * In ROUTER mode, fetches model props if not cached.
+	 * In ROUTER mode, reads cached model props.
 	 */
 	checkModelSupportsThinking(modelId: string): boolean {
 		if (!serverStore.isRouterMode) {
@@ -107,10 +102,6 @@ export class ModelPropsManager {
 		}
 
 		if (!modelId) return false;
-
-		if (!this.cache.get(modelId)) {
-			this.fetchModelProps(modelId);
-		}
 
 		const props = this.getModelProps(modelId);
 
@@ -240,17 +231,13 @@ export class ModelPropsManager {
 	/**
 	 * Reasoning effort levels the model's chat template honors, from lowest to highest.
 	 * Empty when the template honors none, the menu then maps its levels to token budgets.
-	 * In ROUTER mode, fetches model props if not cached.
+	 * In ROUTER mode, reads cached model props.
 	 */
 	getReasoningEfforts(modelId: string): ReasoningEffort[] {
 		let props: ApiLlamaCppServerProps | null = serverStore.props;
 
 		if (serverStore.isRouterMode) {
 			if (!modelId) return [];
-
-			if (!this.cache.get(modelId)) {
-				this.fetchModelProps(modelId);
-			}
 
 			props = this.getModelProps(modelId);
 		}

@@ -317,6 +317,7 @@ export interface ChatMessageActionsContext {
 }
 
 export interface ChatMessageEditState {
+	readonly conversationId?: string;
 	readonly isEditing: boolean;
 	readonly editedContent: string;
 	readonly editedExtras: DatabaseMessageExtra[];

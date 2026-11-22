@@ -2,6 +2,7 @@
 	import ChatScreenActionScrollDown from './ChatScreenActionScrollDown.svelte';
 	import ChatScreenDialogsAndAlerts from './ChatScreenDialogsAndAlerts.svelte';
 	import ChatScreenGreeting from './ChatScreenGreeting.svelte';
+	import ChatScreenHeader from './ChatScreenHeader.svelte';
 	import { disableScrollHandling, onNavigate } from '$app/navigation';
 	import { page } from '$app/state';
 	import {
@@ -20,8 +21,10 @@
 		CHAT_FORM_MOVE_SHIFT_PX,
 		CHAT_FORM_MOVE_TO_BOTTOM_IN_MS,
 		CHAT_FORM_MOVE_TO_BOTTOM_OUT_MS,
+		IS_PICO_BUILD,
 		ROUTES
 	} from '$lib/constants';
+	import { MessageRole } from '$lib/enums';
 	import { useChatScreenActiveModel } from '$lib/hooks/use-chat-screen-active-model.svelte';
 	import { useChatScreenDragAndDrop } from '$lib/hooks/use-chat-screen-drag-and-drop.svelte';
 	import { useChatScreenFileUpload } from '$lib/hooks/use-chat-screen-file-upload.svelte';
@@ -43,12 +46,15 @@
 	let showDeleteDialog = $state(false);
 	let showEmptyFileDialog = $state(false);
 	let isEmpty = $derived(
-		showCenteredEmpty && conversationsStore.activeMessages.length === 0 && !chatStore.isLoading
+		(IS_PICO_BUILD
+			? !conversationsStore.activeMessages.some((message) => message.role !== MessageRole.SYSTEM)
+			: showCenteredEmpty && conversationsStore.activeMessages.length === 0) && !chatStore.isLoading
 	);
 	// where the form is drawn: follows `isEmpty` once the form has faded out
 	let isFormCentered = $state(untrack(() => isEmpty));
 	let isFormMoving = false;
 	let formWrapper: HTMLElement | undefined = $state();
+	let chatScreenForm: ChatScreenForm | undefined = $state();
 	let activeErrorDialog = $derived(chatStore.errorDialogState);
 	let isServerLoading = $derived(serverStore.loading);
 	let hasPropsError = $derived(!!serverStore.error);
@@ -234,14 +240,20 @@
 {:else}
 	<div
 		style:--chat-form-bottom-position={chatFormBottomPosition}
-		class="chat-screen flex grow flex-col min-h-[calc(100dvh-1rem)] md:min-h-[calc(100dvh-var(--chat-tabs-offset,0px))] px-4 md:py-0 pt-12 pb-48 md:pb-4"
+		class="chat-screen flex grow flex-col min-h-[calc(100dvh-1rem)] md:min-h-[calc(100dvh-var(--chat-tabs-offset,0px))] px-4 md:py-0 {IS_PICO_BUILD
+			? 'pt-0'
+			: 'pt-12'} pb-48 md:pb-4"
 		ondragenter={dragAndDrop.dragHandlers.dragenter}
 		ondragleave={dragAndDrop.dragHandlers.dragleave}
 		ondragover={dragAndDrop.dragHandlers.dragover}
 		ondrop={dragAndDrop.dragHandlers.drop}
 		role="main"
 	>
-		{#if !isEmpty}
+		{#if IS_PICO_BUILD}
+			<ChatScreenHeader onInstructions={() => chatScreenForm?.editInstructions()} />
+		{/if}
+
+		{#if !isEmpty || (IS_PICO_BUILD && conversationsStore.activeMessages.length > 0)}
 			<ChatMessages
 				messages={conversationsStore.activeMessages}
 				onMessagesReady={handleMessagesReady}
@@ -286,6 +298,7 @@
 			</div>
 
 			<ChatScreenForm
+				bind:this={chatScreenForm}
 				bind:uploadedFiles={fileUpload.uploadedFiles}
 				class="pointer-events-auto conversation-chat-form"
 				disabled={hasPropsError || chatStore.isEditing()}

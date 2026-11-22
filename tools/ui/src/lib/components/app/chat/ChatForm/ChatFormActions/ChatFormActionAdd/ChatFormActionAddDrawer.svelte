@@ -19,6 +19,7 @@
 		ATTACHMENT_MODALITY_TEXT,
 		ICON_CLASS_DEFAULT
 	} from '$lib/constants';
+	import { IS_PICO_BUILD } from '$lib/constants/app.constants';
 	import { getChatFormActionsContext } from '$lib/contexts';
 	import { AttachmentAction, AttachmentItemEnabledWhen } from '$lib/enums/attachment.enums';
 	import { useAttachmentMenu } from '$lib/hooks/use-attachment-menu.svelte';
@@ -89,10 +90,14 @@
 
 		<Drawer.Content class="gap-0 overflow-y-auto">
 			<Drawer.Header>
-				<Drawer.Title>{ATTACHMENT_MENU_TEXT.ADD_TO_CHAT}</Drawer.Title>
+				<Drawer.Title
+					>{IS_PICO_BUILD ? 'Add files and tools' : ATTACHMENT_MENU_TEXT.ADD_TO_CHAT}</Drawer.Title
+				>
 
 				<Drawer.Description class="sr-only">
-					{ATTACHMENT_MENU_TEXT.DESCRIPTION}
+					{IS_PICO_BUILD
+						? 'Add files or choose tools for this chat.'
+						: ATTACHMENT_MENU_TEXT.DESCRIPTION}
 				</Drawer.Description>
 			</Drawer.Header>
 
@@ -125,15 +130,17 @@
 					</span>
 				</button>
 
-				<button
-					class={itemClass}
-					onclick={() => attachmentMenu.callbacks[AttachmentAction.SYSTEM_PROMPT_CLICK]()}
-					type="button"
-				>
-					<MessageSquare class="{ICON_CLASS_DEFAULT} shrink-0" />
+				{#if !IS_PICO_BUILD}
+					<button
+						class={itemClass}
+						onclick={() => attachmentMenu.callbacks[AttachmentAction.SYSTEM_PROMPT_CLICK]()}
+						type="button"
+					>
+						<MessageSquare class="{ICON_CLASS_DEFAULT} shrink-0" />
 
-					<span>{ATTACHMENT_MENU_TEXT.SYSTEM_MESSAGE}</span>
-				</button>
+						<span>{ATTACHMENT_MENU_TEXT.SYSTEM_MESSAGE}</span>
+					</button>
+				{/if}
 
 				{#if toolsPanel.totalToolCount > 0}
 					<Collapsible.Root onOpenChange={(open) => (toolsExpanded = open)} open={toolsExpanded}>

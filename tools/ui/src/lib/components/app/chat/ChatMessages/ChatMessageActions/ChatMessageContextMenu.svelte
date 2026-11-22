@@ -5,6 +5,7 @@
 	import { IS_PICO_BUILD } from '$lib/constants/app.constants';
 	import { getChatMessageActionsContext, getChatMessageEditContext } from '$lib/contexts';
 	import { MessageRole } from '$lib/enums';
+	import { agenticStore, chatStore } from '$lib/stores';
 	import type { MenuAction } from '$lib/types';
 	import type { Snippet } from 'svelte';
 
@@ -28,11 +29,26 @@
 
 	const messageActions = getChatMessageActionsContext();
 	const editCtx = getChatMessageEditContext();
+	const editBusy = $derived(
+		IS_PICO_BUILD &&
+			(editCtx.conversationId
+				? chatStore.isChatLoadingInternal(editCtx.conversationId) ||
+					agenticStore.isRunning(editCtx.conversationId) ||
+					chatStore.activity.isRemote(editCtx.conversationId)
+				: isLoading)
+	);
 
 	// the same actions as the message's action icons
 	let actions = $derived<MenuAction[]>([
 		{ icon: Copy, label: 'Copy', onclick: messageActions.copy },
-		{ icon: Edit, label: 'Edit', onclick: editCtx.startEdit },
+		{
+			disabled: editBusy,
+			icon: Edit,
+			label: 'Edit',
+			onclick: () => {
+				if (!editBusy) editCtx.startEdit();
+			}
+		},
 		...(role === MessageRole.ASSISTANT && onRegenerate
 			? [
 					{

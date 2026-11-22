@@ -10,7 +10,7 @@
 	} from '$lib/components/app';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import * as Tooltip from '$lib/components/ui/tooltip';
-	import { MODEL_ICON } from '$lib/constants';
+	import { IS_PICO_BUILD, MODEL_ICON } from '$lib/constants';
 	import { KeyboardKey, ServerModelStatus } from '$lib/enums';
 	import type { UseModelsSelectorReturn } from '$lib/hooks/use-models-selector.svelte';
 	import { ModelsService } from '$lib/services/models.service';
@@ -24,6 +24,7 @@
 		ms: UseModelsSelectorReturn;
 		currentModel?: string | null;
 		disabled?: boolean;
+		header?: boolean;
 		/** Model id the list highlights from the keyboard; the owner tracks it. */
 		highlightedId?: string | null;
 		/** Bind the menu's open state, so the owner sees the close too. */
@@ -38,6 +39,7 @@
 	let {
 		currentModel = null,
 		disabled = false,
+		header = false,
 		highlightedId = null,
 		ms,
 		onHighlight,
@@ -143,6 +145,7 @@
 		onMouseEnter={() => onHighlight?.(option.id)}
 		onSelect={ms.handleSelect}
 		{option}
+		showVariant={ms.ambiguousModelIds.has(option.id)}
 	/>
 {/snippet}
 
@@ -153,8 +156,11 @@
 			{#snippet child({ props })}
 				<DropdownMenu.Trigger
 					{...props}
+					aria-label={header ? 'Model for the next response' : undefined}
 					class={[
-						`relative inline-grid cursor-pointer grid-cols-[1fr_auto_1fr] items-center gap-1 rounded-sm bg-background px-1.5 py-1 text-xs shadow-sm transition hover:bg-muted-foreground/20 max-md:h-8 max-md:px-2.25 max-md:py-1.25 max-md:text-[13px] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-muted-foreground/15 dark:text-secondary-foreground`,
+						header
+							? 'relative inline-flex min-h-11 min-w-11 cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-lg hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60'
+							: `relative inline-grid cursor-pointer grid-cols-[1fr_auto_1fr] items-center gap-1 rounded-sm bg-background px-1.5 py-1 text-xs shadow-sm transition hover:bg-muted-foreground/20 max-md:h-8 max-md:px-2.25 max-md:py-1.25 max-md:text-[13px] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-muted-foreground/15 dark:text-secondary-foreground`,
 						!ms.isCurrentModelInCache
 							? 'bg-red-400/10 !text-red-400 hover:bg-red-400/20 hover:text-red-400'
 							: 'text-foreground',
@@ -255,6 +261,7 @@
 			renderOption={modelOption}
 			sectionHeaderClass="[&:not(:first-child)]:mt-1 mb-1 px-2 py-2 text-[13px] font-semibold text-foreground/80 select-none"
 			{showOrgName}
+			simpleOptions={IS_PICO_BUILD ? ms.filteredOptions : undefined}
 		/>
 	</div>
 {/snippet}

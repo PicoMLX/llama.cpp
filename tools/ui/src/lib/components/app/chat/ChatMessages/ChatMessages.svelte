@@ -2,6 +2,7 @@
 	import LazyChatMessage from './LazyChatMessage.svelte';
 	import { ChatMessageUserPending } from '$lib/components/app';
 	import { LANDING_EAGER_ROWS } from '$lib/constants';
+	import { IS_PICO_BUILD } from '$lib/constants/app.constants';
 	import { MessageRole } from '$lib/enums';
 	import { agenticStore, chatStore, conversationsStore, settingsStore } from '$lib/stores';
 	import type { ChatMessageActions } from '$lib/types';
@@ -146,9 +147,10 @@
 			return [];
 		}
 
-		const filteredMessages = currentConfig.showSystemMessage
-			? messages
-			: messages.filter((msg) => msg.type !== MessageRole.SYSTEM);
+		const filteredMessages =
+			IS_PICO_BUILD || currentConfig.showSystemMessage
+				? messages
+				: messages.filter((msg) => msg.type !== MessageRole.SYSTEM);
 		// Build display entries, grouping agentic sessions into single entries.
 		// An agentic session = assistant(with tool_calls) → tool → assistant → tool → ... → assistant(final)
 		const result: Array<{

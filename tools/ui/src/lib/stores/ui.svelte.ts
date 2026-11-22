@@ -101,6 +101,8 @@ class UiStore {
 	modelsReturnRoute: string = ROUTES.START;
 	/** Bumped to close every open models selector; a counter, so no selector has to reset it. */
 	modelsSelectorCloseSignal = $state(0);
+	/** Bumped when the composer asks the header to open its model picker. */
+	modelsSelectorOpenSignal = $state(0);
 	/** Section ids in the order the user dragged them into, kept across reloads. */
 	sidebarSectionOrder = $state<string[]>(loadSidebarSectionOrder());
 	/** Expanded desktop sidebar width in px; null keeps the stylesheet default. */
@@ -204,6 +206,10 @@ class UiStore {
 		if (this.isModelsPageOpen) return;
 
 		void goto(ROUTES.MODELS);
+	}
+
+	openModelsSelector(): void {
+		this.modelsSelectorOpenSignal++;
 	}
 
 	/**

@@ -8,21 +8,66 @@
  * fetching model props from the server on demand if they are not cached yet.
  */
 
+import { IS_PICO_BUILD } from '$lib/constants';
 import { conversationsStore, modelsStore, serverStore } from '$lib/stores';
 import type { DatabaseMessage } from '$lib/types/database';
 import { getConversationModel } from '$lib/utils';
+import { untrack } from 'svelte';
 
-export function useChatFormModel() {
+interface UseChatFormModelOptions {
+	synchronizeSelection?: () => boolean;
+}
+
+export function useChatFormModel(options: UseChatFormModelOptions = {}) {
 	const isRouter = $derived(serverStore.isRouterMode);
 	const conversationModel = $derived(
 		getConversationModel(conversationsStore.activeMessages as DatabaseMessage[])
 	);
 
 	let lastSyncedConversationModel: string | null = null;
+	let lastSyncedConversationId: string | null | undefined;
 
 	// the conversation's model wins while it names one: opening a history chat
 	// points the selection at the model that produced it
 	$effect(() => {
+		if (options.synchronizeSelection?.() === false) return;
+
+		if (IS_PICO_BUILD) {
+			const conversationId = conversationsStore.activeConversation?.id ?? null;
+
+			if (conversationId !== lastSyncedConversationId) {
+				if (conversationModel && modelsStore.models.length === 0) return;
+
+				lastSyncedConversationId = conversationId;
+
+				if (conversationModel) {
+					untrack(() => {
+						if (modelsStore.models.some((model) => model.model === conversationModel)) {
+							modelsStore.selectModelByName(conversationModel);
+						} else {
+							modelsStore.clearSelection();
+						}
+					});
+				}
+			}
+
+			if (
+				isRouter &&
+				!modelsStore.selectedModelId &&
+				!conversationModel &&
+				conversationsStore.activeMessages.length > 0
+			) {
+				const visible = modelsStore.getVisibleModels();
+				const first =
+					visible.find((model) => modelsStore.isModelLoading(model.model)) ??
+					visible.find((model) => modelsStore.loadedModelIds.includes(model.model));
+
+				if (first) untrack(() => void modelsStore.selectModelById(first.id));
+			}
+
+			return;
+		}
+
 		if (conversationModel && conversationModel !== lastSyncedConversationModel) {
 			if (modelsStore.models.some((m) => m.model === conversationModel)) {
 				modelsStore.selectedModelName = conversationModel;
@@ -83,10 +128,13 @@ export function useChatFormModel() {
 		return activeModelId ? modelsStore.props.modelSupportsVision(activeModelId) : false;
 	});
 	const hasModelSelected = $derived(
-		!isRouter || !!conversationModel || !!modelsStore.selectedModelId
+		!isRouter ||
+			(IS_PICO_BUILD ? !!activeModelId : !!conversationModel || !!modelsStore.selectedModelId)
 	);
 	const isSelectedModelInCache = $derived.by(() => {
 		if (!isRouter) return true;
+
+		if (IS_PICO_BUILD) return activeModelId !== null;
 
 		if (conversationModel) {
 			return modelsStore.models.some((option) => option.model === conversationModel);

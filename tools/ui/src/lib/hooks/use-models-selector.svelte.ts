@@ -1,4 +1,5 @@
-import { CHAT_INPUT_FOCUS_SELECTOR } from '$lib/constants';
+import { CHAT_INPUT_FOCUS_SELECTOR, IS_PICO_BUILD } from '$lib/constants';
+import { ModelsService } from '$lib/services/models.service';
 import { deviceStore, modelsStore, serverStore, uiStore } from '$lib/stores';
 import type { ModelOption } from '$lib/types/models';
 import {
@@ -9,7 +10,7 @@ import {
 } from '$lib/utils';
 import { nameOf } from '$lib/utils/model-names';
 import { onMount } from 'svelte';
-import { SvelteSet } from 'svelte/reactivity';
+import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
 export interface UseModelsSelectorOptions {
 	currentModel: () => string | null;
@@ -25,6 +26,7 @@ export interface UseModelsSelectorReturn {
 	readonly loading: boolean;
 	readonly updating: boolean;
 	readonly activeId: string | null;
+	readonly ambiguousModelIds: ReadonlySet<string>;
 	readonly emptyMessage: string;
 	readonly isMultiModel: boolean;
 	readonly isRouter: boolean;
@@ -86,6 +88,22 @@ export function useModelsSelector(opts: UseModelsSelectorOptions): UseModelsSele
 	// the search, the rows and the sections all read the visible set; only the current
 	// model resolves against `options`, since it can be hidden and still selected
 	const visibleOptions = $derived(options.filter((option) => !modelsStore.isHidden(option.id)));
+	const ambiguousModelIds = $derived.by(() => {
+		if (!IS_PICO_BUILD) return new SvelteSet<string>();
+
+		const counts = new SvelteMap<string, number>();
+		const labels = visibleOptions.map((option) => {
+			const parsed = ModelsService.parseModelId(option.model);
+			const name = option.aliases?.length === 1 ? option.aliases[0] : parsed.modelName;
+			const label = `${name}:${parsed.params ?? ''}:${parsed.sidecar ?? ''}`;
+
+			counts.set(label, (counts.get(label) ?? 0) + 1);
+
+			return { id: option.id, label };
+		});
+
+		return new SvelteSet(labels.filter(({ label }) => counts.get(label)! > 1).map(({ id }) => id));
+	});
 	// one filter pass feeds the favorites, the loaded rows and the sections alike
 	const filteredOptions = $derived(filterModelOptions(visibleOptions, searchTerm));
 	const loadedItems = $derived(
@@ -125,7 +143,7 @@ export function useModelsSelector(opts: UseModelsSelectorOptions): UseModelsSele
 
 		// a single-model desktop server has no list: the trigger opens the manager
 		// instead. a phone has no manager, so its drawer opens with the one model
-		if (!isRouter && !deviceStore.isMobile) {
+		if (!IS_PICO_BUILD && !isRouter && !deviceStore.isMobile) {
 			if (open) uiStore.openModelsManager();
 
 			return;
@@ -223,6 +241,9 @@ export function useModelsSelector(opts: UseModelsSelectorOptions): UseModelsSele
 	return {
 		get activeId() {
 			return activeId;
+		},
+		get ambiguousModelIds() {
+			return ambiguousModelIds;
 		},
 
 		get emptyMessage() {

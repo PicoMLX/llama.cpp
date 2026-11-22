@@ -8,33 +8,11 @@
 		gaugeTriggerPointerDown
 	} from './gauge-popup.svelte';
 	import { useContextGauge } from '$lib/hooks/use-context-gauge.svelte';
-	import { chatStore, conversationsStore, deviceStore } from '$lib/stores';
-	import { untrack } from 'svelte';
+	import { useConversationProcessing } from '$lib/hooks/use-conversation-processing.svelte';
+	import { deviceStore } from '$lib/stores';
 
 	const gauge = useContextGauge();
-
-	$effect(() => {
-		const conv = conversationsStore.activeConversation;
-
-		untrack(() => chatStore.processing.setActiveConversation(conv?.id ?? null));
-	});
-
-	$effect(() => {
-		const conv = conversationsStore.activeConversation;
-		const messages = conversationsStore.activeMessages as DatabaseMessage[];
-
-		if (!conv) return;
-
-		if (chatStore.isLoading || chatStore.isStreaming()) return;
-
-		if (messages.length === 0) {
-			untrack(() => chatStore.processing.setState(conv.id, null));
-
-			return;
-		}
-
-		untrack(() => chatStore.processing.restoreFromMessages(messages, conv.id));
-	});
+	useConversationProcessing();
 
 	$effect(() => {
 		gauge.startMonitoring();

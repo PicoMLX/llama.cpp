@@ -1,9 +1,10 @@
-import { REASONING_EFFORT_TOKENS } from '$lib/constants';
+import { MODEL_PROPS_CACHE, REASONING_EFFORT_TOKENS } from '$lib/constants';
 import { ReasoningEffort } from '$lib/enums';
 import { conversationsStore, modelsStore, serverStore } from '$lib/stores';
 import type { ReasoningEffortLevel } from '$lib/types';
 import type { DatabaseMessage } from '$lib/types/database';
 import { getConversationModel } from '$lib/utils';
+import { untrack } from 'svelte';
 
 export interface UseReasoningMenuReturn {
 	readonly modelSupportsThinking: boolean;
@@ -56,6 +57,24 @@ export function useReasoningMenu(): UseReasoningMenuReturn {
 	});
 	// the model the next request goes to, as getApiOptions() resolves it
 	const modelId = $derived(modelsStore.selectedModelName ?? '');
+
+	$effect(() => {
+		const requestedModel = modelId || conversationModel;
+
+		void modelsStore.loadedModelIds;
+		void modelsStore.props.cacheVersion;
+
+		if (serverStore.isRouterMode && requestedModel) {
+			untrack(() => void modelsStore.props.fetchModelProps(requestedModel));
+			// TTLCache expires strictly after its boundary. Refresh an idle model
+			// just beyond that boundary without fetching from render-time readers.
+			const refresh = setInterval(() => {
+				void modelsStore.props.fetchModelProps(requestedModel);
+			}, MODEL_PROPS_CACHE.TTL_MS + 1);
+
+			return () => clearInterval(refresh);
+		}
+	});
 	// levels the chat template honors are sent as reasoning_effort and carry no token budget
 	const hasTemplateLevels = $derived.by(() => {
 		void modelsStore.props.cacheVersion;
