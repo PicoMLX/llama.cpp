@@ -8,7 +8,7 @@ import { tabsStore } from './tabs.svelte';
 import { toolsStore } from './tools.svelte';
 import { versionStore } from './version.svelte';
 import { browser } from '$app/environment';
-import { SETTINGS_KEYS } from '$lib/constants';
+import { IS_PICO_BUILD, SETTINGS_KEYS } from '$lib/constants';
 import { MigrationService } from '$lib/services/migration.service';
 import { validateApiKey } from '$lib/utils/api-key-validation';
 import { consumeInviteApiKeyFromUrl } from '$lib/utils/invite-api-key';
@@ -52,7 +52,9 @@ export function initStores(): Promise<void> {
 		// the full conversation list loads in the background; once it is back,
 		// prune persisted tabs against the conversations that still exist
 		void conversationsStore.initialize().then(() => {
-			tabsStore.init(conversationsStore.conversations.map((c) => c.id));
+			if (!IS_PICO_BUILD) {
+				tabsStore.init(conversationsStore.conversations.map((c) => c.id));
+			}
 		});
 	})();
 

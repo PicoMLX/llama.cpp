@@ -31,6 +31,7 @@ import type {
 /** Settings sections — slug is the routing identity, title is the display label. */
 export const SETTINGS_SECTIONS = {
 	AGENTIC: { slug: 'agentic', title: 'Agentic' },
+	CONNECTIONS: { slug: 'connections', title: 'Connections' },
 	DEVELOPER: { slug: 'developer', title: 'Developer' },
 	DISPLAY: { slug: 'display', title: 'Display' },
 	GENERAL: { slug: 'general', title: 'General' },
@@ -41,6 +42,7 @@ export const SETTINGS_SECTIONS = {
 
 export const SETTINGS_SECTION_SLUGS = {
 	AGENTIC: SETTINGS_SECTIONS.AGENTIC.slug,
+	CONNECTIONS: SETTINGS_SECTIONS.CONNECTIONS.slug,
 	DEVELOPER: SETTINGS_SECTIONS.DEVELOPER.slug,
 	DISPLAY: SETTINGS_SECTIONS.DISPLAY.slug,
 	GENERAL: SETTINGS_SECTIONS.GENERAL.slug,
@@ -51,6 +53,7 @@ export const SETTINGS_SECTION_SLUGS = {
 
 export const SETTINGS_SECTION_TITLES = {
 	AGENTIC: SETTINGS_SECTIONS.AGENTIC.title,
+	CONNECTIONS: SETTINGS_SECTIONS.CONNECTIONS.title,
 	DEVELOPER: SETTINGS_SECTIONS.DEVELOPER.title,
 	DISPLAY: SETTINGS_SECTIONS.DISPLAY.title,
 	GENERAL: SETTINGS_SECTIONS.GENERAL.title,
@@ -703,6 +706,22 @@ export const SETTINGS_REGISTRY: SettingsSectionEntry[] = [
 ];
 
 if (IS_PICO_BUILD) {
+	const display = SETTINGS_REGISTRY.find(
+		(section) => section.slug === SETTINGS_SECTION_SLUGS.DISPLAY
+	)!;
+	const conversationTabs = display.settings.find(
+		(setting) => setting.key === SETTINGS_KEYS.CONVERSATION_TABS
+	)!;
+
+	conversationTabs.defaultValue = false;
+	conversationTabs.standaloneField = false;
+	SETTINGS_REGISTRY.splice(2, 0, {
+		icon: PencilRuler,
+		settings: [],
+		slug: SETTINGS_SECTION_SLUGS.CONNECTIONS,
+		title: SETTINGS_SECTION_TITLES.CONNECTIONS
+	});
+
 	const general = SETTINGS_REGISTRY.find(
 		(section) => section.slug === SETTINGS_SECTION_SLUGS.GENERAL
 	)!;

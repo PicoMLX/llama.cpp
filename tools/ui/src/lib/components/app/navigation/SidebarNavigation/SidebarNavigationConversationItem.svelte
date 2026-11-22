@@ -22,6 +22,7 @@
 	import {
 		FORK_TREE_DEPTH_PADDING,
 		ICON_CLASS_DEFAULT,
+		IS_PICO_BUILD,
 		SHORTCUT_DELETE_CONVERSATION,
 		SHORTCUT_EDIT_CONVERSATION,
 		SHORTCUT_EXPORT_CONVERSATION,
@@ -108,7 +109,7 @@
 		onStop?.(conversation.id);
 	}
 
-	let canOpenInNewTab = $derived(Boolean(settingsStore.config.conversationTabs));
+	let canOpenInNewTab = $derived(!IS_PICO_BUILD && Boolean(settingsStore.config.conversationTabs));
 
 	function openInNewTab() {
 		void tabsStore.openInNewTab(conversation.id);

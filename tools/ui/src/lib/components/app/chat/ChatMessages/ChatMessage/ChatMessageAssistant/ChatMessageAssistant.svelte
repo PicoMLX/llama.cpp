@@ -9,6 +9,7 @@
 		ChatMessageContextMenu,
 		ChatMessageEditForm
 	} from '$lib/components/app';
+	import { IS_PICO_BUILD } from '$lib/constants/app.constants';
 	import { getChatMessageEditContext } from '$lib/contexts';
 	import { MessageRole } from '$lib/enums';
 	import { useProcessingState } from '$lib/hooks/use-processing-state.svelte';
@@ -176,6 +177,7 @@
 	{:else}
 		<ChatMessageContextMenu
 			disabled={!message.timestamp}
+			isLoading={chatStore.isLoading}
 			onContinue={currentConfig.enableContinueGeneration ? onContinue : undefined}
 			{onRegenerate}
 			role={MessageRole.ASSISTANT}
@@ -197,7 +199,7 @@
 		<ChatMessageAssistantProcessingInfo {modelLoadingText} position="bottom" {processingState} />
 	{/if}
 
-	{#if displayedModel}
+	{#if displayedModel && !IS_PICO_BUILD}
 		<div class="info my-6 grid gap-4 tabular-nums">
 			<div class="inline-flex flex-wrap items-start gap-2 text-xs text-muted-foreground">
 				<ChatMessageAssistantModel
@@ -220,12 +222,31 @@
 	{#if message.timestamp && !editCtx.isEditing}
 		<ChatMessageActionIcons
 			actionsPosition="left"
+			allowModelRetry={isRouter}
+			isLoading={chatStore.isLoading}
 			justify="start"
 			onContinue={currentConfig.enableContinueGeneration ? onContinue : undefined}
 			onRawOutputToggle={(enabled) => (showRawOutput = enabled)}
 			{onRegenerate}
 			rawOutputEnabled={showRawOutput}
+			responseModel={displayedModel}
 			showRawOutputSwitch={currentConfig.showRawOutputSwitch}
+		>
+			{#snippet details()}
+				<ChatMessageAssistantStatistics
+					isLoading={isLastAssistantMessage && chatStore.isLoading}
+					{message}
+					{processingState}
+					showMessageStats={currentConfig.showMessageStats}
+				/>
+			{/snippet}
+		</ChatMessageActionIcons>
+	{:else if IS_PICO_BUILD && !editCtx.isEditing}
+		<ChatMessageAssistantStatistics
+			isLoading={isLastAssistantMessage && chatStore.isLoading}
+			{message}
+			{processingState}
+			showMessageStats={currentConfig.showMessageStats}
 		/>
 	{/if}
 </div>

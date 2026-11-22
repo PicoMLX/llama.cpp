@@ -18,7 +18,9 @@
 		SidebarNavigationConversationList
 	} from '$lib/components/app';
 	import {
+		IS_PICO_BUILD,
 		ROUTES,
+		SETTINGS_SECTION_SLUGS,
 		SIDEBAR_COLLAPSE_WIDTH,
 		SIDEBAR_COLLAPSED_WIDTH,
 		SIDEBAR_MAX_WIDTH,
@@ -58,15 +60,19 @@
 	let dockTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	const isOnMobile = $derived(deviceStore.isMobile);
-	const alwaysShowOnDesktop = $derived(settingsStore.config.alwaysShowSidebarOnDesktop as boolean);
+	const alwaysShowOnDesktop = $derived(
+		!IS_PICO_BUILD && Boolean(settingsStore.config.alwaysShowSidebarOnDesktop)
+	);
 	// the collapsed sidebar shows only its logo until it is peeked at, which fades the rest in
 	const isStripHidden = $derived(!uiStore.isSidebarExpanded && !isOnMobile && !isPeeking);
 	// once settled, the collapsed sidebar keeps its full width, floating over the page,
 	// so a peek only fades it in instead of resizing it
-	const isFloating = $derived(!uiStore.isSidebarExpanded && !isOnMobile && !isDocked);
+	const isFloating = $derived(
+		!IS_PICO_BUILD && !uiStore.isSidebarExpanded && !isOnMobile && !isDocked
+	);
 	// on desktop the logo doubles as the sidebar toggle, unless the sidebar is pinned open
 	const isLogoToggle = $derived(
-		innerWidth > 768 && (!uiStore.isSidebarExpanded || !alwaysShowOnDesktop)
+		IS_PICO_BUILD || (innerWidth > 768 && (!uiStore.isSidebarExpanded || !alwaysShowOnDesktop))
 	);
 
 	$effect(() => {
@@ -91,7 +97,7 @@
 	function toggleExpandedMode() {
 		clearTimeout(dockTimeout);
 
-		if (isOnMobile) {
+		if (isOnMobile || IS_PICO_BUILD) {
 			uiStore.isSidebarExpanded = !uiStore.isSidebarExpanded;
 
 			return;
@@ -124,7 +130,7 @@
 	}
 
 	function peek() {
-		if (!isPeekSuppressed) {
+		if (!IS_PICO_BUILD && !isPeekSuppressed) {
 			isPeeking = true;
 		}
 	}
@@ -168,6 +174,7 @@
 
 	let renameDialogOpen = $state(false);
 	let settingsDialogOpen = $state(false);
+	let settingsInitialSection = $state<string>(SETTINGS_SECTION_SLUGS.GENERAL);
 	let mcpDialogOpen = $state(false);
 	let renameTargetConversationId = $state<string | null>(null);
 	let renameDraft = $state('');
@@ -540,11 +547,21 @@
 
 				break;
 			case SidebarAction.MCP:
-				openDialog(() => (mcpDialogOpen = true));
+				openDialog(() => {
+					if (IS_PICO_BUILD) {
+						settingsInitialSection = SETTINGS_SECTION_SLUGS.CONNECTIONS;
+						settingsDialogOpen = true;
+					} else {
+						mcpDialogOpen = true;
+					}
+				});
 
 				break;
 			case SidebarAction.SETTINGS:
-				openDialog(() => (settingsDialogOpen = true));
+				openDialog(() => {
+					settingsInitialSection = SETTINGS_SECTION_SLUGS.GENERAL;
+					settingsDialogOpen = true;
+				});
 
 				break;
 		}
@@ -571,7 +588,9 @@
 			'md:transition-[width,padding,margin,background-color,box-shadow,backdrop-filter] duration-200 ease-out',
 			(uiStore.isSidebarResizing || isSnapping) && 'md:duration-0',
 			isSettling && 'md:duration-300 md:ease-[cubic-bezier(0.34,1.56,0.64,1)]',
-			isDocked && !uiStore.isSidebarExpanded ? 'md:w-12' : 'md:w-(--sidebar-width)',
+			(isDocked || IS_PICO_BUILD) && !uiStore.isSidebarExpanded
+				? 'md:w-12'
+				: 'md:w-(--sidebar-width)',
 			(uiStore.isSidebarExpanded || (isFloating && isPeeking)) &&
 				'md:bg-muted/60 md:backdrop-blur-xl shadow-md',
 			isFloating && 'md:-mr-[calc(var(--sidebar-width)-3rem)]',
@@ -593,8 +612,6 @@
 					logoHovered = false;
 					isPeekSuppressed = false;
 				}}
-				role="button"
-				tabindex="0"
 			>
 				<ActionIcon
 					ariaLabel={!uiStore.isSidebarExpanded
@@ -606,11 +623,15 @@
 						? 'bg-muted! md:bg-foreground/5!'
 						: 'bg-transparent!'} md:h-9 md:w-9 h-10 w-10 rounded-full md:hover:bg-foreground/10! pointer-events-auto"
 					href={uiStore.isSidebarExpanded && !isLogoToggle ? ROUTES.START : undefined}
-					icon={isLogoToggle && logoHovered
+					icon={IS_PICO_BUILD
 						? uiStore.isSidebarExpanded
 							? PanelLeftClose
 							: PanelLeftOpen
-						: Logo}
+						: isLogoToggle && logoHovered
+							? uiStore.isSidebarExpanded
+								? PanelLeftClose
+								: PanelLeftOpen
+							: Logo}
 					iconSize="h-4.5 w-4.5 md:h-4 md:w-4"
 					onclick={!uiStore.isSidebarExpanded || isLogoToggle ? toggleExpandedMode : undefined}
 					size="lg"
@@ -623,7 +644,7 @@
 				/>
 			</div>
 
-			{#if isOnMobile}
+			{#if isOnMobile && !IS_PICO_BUILD}
 				<div
 					in:fade={{ delay: 50, duration: 150, easing: circIn }}
 					out:fade={{ duration: 100 }}
@@ -655,7 +676,7 @@
 			!uiStore.isSidebarExpanded
 				? 'opacity-0 invisible !h-0'
 				: ''} {isStripHidden ? 'md:opacity-0 md:invisible' : ''}"
-			inert={isStripHidden}
+			inert={isStripHidden || (IS_PICO_BUILD && !uiStore.isSidebarExpanded)}
 		>
 			<SidebarNavigationActions
 				class="px-2 md:my-3"
@@ -696,9 +717,17 @@
 					visibleCount={visibleSelectionStats.visibleCount}
 				/>
 			</div>
+
+			{#if IS_PICO_BUILD}
+				<SidebarNavigationActions
+					class="mt-auto px-2 pb-2 pt-2"
+					footer
+					onAction={handleSidebarAction}
+				/>
+			{/if}
 		</div>
 
-		{#if uiStore.isSidebarExpanded && !isOnMobile}
+		{#if !IS_PICO_BUILD && uiStore.isSidebarExpanded && !isOnMobile}
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
 				class="peer absolute inset-y-3 -right-1 z-20 hidden w-2 cursor-ew-resize touch-none select-none md:block"
@@ -741,7 +770,7 @@
 	onConfirm={handleDeleteConfirm}
 />
 
-<DialogSettingsChat bind:open={settingsDialogOpen} />
+<DialogSettingsChat bind:open={settingsDialogOpen} initialSection={settingsInitialSection} />
 
 <DialogSearch bind:open={searchOpen} onAction={handleSidebarAction} />
 

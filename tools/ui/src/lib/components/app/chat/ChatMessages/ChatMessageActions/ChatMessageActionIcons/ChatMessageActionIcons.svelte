@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PicoMessageActions from '../../PicoMessageActions.svelte';
 	import { ArrowRight, Copy, Edit, GitBranch, RefreshCw, Trash2 } from '@lucide/svelte';
 	import {
 		ActionIcon,
@@ -9,27 +10,36 @@
 	import Input from '$lib/components/ui/input/input.svelte';
 	import Label from '$lib/components/ui/label/label.svelte';
 	import { Switch } from '$lib/components/ui/switch';
+	import { IS_PICO_BUILD } from '$lib/constants/app.constants';
 	import { getChatMessageActionsContext, getChatMessageEditContext } from '$lib/contexts';
 	import { conversationsStore } from '$lib/stores';
-	import { untrack } from 'svelte';
+	import { type Snippet, untrack } from 'svelte';
 
 	interface Props {
 		justify: 'start' | 'end';
 		actionsPosition: 'left' | 'right';
-		onRegenerate?: () => void;
+		onRegenerate?: (modelOverride?: string) => void;
 		onContinue?: () => void;
 		showRawOutputSwitch?: boolean;
 		rawOutputEnabled?: boolean;
 		onRawOutputToggle?: (enabled: boolean) => void;
+		responseModel?: string | null;
+		allowModelRetry?: boolean;
+		details?: Snippet;
+		isLoading?: boolean;
 	}
 
 	let {
 		actionsPosition,
+		allowModelRetry = false,
+		details,
+		isLoading = false,
 		justify,
 		onContinue,
 		onRawOutputToggle,
 		onRegenerate,
 		rawOutputEnabled = false,
+		responseModel,
 		showRawOutputSwitch = false
 	}: Props = $props();
 
@@ -64,54 +74,70 @@
 	}
 </script>
 
-<div class="relative {justify === 'start' ? 'mt-2' : ''} flex h-6 items-center justify-between">
-	<div
-		class="{actionsPosition === 'left'
-			? 'left-0'
-			: 'right-0'} flex items-center gap-2 opacity-100 transition-opacity"
-	>
-		{#if messageActions.siblingInfo && messageActions.siblingInfo.totalSiblings > 1}
-			<ChatMessageActionIconsBranchingControls />
-		{/if}
-
+{#if IS_PICO_BUILD}
+	<PicoMessageActions
+		{allowModelRetry}
+		{details}
+		{isLoading}
+		{justify}
+		{onContinue}
+		onFork={() => messageActions.setShowForkDialog(true)}
+		{onRawOutputToggle}
+		{onRegenerate}
+		{rawOutputEnabled}
+		{responseModel}
+		{showRawOutputSwitch}
+	/>
+{:else}
+	<div class="relative {justify === 'start' ? 'mt-2' : ''} flex h-6 items-center justify-between">
 		<div
-			class="pointer-events-auto inset-0 flex items-center gap-1 opacity-100 transition-all duration-150"
+			class="{actionsPosition === 'left'
+				? 'left-0'
+				: 'right-0'} flex items-center gap-2 opacity-100 transition-opacity"
 		>
-			<ActionIcon icon={Copy} onclick={messageActions.copy} tooltip="Copy" />
-
-			<ActionIcon icon={Edit} onclick={editCtx.startEdit} tooltip="Edit" />
-
-			{#if onRegenerate}
-				<ActionIcon icon={RefreshCw} onclick={() => onRegenerate()} tooltip="Regenerate" />
+			{#if messageActions.siblingInfo && messageActions.siblingInfo.totalSiblings > 1}
+				<ChatMessageActionIconsBranchingControls />
 			{/if}
 
-			{#if onContinue}
-				<ActionIcon icon={ArrowRight} onclick={onContinue} tooltip="Continue" />
-			{/if}
+			<div
+				class="pointer-events-auto inset-0 flex items-center gap-1 opacity-100 transition-all duration-150"
+			>
+				<ActionIcon icon={Copy} onclick={messageActions.copy} tooltip="Copy" />
 
-			{#if messageActions.forkConversation}
-				<ActionIcon
-					icon={GitBranch}
-					onclick={() => messageActions.setShowForkDialog(true)}
-					tooltip="Fork conversation"
+				<ActionIcon icon={Edit} onclick={editCtx.startEdit} tooltip="Edit" />
+
+				{#if onRegenerate}
+					<ActionIcon icon={RefreshCw} onclick={() => onRegenerate()} tooltip="Regenerate" />
+				{/if}
+
+				{#if onContinue}
+					<ActionIcon icon={ArrowRight} onclick={onContinue} tooltip="Continue" />
+				{/if}
+
+				{#if messageActions.forkConversation}
+					<ActionIcon
+						icon={GitBranch}
+						onclick={() => messageActions.setShowForkDialog(true)}
+						tooltip="Fork conversation"
+					/>
+				{/if}
+
+				<ActionIcon icon={Trash2} onclick={messageActions.requestDelete} tooltip="Delete" />
+			</div>
+		</div>
+
+		{#if showRawOutputSwitch}
+			<div class="flex items-center gap-2">
+				<span class="text-xs text-muted-foreground">Show raw output</span>
+
+				<Switch
+					checked={rawOutputEnabled}
+					onCheckedChange={(checked) => onRawOutputToggle?.(checked)}
 				/>
-			{/if}
-
-			<ActionIcon icon={Trash2} onclick={messageActions.requestDelete} tooltip="Delete" />
-		</div>
+			</div>
+		{/if}
 	</div>
-
-	{#if showRawOutputSwitch}
-		<div class="flex items-center gap-2">
-			<span class="text-xs text-muted-foreground">Show raw output</span>
-
-			<Switch
-				checked={rawOutputEnabled}
-				onCheckedChange={(checked) => onRawOutputToggle?.(checked)}
-			/>
-		</div>
-	{/if}
-</div>
+{/if}
 
 <DialogConfirmation
 	cancelText="Cancel"
@@ -131,13 +157,13 @@
 
 <DialogConfirmation
 	cancelText="Cancel"
-	confirmText="Fork"
+	confirmText={IS_PICO_BUILD ? 'Create chat' : 'Fork'}
 	description="Create a new conversation branching from this message."
 	icon={GitBranch}
 	onCancel={() => messageActions.setShowForkDialog(false)}
 	onConfirm={handleConfirmFork}
 	open={messageActions.showForkDialog}
-	title="Fork Conversation"
+	title={IS_PICO_BUILD ? 'Branch into new chat' : 'Fork Conversation'}
 >
 	<div class="flex flex-col gap-4 py-2">
 		<div class="flex flex-col gap-2">
