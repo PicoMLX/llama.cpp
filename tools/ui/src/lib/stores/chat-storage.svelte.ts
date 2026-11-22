@@ -184,8 +184,11 @@ class ChatStorageStore {
 			await conversationsStore.initialize();
 			await waitForReplies();
 			await this.use(target, apiKey);
-			await conversationsStore.reloadFromStore();
-			await groupsStore.reload();
+			// in turn with the new stream's reloads, so a notice that comes during this read reads after it
+			await chatSyncStore.inTurn(async () => {
+				await conversationsStore.reloadFromStore();
+				await groupsStore.reload();
+			});
 		} finally {
 			this.pending = null;
 		}
