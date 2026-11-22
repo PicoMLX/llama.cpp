@@ -9,7 +9,7 @@
 	import SettingsGroup from '$lib/components/app/settings/SettingsGroup.svelte';
 	import Label from '$lib/components/ui/label/label.svelte';
 	import * as RadioGroup from '$lib/components/ui/radio-group';
-	import { ERROR_MESSAGES } from '$lib/constants';
+	import { ERROR_MESSAGES, IS_PICO_BUILD } from '$lib/constants';
 	import {
 		ChatStorageLocation,
 		ConversationSelectionMode,
@@ -21,6 +21,11 @@
 	import { createMessageCountMap } from '$lib/utils';
 	import { fade } from 'svelte/transition';
 	import { toast } from 'svelte-sonner';
+
+	let {
+		onSettingsImport,
+		scope = 'all'
+	}: { scope?: 'all' | 'conversations' | 'settings'; onSettingsImport?: () => void } = $props();
 
 	let exportedConversations = $state<DatabaseConversation[]>([]);
 	let importedConversations = $state<DatabaseConversation[]>([]);
@@ -110,6 +115,7 @@
 					}
 
 					settingsStore.importSettings(data);
+					onSettingsImport?.();
 
 					showSettingsImportSummary = true;
 					showSettingsExportSummary = false;
@@ -278,6 +284,7 @@
 </script>
 
 <div in:fade={{ duration: 150 }} class="space-y-12">
+	{#if scope !== 'settings'}
 	{#if chatStorageStore.available}
 		<SettingsGroup title="Storage">
 			<div class="grid gap-1">
@@ -313,7 +320,7 @@
 		</SettingsGroup>
 	{/if}
 
-	<SettingsGroup title="Conversations">
+	<SettingsGroup title={IS_PICO_BUILD ? 'Chats' : 'Conversations'}>
 		<SettingsChatImportExportSection
 			IconComponent={Download}
 			buttonText="Export conversations"
@@ -335,37 +342,40 @@
 			title="Import"
 		/>
 
-		<SettingsChatImportExportSection
-			IconComponent={Trash2}
-			buttonClass="text-destructive-foreground justify-start justify-self-start bg-destructive hover:bg-destructive/80 md:w-auto"
-			buttonText="Delete all conversations"
-			buttonVariant="destructive"
-			description="Permanently delete all conversations and their messages. This action cannot be undone. Consider exporting your conversations first if you want to keep a backup."
-			onclick={handleDeleteAllClick}
-			title="Delete All"
-			titleClass="text-destructive"
-		/>
-	</SettingsGroup>
+			<SettingsChatImportExportSection
+				IconComponent={Trash2}
+				buttonClass="text-destructive-foreground justify-start justify-self-start bg-destructive hover:bg-destructive/80 md:w-auto"
+				buttonText="Delete all conversations"
+				buttonVariant="destructive"
+				description="Permanently delete all conversations and their messages. This action cannot be undone. Consider exporting your conversations first if you want to keep a backup."
+				onclick={handleDeleteAllClick}
+				title="Delete All"
+				titleClass="text-destructive"
+			/>
+		</SettingsGroup>
+	{/if}
 
-	<SettingsGroup title="Settings">
-		<SettingsChatImportExportSection
-			IconComponent={Download}
-			buttonText="Export settings"
-			description="Export your chat settings and preferences as a JSON file."
-			onclick={handleSettingsExport}
-			summary={{ items: [], show: showSettingsExportSummary, verb: 'Exported' }}
-			title="Export"
-		/>
+	{#if scope !== 'conversations'}
+		<SettingsGroup title="Settings">
+			<SettingsChatImportExportSection
+				IconComponent={Download}
+				buttonText="Export settings"
+				description="Export your chat settings and preferences as a JSON file."
+				onclick={handleSettingsExport}
+				summary={{ items: [], show: showSettingsExportSummary, verb: 'Exported' }}
+				title="Export"
+			/>
 
-		<SettingsChatImportExportSection
-			IconComponent={Upload}
-			buttonText="Import settings"
-			description="Import chat settings from a previously exported JSON file. This will merge with your existing settings."
-			onclick={handleSettingsImport}
-			summary={{ items: [], show: showSettingsImportSummary, verb: 'Imported' }}
-			title="Import"
-		/>
-	</SettingsGroup>
+			<SettingsChatImportExportSection
+				IconComponent={Upload}
+				buttonText="Import settings"
+				description="Import chat settings from a previously exported JSON file. This will merge with your existing settings."
+				onclick={handleSettingsImport}
+				summary={{ items: [], show: showSettingsImportSummary, verb: 'Imported' }}
+				title="Import"
+			/>
+		</SettingsGroup>
+	{/if}
 </div>
 
 <DialogExportSettings

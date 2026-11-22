@@ -11,6 +11,7 @@
 		DropdownMenuActions
 	} from '$lib/components/app';
 	import {
+		IS_PICO_BUILD,
 		SIDEBAR_ROW_SLIDE_MS,
 		SIDEBAR_SECTION_IDS,
 		SIDEBAR_SECTION_PREVIEW_COUNT,
@@ -54,7 +55,7 @@
 	});
 
 	async function startChat() {
-		await conversationsStore.openNewChat({ inNewTab: true });
+		await conversationsStore.openNewChat({ inNewTab: !IS_PICO_BUILD });
 		await conversationsStore.assignActiveConversationGroup(group.id);
 	}
 

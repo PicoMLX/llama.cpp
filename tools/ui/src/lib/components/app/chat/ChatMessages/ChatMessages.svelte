@@ -1,8 +1,8 @@
 <script lang="ts">
 	import LazyChatMessage from './LazyChatMessage.svelte';
+	import PicoInlineError from './PicoInlineError.svelte';
 	import { ChatMessageUserPending } from '$lib/components/app';
-	import { LANDING_EAGER_ROWS } from '$lib/constants';
-	import { IS_PICO_BUILD } from '$lib/constants/app.constants';
+	import { IS_PICO_BUILD, LANDING_EAGER_ROWS } from '$lib/constants';
 	import { MessageRole } from '$lib/enums';
 	import { agenticStore, chatStore, conversationsStore, settingsStore } from '$lib/stores';
 	import type { ChatMessageActions } from '$lib/types';
@@ -245,6 +245,47 @@
 
 		return result;
 	});
+	const responseError = $derived(
+		IS_PICO_BUILD && conversationsStore.activeConversation
+			? chatStore.getResponseError(conversationsStore.activeConversation.id)
+			: null
+	);
+	const errorEntryId = $derived(
+		responseError?.messageId
+			? displayMessages.find(
+					(entry) =>
+						entry.message.id === responseError.messageId ||
+						entry.toolMessages.some((message) => message.id === responseError.messageId)
+				)?.message.id
+			: null
+	);
+
+	async function retryError() {
+		const error = responseError;
+
+		if (
+			!error?.conversationId ||
+			chatStore.isLoading ||
+			error.conversationId !== conversationsStore.activeConversation?.id
+		)
+			return;
+
+		chatStore.dismissResponseError(error.conversationId);
+
+		if (error.operation === 'compaction') await chatStore.compactConversation();
+		else if (error.messageId) await chatStore.regenerateMessageWithBranching(error.messageId);
+	}
+
+	async function summarizeAfterError() {
+		if (!responseError || chatStore.isLoading) return;
+
+		chatStore.dismissResponseError(responseError.conversationId!);
+		await chatStore.compactConversation();
+	}
+
+	function dismissResponseError() {
+		if (responseError?.conversationId) chatStore.dismissResponseError(responseError.conversationId);
+	}
 </script>
 
 <!-- Re-created per conversation, so each one starts from fresh rows that
@@ -263,7 +304,27 @@
 				{siblingInfo}
 				{toolMessages}
 			/>
+
+			{#if responseError && errorEntryId === message.id}
+				<PicoInlineError
+					disabled={chatStore.isLoading}
+					error={responseError}
+					onDismiss={dismissResponseError}
+					onRetry={retryError}
+					onSummarize={chatStore.canCompact(messages) ? summarizeAfterError : undefined}
+				/>
+			{/if}
 		{/each}
+
+		{#if responseError && !responseError.messageId}
+			<PicoInlineError
+				disabled={chatStore.isLoading}
+				error={responseError}
+				onDismiss={dismissResponseError}
+				onRetry={responseError.operation === 'compaction' ? retryError : undefined}
+				onSummarize={chatStore.canCompact(messages) ? summarizeAfterError : undefined}
+			/>
+		{/if}
 
 		{#if conversationsStore.activeConversation && agenticStore.getPendingSteeringMessageContent(conversationsStore.activeConversation!.id)}
 			{@const convId = conversationsStore.activeConversation!.id}

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { RefreshCw } from '@lucide/svelte';
+	import { base } from '$app/paths';
 	import {
 		SettingsChatDesktopSidebar,
 		SettingsChatFields,
@@ -11,16 +12,28 @@
 		SettingsResetButton
 	} from '$lib/components/app/settings';
 	import { Button } from '$lib/components/ui/button';
+	import { Input } from '$lib/components/ui/input';
+	import Label from '$lib/components/ui/label/label.svelte';
 	import {
+		HEADERS,
+		IS_PICO_BUILD,
 		NUMERIC_FIELDS,
+		PICO_ADVANCED_SETTINGS_GROUPS,
 		POSITIVE_INTEGER_FIELDS,
 		SETTINGS_CHAT_SECTIONS,
+		SETTINGS_ENTRIES_BY_KEY,
 		SETTINGS_KEYS,
 		SETTINGS_SECTION_SLUGS
 	} from '$lib/constants';
 	import { ColorMode } from '$lib/enums/ui.enums';
-	import { modelsStore, serverStore, settingsStore } from '$lib/stores';
-	import type { SettingsSection, SettingsSectionTitle } from '$lib/types';
+	import {
+		conversationsStore,
+		modelsStore,
+		serverStore,
+		settingsStore,
+		uiStore
+	} from '$lib/stores';
+	import type { SettingsConfigValue, SettingsSection, SettingsSectionTitle } from '$lib/types';
 	import { setMode } from 'mode-watcher';
 	import { fade } from 'svelte/transition';
 	interface Props {
@@ -66,6 +79,124 @@
 	});
 	let hasChanges = $derived(Object.keys(changedConfig).length > 0);
 
+	let fieldErrors: Record<string, string> = $state({});
+	let accessKey = $state('');
+	let accessError = $state('');
+	let connecting = $state(false);
+	let accessConnected = $state(false);
+
+	$effect(() => {
+		if (!IS_PICO_BUILD) return;
+
+		for (const [key, value] of Object.entries(settingsStore.config)) {
+			baselineConfig[key] = value;
+
+			const draft = localConfig[key];
+			const keepNumericDraft =
+				typeof value === 'number' &&
+				typeof draft === 'string' &&
+				draft.trim() !== '' &&
+				Number(draft) === value;
+
+			if (!fieldErrors[key] && !keepNumericDraft) localConfig[key] = value;
+		}
+	});
+
+	function savePreference(key: string, value: SettingsConfigValue) {
+		const entry = SETTINGS_ENTRIES_BY_KEY[key];
+
+		let savedValue = value;
+		let error = '';
+
+		if ((NUMERIC_FIELDS as readonly string[]).includes(key)) {
+			if (String(value ?? '').trim() === '') {
+				if (entry.sync) savedValue = '';
+				else error = 'Enter a number.';
+			} else {
+				const number = Number(value);
+
+				if (!Number.isFinite(number)) error = 'Enter a valid number.';
+				else if (
+					entry.isPositiveInteger &&
+					(!Number.isInteger(number) || number < (entry.min ?? 1))
+				) {
+					error = `Enter a whole number of at least ${entry.min ?? 1}.`;
+				} else if (entry.max !== undefined && number > entry.max) {
+					error = `Enter a number no greater than ${entry.max}.`;
+				} else savedValue = number;
+			}
+		}
+
+		if (key === SETTINGS_KEYS.CUSTOM_JSON && typeof value === 'string' && value.trim()) {
+			try {
+				JSON.parse(value);
+			} catch {
+				error = 'Enter valid JSON. Your previous value is still saved.';
+			}
+		}
+
+		if (error) {
+			fieldErrors[key] = error;
+
+			return;
+		}
+
+		delete fieldErrors[key];
+		settingsStore.updateConfig(key, savedValue);
+	}
+
+	async function connectAccessKey(event: SubmitEvent) {
+		event.preventDefault();
+
+		if (connecting || !accessKey.trim()) return;
+
+		connecting = true;
+		accessError = '';
+		accessConnected = false;
+
+		try {
+			const response = await fetch(`${base}/props`, {
+				headers: { [HEADERS.AUTHORIZATION]: `${HEADERS.BEARER}${accessKey.trim()}` }
+			});
+
+			if (!response.ok) {
+				accessError =
+					response.status === 401 || response.status === 403
+						? 'This access key is not valid. Check it and try again.'
+						: 'Could not connect to Pico. Try again.';
+
+				return;
+			}
+
+			settingsStore.updateConfig(SETTINGS_KEYS.API_KEY, accessKey.trim());
+			accessKey = '';
+			accessConnected = true;
+		} catch {
+			accessError = 'Could not connect to Pico. Check your connection and try again.';
+		} finally {
+			connecting = false;
+		}
+	}
+
+	function handleManageChats() {
+		onClose?.();
+		uiStore.isSidebarExpanded = true;
+		uiStore.chatManagementRequested = true;
+	}
+
+	function handleParameterReset(key: string) {
+		settingsStore.resetSettingsForKeys([key]);
+		delete fieldErrors[key];
+		localConfig[key] = settingsStore.config[key];
+	}
+
+	function handleSectionReset(fields: SettingsFieldConfig[]) {
+		for (const field of fields) {
+			delete fieldErrors[field.key];
+			localConfig[field.key] = settingsStore.config[field.key];
+		}
+	}
+
 	let mobileHeader: { updateCarousel: () => void } | undefined;
 
 	let fetchInitiated = false;
@@ -83,7 +214,9 @@
 	});
 
 	function handleThemeChange(newTheme: string) {
-		localConfig.theme = newTheme;
+		if (IS_PICO_BUILD) handleConfigChange(SETTINGS_KEYS.THEME, newTheme);
+		else localConfig.theme = newTheme;
+
 		setMode(newTheme as ColorMode);
 	}
 
@@ -94,7 +227,11 @@
 		// unchecking it turns the hub back off, so the checkbox never lies
 		if (key === SETTINGS_KEYS.ENABLE_DISCOVER_MODELS) {
 			localConfig[SETTINGS_KEYS.USE_HUGGING_FACE_HUB] = value === true;
+
+			if (IS_PICO_BUILD) savePreference(SETTINGS_KEYS.USE_HUGGING_FACE_HUB, value === true);
 		}
+
+		if (IS_PICO_BUILD) savePreference(key, value);
 	}
 
 	function handleReset() {
@@ -153,8 +290,27 @@
 	export function reset() {
 		baselineConfig = { ...settingsStore.config };
 		localConfig = { ...baselineConfig };
+		fieldErrors = {};
 	}
 </script>
+
+{#snippet preferenceFields(fields: SettingsFieldConfig[], title: string)}
+	<SettingsChatFields
+		errors={fieldErrors}
+		{fields}
+		{localConfig}
+		onConfigChange={handleConfigChange}
+		onParameterReset={handleParameterReset}
+		onThemeChange={handleThemeChange}
+	/>
+
+	<SettingsResetButton
+		hasDraftChanges={fields.some((field) => Boolean(fieldErrors[field.key]))}
+		keys={fields.map((field) => field.key)}
+		onReset={() => handleSectionReset(fields)}
+		sectionTitle={title}
+	/>
+{/snippet}
 
 <div in:fade={{ duration: 150 }} class="mx-auto flex h-full w-full flex-col">
 	<div class="flex flex-1 flex-col md:flex-row md:gap-4">
@@ -185,6 +341,90 @@
 							</div>
 
 							<SettingsMcpServers />
+
+							<details class="rounded-lg border border-border/50 p-4">
+								<summary class="cursor-pointer text-sm font-medium"
+									>{conversationsStore.activeConversation
+										? 'Tools for this chat'
+										: 'Tool defaults'}</summary
+								>
+
+								<div class="mt-4"><SettingsChatToolsTab /></div>
+							</details>
+
+							<details class="rounded-lg border border-border/50 p-4">
+								<summary class="cursor-pointer text-sm font-medium">Pico access</summary>
+
+								<form class="mt-4 space-y-3" onsubmit={connectAccessKey}>
+									<p class="text-sm text-muted-foreground">
+										Change the access key used to connect to this Pico server.
+									</p>
+
+									<Label for="pico-settings-access-key">Access key</Label>
+
+									<Input
+										bind:value={accessKey}
+										aria-describedby={accessError ? 'pico-settings-access-error' : undefined}
+										aria-invalid={Boolean(accessError) || undefined}
+										autocomplete="new-password"
+										disabled={connecting}
+										id="pico-settings-access-key"
+										type="password"
+									/>
+
+									{#if accessError}<p
+											class="text-sm text-destructive"
+											id="pico-settings-access-error"
+											role="alert"
+										>
+											{accessError}
+										</p>{/if}
+
+									{#if accessConnected}<p class="text-sm text-muted-foreground" role="status">
+											Connected to Pico.
+										</p>{/if}
+
+									<Button disabled={connecting || !accessKey.trim()} type="submit"
+										>{connecting ? 'Connecting...' : 'Connect'}</Button
+									>
+								</form>
+							</details>
+						</div>
+					{:else if IS_PICO_BUILD && currentSection.slug === SETTINGS_SECTION_SLUGS.DATA}
+						<div class="space-y-6">
+							<Button onclick={handleManageChats} variant="outline">Manage chats</Button>
+
+							<SettingsChatImportExportTab scope="conversations" />
+						</div>
+					{:else if IS_PICO_BUILD && currentSection.slug === SETTINGS_SECTION_SLUGS.ADVANCED}
+						<div class="space-y-4">
+							<p class="text-sm text-muted-foreground">
+								These preferences apply across chats. Leave generation fields blank to use the
+								model's defaults. Tool choices and saved instructions in existing chats stay with
+								those chats.
+							</p>
+
+							{#each PICO_ADVANCED_SETTINGS_GROUPS as group (group.title)}
+								<details class="rounded-lg border border-border/50 p-4">
+									<summary class="cursor-pointer text-sm font-medium">{group.title}</summary>
+
+									<div class="mt-5 space-y-6">
+										{@render preferenceFields(group.fields, group.title)}
+									</div>
+								</details>
+							{/each}
+
+							<details class="rounded-lg border border-border/50 p-4">
+								<summary class="cursor-pointer text-sm font-medium">Settings backup</summary>
+
+								<div class="mt-5">
+									<SettingsChatImportExportTab onSettingsImport={reset} scope="settings" />
+								</div>
+							</details>
+						</div>
+					{:else if IS_PICO_BUILD && currentSection.fields}
+						<div class="space-y-6">
+							{@render preferenceFields(currentSection.fields, currentSection.title)}
 						</div>
 					{:else if currentSection.slug === SETTINGS_SECTION_SLUGS.TOOLS}
 						<SettingsChatToolsTab />
@@ -214,11 +454,19 @@
 				</div>
 
 				<div class="mt-8 border-t border-border/30 pt-6 pb-6">
-					<p class="text-xs text-muted-foreground">Settings are saved in browser's localStorage</p>
+					<p class="text-xs text-muted-foreground">
+						{IS_PICO_BUILD
+							? Object.keys(fieldErrors).length > 0
+								? 'Correct the highlighted values to save them.'
+								: 'Changes save automatically in this browser.'
+							: "Settings are saved in browser's localStorage"}
+					</p>
 				</div>
 			</div>
 
-			<SettingsFooter {hasChanges} onSave={handleSave} />
+			{#if !IS_PICO_BUILD}
+				<SettingsFooter {hasChanges} onSave={handleSave} />
+			{/if}
 		</div>
 	</div>
 </div>

@@ -6,9 +6,12 @@
 
 	interface Props {
 		onReset?: () => void;
+		keys?: string[];
+		sectionTitle?: string;
+		hasDraftChanges?: boolean;
 	}
 
-	let { onReset }: Props = $props();
+	let { hasDraftChanges = false, keys, onReset, sectionTitle }: Props = $props();
 
 	let showResetDialog = $state(false);
 
@@ -17,30 +20,44 @@
 	}
 
 	function handleConfirmReset() {
-		settingsStore.forceSyncWithServerDefaults();
+		if (keys) {
+			settingsStore.resetSettingsForKeys(keys);
+		} else {
+			settingsStore.forceSyncWithServerDefaults();
+		}
+
 		onReset?.();
 
 		showResetDialog = false;
 	}
 </script>
 
-{#if settingsStore.hasCustomSettings}
+{#if hasDraftChanges || (keys ? settingsStore.hasCustomSettingsForKeys(keys) : settingsStore.hasCustomSettings)}
 	<Button onclick={handleResetClick} variant="outline">
 		<RotateCcw class="h-3 w-3" />
 
-		Reset to default
+		{sectionTitle ? `Reset ${sectionTitle}` : 'Reset to default'}
 	</Button>
 {/if}
 
 <AlertDialog.Root bind:open={showResetDialog}>
 	<AlertDialog.Content>
 		<AlertDialog.Header>
-			<AlertDialog.Title>Reset Settings to Default</AlertDialog.Title>
+			<AlertDialog.Title
+				>{sectionTitle
+					? `Reset ${sectionTitle} settings?`
+					: 'Reset Settings to Default'}</AlertDialog.Title
+			>
 
 			<AlertDialog.Description>
-				Are you sure you want to reset all settings to their default values? This will reset all
-				parameters to the values provided by the server's /props endpoint and remove all your custom
-				configurations.
+				{#if keys}
+					Only these preferences will return to their defaults. Your connections, access key and
+					other sections will stay saved.
+				{:else}
+					Are you sure you want to reset all settings to their default values? This will reset all
+					parameters to the values provided by the server's /props endpoint and remove all your
+					custom configurations.
+				{/if}
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 

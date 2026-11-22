@@ -12,6 +12,7 @@
 import {
 	COMPACTION,
 	CWD_CLEARED_TEXT,
+	IS_PICO_BUILD,
 	REASONING_EFFORT_TOKENS,
 	SYSTEM_MESSAGE_PLACEHOLDER,
 	TITLE_GENERATION
@@ -29,7 +30,11 @@ import { DatabaseService } from '$lib/services/database.service';
 import { agenticStore } from '$lib/stores/agentic/index.svelte';
 import { chatActivityStore } from '$lib/stores/chat/activity.svelte';
 import { draftMessagesStore } from '$lib/stores/chat/drafts.svelte';
-import { type ChatFlowsHost, ChatMessageFlows } from '$lib/stores/chat/flows.svelte';
+import {
+	type ChatFlowsHost,
+	ChatMessageFlows,
+	type ChatRequestSnapshot
+} from '$lib/stores/chat/flows.svelte';
 import { chatProcessingStore } from '$lib/stores/chat/processing.svelte';
 import { type ChatStreamHost, ChatStreamManager } from '$lib/stores/chat/streams.svelte';
 import { conversationsStore } from '$lib/stores/conversations/index.svelte';
@@ -66,7 +71,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 	chatReasoningStates = new SvelteMap<string, boolean>();
 	chatStreamingStates = new SvelteMap<
 		string,
-		{ response: string; messageId: string; model?: string | null }
+		{ response: string; messageId: string; model?: string | null; reasoningContent?: string }
 	>();
 	errorDialogState = $state<ErrorDialogState | null>(null);
 	// true while the active conversation has a local pipe (send, attach or resume-wait)
@@ -92,6 +97,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		{ content: string; extras?: DatabaseMessageExtra[] }
 	>();
 	private preEncodeAbortController: AbortController | null = null;
+	private responseErrors = new SvelteMap<string, ErrorDialogState>();
 
 	// server-side stream sessions: discovery, attach/replay, resume retry, remote sync
 	private streams = new ChatStreamManager(this);
@@ -394,7 +400,15 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 	}
 
 	dismissErrorDialog(): void {
+		const convId = conversationsStore.activeConversation?.id;
+
+		if (convId) this.responseErrors.delete(convId);
+
 		this.errorDialogState = null;
+	}
+
+	dismissResponseError(convId: string): void {
+		this.responseErrors.delete(convId);
 	}
 
 	async editAssistantMessage(
@@ -447,7 +461,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		return this.activity.loadingConvs;
 	}
 
-	getApiOptions(): Record<string, unknown> {
+	getApiOptions(includeReasoning = true): Record<string, unknown> {
 		const currentConfig = settingsStore.config;
 		const hasValue = (value: unknown): boolean =>
 			value !== undefined && value !== null && value !== '';
@@ -465,23 +479,12 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 
 		if (currentConfig.excludeReasoningFromContext) apiOptions.excludeReasoningFromContext = true;
 
-		// an explicit reasoning choice overrides the server default, DEFAULT sends nothing:
-		// a level the chat template honors goes as is, the others as a token budget
-		const modelId = modelsStore.selectedModelName ?? '';
-		const effort = modelsStore.props.resolveReasoningEffort(
-			modelId,
-			conversationsStore.preferences.getReasoningEffort()
-		);
-		const budgetTokens = REASONING_EFFORT_TOKENS[effort];
-
-		if (effort !== ReasoningEffort.DEFAULT) {
-			apiOptions.enableThinking = effort !== ReasoningEffort.OFF;
-		}
-
-		if (modelsStore.props.getReasoningEfforts(modelId).includes(effort)) {
-			apiOptions.reasoningEffort = effort;
-		} else if (budgetTokens >= 0) {
-			apiOptions.thinkingBudgetTokens = budgetTokens;
+		if (includeReasoning) {
+			this.applyReasoningOptions(
+				apiOptions,
+				modelsStore.selectedModelName ?? '',
+				conversationsStore.preferences.getReasoningEffort()
+			);
 		}
 
 		if (hasValue(currentConfig.temperature))
@@ -578,6 +581,18 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 
 	getPendingMessageExtras(convId: string): DatabaseMessageExtra[] | undefined {
 		return this.pendingMessages.get(convId)?.extras;
+	}
+
+	getRequestSnapshot(): ChatRequestSnapshot {
+		return {
+			options: this.getApiOptions(false),
+			reasoningEffort: conversationsStore.preferences.getReasoningEffort(),
+			toolPolicy: this.toolPolicy()
+		};
+	}
+
+	getResponseError(convId: string): ErrorDialogState | null {
+		return this.responseErrors.get(convId) ?? null;
 	}
 
 	getResumeModel(convId: string): string | null {
@@ -814,6 +829,8 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		this.showErrorDialog(null);
 		this.setChatLoading(currentConv.id, true);
 		this.clearChatStreaming(currentConv.id);
+		let responseMessageId: string | undefined;
+
 		try {
 			let parentIdForUserMessage: string | undefined;
 
@@ -868,6 +885,8 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 
 			const assistantMessage = await this.createAssistantMessage(userMessage.id);
 
+			responseMessageId = assistantMessage.id;
+
 			conversationsStore.addMessageToActive(assistantMessage);
 			await this.streamChatCompletion(
 				conversationsStore.activeMessages.slice(0, -1),
@@ -896,7 +915,9 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 
 			this.showErrorDialog({
 				contextInfo,
+				conversationId: currentConv.id,
 				message: error instanceof Error ? error.message : 'Unknown error',
+				messageId: responseMessageId,
 				type: dialogType
 			});
 		}
@@ -919,11 +940,17 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		convId: string,
 		response: string,
 		messageId: string,
-		model?: string | null
+		model?: string | null,
+		reasoningContent?: string
 	): void {
+		const previous = this.chatStreamingStates.get(convId);
+
 		this.chatStreamingStates.set(convId, {
 			messageId,
-			model: model ?? this.chatStreamingStates.get(convId)?.model,
+			model: model ?? previous?.model,
+			reasoningContent:
+				reasoningContent ??
+				(previous?.messageId === messageId ? previous.reasoningContent : undefined),
 			response
 		});
 	}
@@ -945,6 +972,15 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 	}
 
 	showErrorDialog(state: ErrorDialogState | null): void {
+		if (IS_PICO_BUILD) {
+			const convId = state?.conversationId ?? conversationsStore.activeConversation?.id;
+
+			if (convId) {
+				if (state) this.responseErrors.set(convId, { ...state, conversationId: convId });
+				else this.responseErrors.delete(convId);
+			}
+		}
+
 		this.errorDialogState = state;
 	}
 
@@ -981,7 +1017,8 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		onComplete?: (content: string) => Promise<void>,
 		onError?: (error: Error) => void,
 		modelOverride?: string | null,
-		firstUserMessageContent?: string
+		firstUserMessageContent?: string,
+		requestSnapshot = this.getRequestSnapshot()
 	): Promise<void> {
 		// the ::model suffix in the stream identity is only for router mode, where it routes to the
 		// owning child. in single-model mode the identity stays the bare conv id so that attach, stop
@@ -1007,6 +1044,14 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 				await modelsStore.props.fetchModelProps(effectiveModel);
 		}
 
+		const requestOptions = { ...requestSnapshot.options };
+
+		this.applyReasoningOptions(
+			requestOptions,
+			effectiveModel ?? (requestOptions.model as string | undefined) ?? '',
+			requestSnapshot.reasoningEffort
+		);
+
 		// Every request path funnels through here, so the compaction boundary
 		// applied once covers the plain send, the agentic flow, and the
 		// pre-encode that reuses this list from the closure.
@@ -1020,6 +1065,28 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		let modelPersisted = false;
 
 		const convId = assistantMessage.convId;
+		const updateActiveFlowMessage = (messageId: string, updates: Partial<DatabaseMessage>) => {
+			if (conversationsStore.activeConversation?.id !== convId) return;
+
+			const idx = conversationsStore.activeMessages.findIndex(
+				(message) => message.id === messageId && message.convId === convId
+			);
+
+			conversationsStore.updateMessageAtIndex(idx, updates);
+		};
+		const updateFlowCursor = async (messageId: string) => {
+			await DatabaseService.updateCurrentNode(convId, messageId);
+
+			if (
+				conversationsStore.activeConversation?.id === convId &&
+				!conversationsStore.activeMessages.some(
+					(message) => message.id === messageId && message.convId === convId
+				)
+			)
+				return;
+
+			conversationsStore.applyConversationUpdate(convId, { currNode: messageId });
+		};
 
 		// Tracks the last message created in this flow. Used as the parent for the next
 		// turn's assistant message so createAssistantMessage does not have to read
@@ -1039,9 +1106,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 			if (!n || n === resolvedModel) return;
 
 			resolvedModel = n;
-			const idx = conversationsStore.findMessageIndex(currentMessageId);
-
-			conversationsStore.updateMessageAtIndex(idx, { model: n });
+			updateActiveFlowMessage(currentMessageId, { model: n });
 
 			if (persistImmediately && !modelPersisted) {
 				modelPersisted = true;
@@ -1058,18 +1123,14 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 			if (!id || completionIdRecorded) return;
 
 			completionIdRecorded = true;
-			const idx = conversationsStore.findMessageIndex(currentMessageId);
-
-			conversationsStore.updateMessageAtIndex(idx, { completionId: id });
+			updateActiveFlowMessage(currentMessageId, { completionId: id });
 			DatabaseService.updateMessage(currentMessageId, { completionId: id }).catch(() => {
 				completionIdRecorded = false;
 			});
 		};
 		const updateStreamingUI = () => {
 			this.setChatStreaming(convId, streamedContent, currentMessageId, effectiveModel);
-			const idx = conversationsStore.findMessageIndex(currentMessageId);
-
-			conversationsStore.updateMessageAtIndex(idx, { content: streamedContent });
+			updateActiveFlowMessage(currentMessageId, { content: streamedContent });
 		};
 		const cleanupStreamingState = () => {
 			this.setChatLoading(convId, false);
@@ -1077,7 +1138,10 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 			this.processing.setState(convId, null);
 		};
 
-		this.processing.setActiveConversation(convId);
+		if (conversationsStore.activeConversation?.id === convId) {
+			this.processing.setActiveConversation(convId);
+		}
+
 		const streamCallbacks: ChatStreamCallbacks = {
 			createAssistantMessage: async () => {
 				// Reset streaming state for new message
@@ -1098,12 +1162,16 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 					lastCreatedInFlow
 				);
 
-				if (conversationsStore.activeConversation?.id === convId) {
+				if (
+					conversationsStore.activeConversation?.id === convId &&
+					conversationsStore.activeMessages.some((message) => message.id === lastCreatedInFlow)
+				) {
 					conversationsStore.addMessageToActive(msg);
 				}
 
 				currentMessageId = msg.id;
 				lastCreatedInFlow = msg.id;
+				this.setChatStreaming(convId, '', msg.id, effectiveModel);
 
 				return msg;
 			},
@@ -1129,15 +1197,14 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 					currentMessageId
 				);
 
-				// mirror into the active store and move the node pointer only when this
-				// conversation is displayed; otherwise persist the node move straight to
-				// the db for the owning conv so a foreign conv's currNode stays untouched
-				if (conversationsStore.activeConversation?.id === convId) {
+				if (
+					conversationsStore.activeConversation?.id === convId &&
+					conversationsStore.activeMessages.some((message) => message.id === currentMessageId)
+				) {
 					conversationsStore.addMessageToActive(msg);
-					await conversationsStore.updateCurrentNode(msg.id);
-				} else {
-					await DatabaseService.updateCurrentNode(convId, msg.id);
 				}
+
+				await updateFlowCursor(msg.id);
 
 				lastCreatedInFlow = msg.id;
 
@@ -1159,7 +1226,6 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 				if (resolvedModel && !modelPersisted) updateData.model = resolvedModel;
 
 				await DatabaseService.updateMessage(currentMessageId, updateData);
-				const idx = conversationsStore.findMessageIndex(currentMessageId);
 				const uiUpdate: Partial<DatabaseMessage> = {
 					content,
 					reasoningContent: reasoningContent || undefined,
@@ -1170,15 +1236,8 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 
 				if (resolvedModel) uiUpdate.model = resolvedModel;
 
-				// touch the active ui array and node pointer only when this conversation
-				// is displayed; otherwise persist the node move straight to the db so a
-				// foreign conv's currNode stays untouched
-				if (conversationsStore.activeConversation?.id === convId) {
-					conversationsStore.updateMessageAtIndex(idx, uiUpdate);
-					await conversationsStore.updateCurrentNode(currentMessageId);
-				} else {
-					await DatabaseService.updateCurrentNode(convId, currentMessageId);
-				}
+				updateActiveFlowMessage(currentMessageId, uiUpdate);
+				await updateFlowCursor(currentMessageId);
 			},
 			onAttachments: (messageId: string, extras: DatabaseMessageExtra[]) => {
 				if (!extras.length) return;
@@ -1224,7 +1283,9 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 
 				this.showErrorDialog({
 					contextInfo,
+					conversationId: convId,
 					message: error.message,
+					messageId: assistantMessage.id,
 					type: error.name === 'TimeoutError' ? ErrorDialogType.TIMEOUT : ErrorDialogType.SERVER
 				});
 
@@ -1232,9 +1293,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 			},
 			onFlowComplete: (finalTimings?: ChatMessageTimings) => {
 				if (finalTimings) {
-					const idx = conversationsStore.findMessageIndex(assistantMessage.id);
-
-					conversationsStore.updateMessageAtIndex(idx, { timings: finalTimings });
+					updateActiveFlowMessage(assistantMessage.id, { timings: finalTimings });
 					DatabaseService.updateMessage(assistantMessage.id, {
 						timings: finalTimings
 					}).catch(console.error);
@@ -1255,10 +1314,14 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 			onReasoningChunk: (chunk: string) => {
 				streamedReasoningContent += chunk;
 				// mark streaming state so a stop mid-thinking can persist the partial reasoning
-				this.setChatStreaming(convId, streamedContent, currentMessageId, effectiveModel);
-				const idx = conversationsStore.findMessageIndex(currentMessageId);
-
-				conversationsStore.updateMessageAtIndex(idx, {
+				this.setChatStreaming(
+					convId,
+					streamedContent,
+					currentMessageId,
+					effectiveModel,
+					streamedReasoningContent
+				);
+				updateActiveFlowMessage(currentMessageId, {
 					reasoningContent: streamedReasoningContent
 				});
 				this.setChatReasoning(convId, true);
@@ -1267,17 +1330,13 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 				this.processing.applyStreamTimings(timings, promptProgress, convId);
 			},
 			onToolCallsStreaming: (toolCalls) => {
-				const idx = conversationsStore.findMessageIndex(currentMessageId);
-
-				conversationsStore.updateMessageAtIndex(idx, {
+				updateActiveFlowMessage(currentMessageId, {
 					toolCalls: JSON.stringify(toolCalls)
 				});
 			},
 			onTurnComplete: (intermediateTimings: ChatMessageTimings) => {
 				// Update the first assistant message with cumulative agentic timings
-				const idx = conversationsStore.findMessageIndex(assistantMessage.id);
-
-				conversationsStore.updateMessageAtIndex(idx, { timings: intermediateTimings });
+				updateActiveFlowMessage(assistantMessage.id, { timings: intermediateTimings });
 			},
 			updateToolResultMessage: async (
 				messageId: string,
@@ -1307,7 +1366,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 				await DatabaseService.updateMessage(messageId, updates);
 			}
 		};
-		const toolPolicy = this.toolPolicy();
+		const toolPolicy = requestSnapshot.toolPolicy;
 
 		{
 			const agenticResult = await agenticStore.runAgenticFlow({
@@ -1316,7 +1375,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 				flowRootMessageId: assistantMessage.id,
 				messages: allMessages,
 				options: {
-					...this.getApiOptions(),
+					...requestOptions,
 					...(effectiveModel ? { model: effectiveModel } : {})
 				},
 				signal: abortController.signal,
@@ -1343,7 +1402,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		await ChatService.sendMessage(
 			allMessages,
 			{
-				...this.getApiOptions(),
+				...requestOptions,
 				...(effectiveModel ? { model: effectiveModel } : {}),
 				onChunk: streamCallbacks.onChunk,
 				onComplete: async (
@@ -1364,7 +1423,6 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 					if (resolvedModel && !modelPersisted) updateData.model = resolvedModel;
 
 					await DatabaseService.updateMessage(currentMessageId, updateData);
-					const idx = conversationsStore.findMessageIndex(currentMessageId);
 					const uiUpdate: Partial<DatabaseMessage> = {
 						content,
 						reasoningContent: reasoning || undefined,
@@ -1375,8 +1433,8 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 
 					if (resolvedModel) uiUpdate.model = resolvedModel;
 
-					conversationsStore.updateMessageAtIndex(idx, uiUpdate);
-					await conversationsStore.updateCurrentNode(currentMessageId);
+					updateActiveFlowMessage(currentMessageId, uiUpdate);
+					await updateFlowCursor(currentMessageId);
 					cleanupStreamingState();
 
 					// Pre-encode conversation in KV cache for faster next turn
@@ -1459,6 +1517,23 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		}
 	}
 
+	private applyReasoningOptions(
+		options: Record<string, unknown>,
+		modelId: string,
+		requestedEffort: ReasoningEffort
+	): void {
+		const effort = modelsStore.props.resolveReasoningEffort(modelId, requestedEffort);
+		const budgetTokens = REASONING_EFFORT_TOKENS[effort];
+
+		if (effort !== ReasoningEffort.DEFAULT) options.enableThinking = effort !== ReasoningEffort.OFF;
+
+		if (modelsStore.props.getReasoningEfforts(modelId).includes(effort)) {
+			options.reasoningEffort = effort;
+		} else if (budgetTokens >= 0) {
+			options.thinkingBudgetTokens = budgetTokens;
+		}
+	}
+
 	/** The steps a compaction keeps as written, as the settings set them. */
 	private compactionPreserve(): number {
 		return Number(settingsStore.config.compactionPreservedSteps);
@@ -1512,7 +1587,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 
 	private getChatStreamingState(
 		convId: string
-	): { response: string; messageId: string } | undefined {
+	): { response: string; messageId: string; reasoningContent?: string } | undefined {
 		return this.chatStreamingStates.get(convId);
 	}
 
@@ -1553,22 +1628,36 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 
 		if (!streamingState) return;
 
-		const messages =
+		const activeMessage =
 			conversationId === conversationsStore.activeConversation?.id
-				? conversationsStore.activeMessages
-				: await conversationsStore.getConversationMessages(conversationId);
+				? conversationsStore.activeMessages.find(
+						(message) =>
+							message.id === streamingState.messageId && message.convId === conversationId
+					)
+				: undefined;
+		const streamedMessage =
+			activeMessage ??
+			(await conversationsStore.getConversationMessages(conversationId)).find(
+				(message) => message.id === streamingState.messageId && message.convId === conversationId
+			);
 
-		if (!messages.length) return;
-
-		const lastMessage = messages[messages.length - 1];
-
-		if (lastMessage?.role !== MessageRole.ASSISTANT) return;
+		if (streamedMessage?.role !== MessageRole.ASSISTANT) return;
 
 		const partialContent = streamingState.response;
-		const partialReasoning = lastMessage.reasoningContent || '';
+		const partialReasoning =
+			streamingState.reasoningContent ?? streamedMessage.reasoningContent ?? '';
 		// snapshot the streamed tool calls before clearing so we still know whether
 		// anything was captured when deciding to skip the DB write below
-		const hadPartialToolCalls = !!lastMessage.toolCalls?.trim();
+		const hadPartialToolCalls = !!streamedMessage.toolCalls?.trim();
+		const mirrorPartial = (updates: Partial<DatabaseMessage>) => {
+			if (conversationsStore.activeConversation?.id !== conversationId) return;
+
+			const idx = conversationsStore.activeMessages.findIndex(
+				(message) => message.id === streamingState.messageId && message.convId === conversationId
+			);
+
+			conversationsStore.updateMessageAtIndex(idx, updates);
+		};
 
 		// nothing to persist when content, reasoning, and streamed tool calls are all empty
 		// (e.g. stop before any token). otherwise drop the partial tool call and write whatever
@@ -1605,17 +1694,10 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 				};
 			}
 
-			await DatabaseService.updateMessage(lastMessage.id, updateData);
-			lastMessage.content = partialContent;
-			// mirror the drop into the in-memory message so the next request sent via
-			// sendMessage (queued pending, Send immediately, or manual follow-up) reads
-			// the cleared value, not whatever the streaming widget had been showing
-			lastMessage.toolCalls = '';
-
-			if (updateData.timings) lastMessage.timings = updateData.timings;
+			await DatabaseService.updateMessage(streamedMessage.id, updateData);
+			mirrorPartial(updateData);
 		} catch (error) {
-			lastMessage.content = partialContent;
-			lastMessage.toolCalls = '';
+			mirrorPartial({ content: partialContent, reasoningContent: partialReasoning, toolCalls: '' });
 			console.error('Failed to save partial response:', error);
 		}
 	}
@@ -1778,7 +1860,9 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 			} else {
 				console.error('Failed to compact conversation:', error);
 				this.showErrorDialog({
+					conversationId: convId,
 					message: error instanceof Error ? error.message : 'Unknown error',
+					operation: 'compaction',
 					type: ErrorDialogType.SERVER
 				});
 			}

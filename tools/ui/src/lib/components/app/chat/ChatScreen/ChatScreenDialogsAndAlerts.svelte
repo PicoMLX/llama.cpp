@@ -5,6 +5,7 @@
 		DialogEmptyFileAlert,
 		DialogFileUploadError
 	} from '$lib/components/app';
+	import { IS_PICO_BUILD } from '$lib/constants';
 	import { ErrorDialogType } from '$lib/enums';
 
 	let {
@@ -39,10 +40,12 @@
 	}}
 />
 
-<DialogChatError
-	contextInfo={activeErrorDialog?.contextInfo}
-	message={activeErrorDialog?.message ?? ''}
-	onOpenChange={handleErrorDialogOpenChange}
-	open={Boolean(activeErrorDialog)}
-	type={activeErrorDialog?.type ?? ErrorDialogType.SERVER}
-/>
+{#if !IS_PICO_BUILD}
+	<DialogChatError
+		contextInfo={activeErrorDialog?.contextInfo}
+		message={activeErrorDialog?.message ?? ''}
+		onOpenChange={handleErrorDialogOpenChange}
+		open={Boolean(activeErrorDialog)}
+		type={activeErrorDialog?.type ?? ErrorDialogType.SERVER}
+	/>
+{/if}

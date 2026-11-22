@@ -2,7 +2,7 @@
 	import { KeyValuePairs } from '$lib/components/app';
 	import { Input } from '$lib/components/ui/input';
 	import { Switch } from '$lib/components/ui/switch';
-	import { CLI_FLAGS, HEADERS, MCP_SERVER_URL_PLACEHOLDER } from '$lib/constants';
+	import { CLI_FLAGS, HEADERS, IS_PICO_BUILD, MCP_SERVER_URL_PLACEHOLDER } from '$lib/constants';
 	import { UrlProtocol } from '$lib/enums';
 	import { mcpStore } from '$lib/stores';
 	import type { KeyValuePair } from '$lib/types';
@@ -208,52 +208,70 @@
 		</div>
 	{/if}
 
-	<KeyValuePairs
-		addButtonLabel="Add"
-		class="mt-3"
-		emptyMessage="No custom headers configured."
-		keyPlaceholder="Header name"
-		onPairsChange={(pairs) => {
-			const auth = headerPairs.find(ownedByBearerUi);
+	{#snippet advancedFields()}
+		<KeyValuePairs
+			addButtonLabel="Add"
+			class="mt-3"
+			emptyMessage="No custom headers configured."
+			keyPlaceholder="Header name"
+			onPairsChange={(pairs) => {
+				const auth = headerPairs.find(ownedByBearerUi);
 
-			updateHeaderPairs(auth ? [...pairs, auth] : pairs);
-		}}
-		pairs={headerPairs.filter((p) => !ownedByBearerUi(p))}
-		sectionLabel="Custom Headers"
-		sectionLabelOptional
-		valuePlaceholder="Value"
-	/>
+				updateHeaderPairs(auth ? [...pairs, auth] : pairs);
+			}}
+			pairs={headerPairs.filter((p) => !ownedByBearerUi(p))}
+			sectionLabel="Custom Headers"
+			sectionLabelOptional
+			valuePlaceholder="Value"
+		/>
 
-	{#if !isWebSocket && onUseProxyChange}
-		<label
-			class={[
-				'mt-3 flex items-start gap-2',
-				mcpStore.isProxyAvailable && 'cursor-pointer',
-				!mcpStore.isProxyAvailable && 'opacity-80'
-			]}
-		>
-			<Switch
-				checked={useProxy}
-				class="mt-1"
-				disabled={!mcpStore.isProxyAvailable}
-				id="use-proxy-{id}"
-				onCheckedChange={(checked) => onUseProxyChange?.(checked)}
-			/>
+		{#if !isWebSocket && onUseProxyChange && (!IS_PICO_BUILD || mcpStore.isProxyAvailable || useProxy)}
+			<label
+				class={[
+					'mt-3 flex items-start gap-2',
+					mcpStore.isProxyAvailable && 'cursor-pointer',
+					!mcpStore.isProxyAvailable && 'opacity-80'
+				]}
+			>
+				<Switch
+					checked={useProxy}
+					class="mt-1"
+					disabled={!mcpStore.isProxyAvailable && (!IS_PICO_BUILD || !useProxy)}
+					id="use-proxy-{id}"
+					onCheckedChange={(checked) => onUseProxyChange?.(checked)}
+				/>
 
-			<span>
-				<span class="text-xs text-muted-foreground">Use llama-server proxy</span>
-
-				<br />
-
-				{#if !mcpStore.isProxyAvailable}
-					<span class="inline-flex gap-0.75 text-xs text-muted-foreground/60"
-						>(Run <pre>llama-server</pre>
-						with
-						<pre>{CLI_FLAGS.MCP_PROXY}</pre>
-						flag)</span
+				<span>
+					<span class="text-xs text-muted-foreground"
+						>{IS_PICO_BUILD ? 'Use server proxy' : 'Use llama-server proxy'}</span
 					>
-				{/if}
-			</span>
-		</label>
+
+					<br />
+
+					{#if IS_PICO_BUILD && !mcpStore.isProxyAvailable}
+						<span class="text-xs text-muted-foreground"
+							>The proxy is unavailable. Turn this off to connect directly.</span
+						>
+					{:else if !mcpStore.isProxyAvailable}
+						<span class="inline-flex gap-0.75 text-xs text-muted-foreground/60"
+							>(Run <pre>llama-server</pre>
+							with
+							<pre>{CLI_FLAGS.MCP_PROXY}</pre>
+							flag)</span
+						>
+					{/if}
+				</span>
+			</label>
+		{/if}
+	{/snippet}
+
+	{#if IS_PICO_BUILD}
+		<details class="mt-4 rounded-lg border border-border px-3 py-2">
+			<summary class="cursor-pointer text-sm font-medium">Advanced connection settings</summary>
+
+			<div class="pt-2">{@render advancedFields()}</div>
+		</details>
+	{:else}
+		{@render advancedFields()}
 	{/if}
 </div>

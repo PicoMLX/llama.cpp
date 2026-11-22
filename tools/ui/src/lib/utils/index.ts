@@ -67,6 +67,7 @@ export {
 	getMessageCount,
 	getConversationModel,
 	buildConversationTree,
+	comparePinnedThenRecent,
 	collectForkFamily,
 	type ConversationTreeItem
 } from './conversation-utils';

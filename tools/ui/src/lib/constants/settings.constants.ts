@@ -15,7 +15,8 @@ import {
 	Moon,
 	PencilRuler,
 	SlidersVertical,
-	Sun
+	Sun,
+	UserRound
 } from '@lucide/svelte';
 import { SyncableParameterType } from '$lib/enums';
 import { SettingsFieldType } from '$lib/enums/settings.enums';
@@ -30,34 +31,43 @@ import type {
 
 /** Settings sections — slug is the routing identity, title is the display label. */
 export const SETTINGS_SECTIONS = {
+	ADVANCED: { slug: 'advanced', title: 'Advanced' },
 	AGENTIC: { slug: 'agentic', title: 'Agentic' },
 	CONNECTIONS: { slug: 'connections', title: 'Connections' },
+	DATA: { slug: 'data', title: 'Data' },
 	DEVELOPER: { slug: 'developer', title: 'Developer' },
 	DISPLAY: { slug: 'display', title: 'Display' },
 	GENERAL: { slug: 'general', title: 'General' },
 	IMPORT_EXPORT: { slug: 'import-export', title: 'Import/Export' },
+	PERSONALIZATION: { slug: 'personalization', title: 'Personalization' },
 	SAMPLING_PENALTIES: { slug: 'sampling-penalties', title: 'Sampling & Penalties' },
 	TOOLS: { slug: 'tools', title: 'Tools' }
 } as const;
 
 export const SETTINGS_SECTION_SLUGS = {
+	ADVANCED: SETTINGS_SECTIONS.ADVANCED.slug,
 	AGENTIC: SETTINGS_SECTIONS.AGENTIC.slug,
 	CONNECTIONS: SETTINGS_SECTIONS.CONNECTIONS.slug,
+	DATA: SETTINGS_SECTIONS.DATA.slug,
 	DEVELOPER: SETTINGS_SECTIONS.DEVELOPER.slug,
 	DISPLAY: SETTINGS_SECTIONS.DISPLAY.slug,
 	GENERAL: SETTINGS_SECTIONS.GENERAL.slug,
 	IMPORT_EXPORT: SETTINGS_SECTIONS.IMPORT_EXPORT.slug,
+	PERSONALIZATION: SETTINGS_SECTIONS.PERSONALIZATION.slug,
 	SAMPLING_PENALTIES: SETTINGS_SECTIONS.SAMPLING_PENALTIES.slug,
 	TOOLS: SETTINGS_SECTIONS.TOOLS.slug
 } as const;
 
 export const SETTINGS_SECTION_TITLES = {
+	ADVANCED: SETTINGS_SECTIONS.ADVANCED.title,
 	AGENTIC: SETTINGS_SECTIONS.AGENTIC.title,
 	CONNECTIONS: SETTINGS_SECTIONS.CONNECTIONS.title,
+	DATA: SETTINGS_SECTIONS.DATA.title,
 	DEVELOPER: SETTINGS_SECTIONS.DEVELOPER.title,
 	DISPLAY: SETTINGS_SECTIONS.DISPLAY.title,
 	GENERAL: SETTINGS_SECTIONS.GENERAL.title,
 	IMPORT_EXPORT: SETTINGS_SECTIONS.IMPORT_EXPORT.title,
+	PERSONALIZATION: SETTINGS_SECTIONS.PERSONALIZATION.title,
 	SAMPLING_PENALTIES: SETTINGS_SECTIONS.SAMPLING_PENALTIES.title,
 	TOOLS: SETTINGS_SECTIONS.TOOLS.title
 } as const;
@@ -705,41 +715,47 @@ export const SETTINGS_REGISTRY: SettingsSectionEntry[] = [
 	}
 ];
 
+export const PICO_RETIRED_VISUAL_DEFAULTS: Record<string, boolean> = {
+	[SETTINGS_KEYS.ALWAYS_SHOW_SIDEBAR_ON_DESKTOP]: false,
+	[SETTINGS_KEYS.ALWAYS_SHOW_TOOL_CALL_CONTENT]: false,
+	[SETTINGS_KEYS.CONVERSATION_TABS]: false,
+	[SETTINGS_KEYS.GROUP_MODELS_BY_FAMILY]: true,
+	[SETTINGS_KEYS.RENDER_THINKING_AS_MARKDOWN]: true,
+	[SETTINGS_KEYS.RENDER_USER_CONTENT_AS_MARKDOWN]: true,
+	[SETTINGS_KEYS.SHOW_AGENTIC_TURN_STATS]: false,
+	[SETTINGS_KEYS.SHOW_BUILD_VERSION]: false,
+	[SETTINGS_KEYS.SHOW_FULL_PATH_IN_MENTIONS]: false,
+	[SETTINGS_KEYS.SHOW_MODEL_CAPABILITIES_IN_SELECTOR]: false,
+	[SETTINGS_KEYS.SHOW_MODEL_ORG_NAME]: false,
+	[SETTINGS_KEYS.SHOW_MODEL_QUANTIZATION]: false,
+	[SETTINGS_KEYS.SHOW_MODEL_TAGS]: false,
+	[SETTINGS_KEYS.SHOW_RAW_MODEL_NAMES]: false,
+	[SETTINGS_KEYS.SHOW_SYSTEM_MESSAGE]: false,
+	[SETTINGS_KEYS.SHOW_THOUGHT_IN_PROGRESS]: false,
+	[SETTINGS_KEYS.SHOW_TOOL_CALL_IN_PROGRESS]: false
+};
+
 if (IS_PICO_BUILD) {
-	const display = SETTINGS_REGISTRY.find(
-		(section) => section.slug === SETTINGS_SECTION_SLUGS.DISPLAY
-	)!;
-	const conversationTabs = display.settings.find(
-		(setting) => setting.key === SETTINGS_KEYS.CONVERSATION_TABS
+	for (const section of SETTINGS_REGISTRY) {
+		for (const setting of section.settings) {
+			if (setting.key in PICO_RETIRED_VISUAL_DEFAULTS) {
+				setting.defaultValue = PICO_RETIRED_VISUAL_DEFAULTS[setting.key];
+				setting.standaloneField = false;
+			}
+		}
+	}
+
+	const endpoint = SETTINGS_REGISTRY.flatMap((section) => section.settings).find(
+		(setting) => setting.key === SETTINGS_KEYS.API_ENDPOINT
 	)!;
 
-	conversationTabs.defaultValue = false;
-	conversationTabs.standaloneField = false;
-	SETTINGS_REGISTRY.splice(2, 0, {
-		icon: PencilRuler,
-		settings: [],
-		slug: SETTINGS_SECTION_SLUGS.CONNECTIONS,
-		title: SETTINGS_SECTION_TITLES.CONNECTIONS
-	});
-
-	const general = SETTINGS_REGISTRY.find(
-		(section) => section.slug === SETTINGS_SECTION_SLUGS.GENERAL
-	)!;
-	const developer = SETTINGS_REGISTRY.find(
-		(section) => section.slug === SETTINGS_SECTION_SLUGS.DEVELOPER
-	)!;
-	const index = general.settings.findIndex((setting) => setting.key === SETTINGS_KEYS.API_ENDPOINT);
-	const [endpoint] = general.settings.splice(index, 1);
-
-	developer.settings.unshift({
-		...endpoint,
-		help: 'Use Open Responses for Pico. Choose Chat Completions only for servers that require it.',
-		label: 'API Compatibility',
-		options: [
-			{ label: 'Open Responses', value: 'responses' },
-			{ label: 'Chat Completions', value: 'chat_completions' }
-		]
-	});
+	endpoint.label = 'API Compatibility';
+	endpoint.help =
+		'Use Open Responses for Pico. Choose Chat Completions only for servers that require it.';
+	endpoint.options = [
+		{ label: 'Open Responses', value: 'responses' },
+		{ label: 'Chat Completions', value: 'chat_completions' }
+	];
 }
 
 function getAllSettings(): SettingsEntry[] {
@@ -788,8 +804,71 @@ function toSettingsSection(section: SettingsSectionEntry): SettingsSection {
 	};
 }
 
-/** Sidebar sections in custom display order (the registry array order). */
-export const SETTINGS_CHAT_SECTIONS: SettingsSection[] = SETTINGS_REGISTRY.map(toSettingsSection);
+export const SETTINGS_ENTRIES_BY_KEY: Record<string, SettingsEntry> = Object.fromEntries(
+	getAllSettings().map((setting) => [setting.key, setting])
+);
+
+const allSections = SETTINGS_REGISTRY.map(toSettingsSection);
+const allFields = allSections.flatMap((section) => section.fields ?? []);
+const generalKeys: string[] = [
+	SETTINGS_KEYS.THEME,
+	SETTINGS_KEYS.SEND_ON_ENTER,
+	SETTINGS_KEYS.AUTO_MIC_ON_EMPTY
+];
+const personalizationKeys: string[] = [SETTINGS_KEYS.SYSTEM_MESSAGE];
+const regularKeys = new Set([...generalKeys, ...personalizationKeys, SETTINGS_KEYS.API_KEY]);
+const advancedFields = allFields.filter((field) => !regularKeys.has(field.key));
+const generationKeys = new Set(
+	SETTINGS_REGISTRY.find(
+		(section) => section.slug === SETTINGS_SECTION_SLUGS.SAMPLING_PENALTIES
+	)!.settings.map((setting) => setting.key)
+);
+const developerKeys = new Set(
+	SETTINGS_REGISTRY.find(
+		(section) => section.slug === SETTINGS_SECTION_SLUGS.DEVELOPER
+	)!.settings.map((setting) => setting.key)
+);
+
+developerKeys.add(SETTINGS_KEYS.API_ENDPOINT);
+
+export const PICO_ADVANCED_SETTINGS_GROUPS: Array<{
+	title: string;
+	fields: SettingsFieldConfig[];
+}> = [
+	{ fields: advancedFields.filter((field) => generationKeys.has(field.key)), title: 'Generation' },
+	{
+		fields: advancedFields.filter(
+			(field) => !generationKeys.has(field.key) && !developerKeys.has(field.key)
+		),
+		title: 'Chat and files'
+	},
+	{ fields: advancedFields.filter((field) => developerKeys.has(field.key)), title: 'Developer' }
+];
+
+/** UI sections are a projection; the registry retains every stored setting. */
+export const SETTINGS_CHAT_SECTIONS: SettingsSection[] = IS_PICO_BUILD
+	? [
+			{
+				...SETTINGS_SECTIONS.GENERAL,
+				fields: allFields.filter((field) => generalKeys.includes(field.key)),
+				icon: SlidersVertical
+			},
+			{
+				...SETTINGS_SECTIONS.PERSONALIZATION,
+				fields: allFields
+					.filter((field) => personalizationKeys.includes(field.key))
+					.map((field) => ({
+						...field,
+						help: 'Tell Pico how you would like it to respond. Applies to new chats; existing chats keep their saved instructions.',
+						label: 'Custom instructions'
+					})),
+				icon: UserRound
+			},
+			{ ...SETTINGS_SECTIONS.CONNECTIONS, fields: [], icon: PencilRuler },
+			{ ...SETTINGS_SECTIONS.DATA, fields: [], icon: Database },
+			{ ...SETTINGS_SECTIONS.ADVANCED, fields: advancedFields, icon: Code }
+		]
+	: allSections;
 
 /** INPUT-type settings whose value is a number. */
 export const NUMERIC_FIELDS = getAllSettings()

@@ -24,18 +24,18 @@ describe.skipIf(!IS_PICO_BUILD)('Connections settings', () => {
 		const screen = render(SettingsChat, { initialSection: SETTINGS_SECTION_SLUGS.CONNECTIONS });
 
 		await expect.element(screen.getByRole('heading', { name: 'Connections' })).toBeVisible();
-		await screen.getByRole('button', { exact: true, name: 'Add New Server' }).click();
-		await expect.element(page.getByRole('dialog', { name: 'Add New MCP Server' })).toBeVisible();
+		await screen.getByRole('button', { exact: true, name: 'Add connection' }).click();
+		await expect.element(page.getByRole('dialog', { name: 'Add connection' })).toBeVisible();
 	});
 
 	it('saves a new connection immediately without a second settings save', async () => {
 		vi.spyOn(mcpStore, 'runHealthCheck').mockResolvedValue();
 		const screen = render(SettingsChat, { initialSection: SETTINGS_SECTION_SLUGS.CONNECTIONS });
 
-		await screen.getByRole('button', { exact: true, name: 'Add New Server' }).click();
+		await screen.getByRole('button', { exact: true, name: 'Add connection' }).click();
 		await page.getByRole('textbox', { name: 'Server URL' }).fill('https://example.com/mcp');
 		await page.getByRole('textbox', { name: 'Display name' }).fill('My connection');
-		await page.getByRole('button', { exact: true, name: 'Save' }).click();
+		await page.getByRole('button', { exact: true, name: 'Connect' }).click();
 
 		await expect
 			.poll(() => mcpStore.getServers())
@@ -48,7 +48,7 @@ describe.skipIf(!IS_PICO_BUILD)('Connections settings', () => {
 	});
 });
 
-describe('settings drafts', () => {
+describe.skipIf(IS_PICO_BUILD)('settings drafts', () => {
 	it('preserves immediate connection and access-key changes when another preference is saved', async () => {
 		const sendOnEnter = settingsStore.config.sendOnEnter;
 		const screen = render(SettingsChat);

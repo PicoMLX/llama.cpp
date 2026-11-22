@@ -2,7 +2,7 @@
 	import { McpCapabilitiesBadges, McpServerIdentity } from '$lib/components/app/mcp';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Switch } from '$lib/components/ui/switch';
-	import { MCP_TRANSPORT_ICONS, MCP_TRANSPORT_LABELS } from '$lib/constants';
+	import { IS_PICO_BUILD, MCP_TRANSPORT_ICONS, MCP_TRANSPORT_LABELS } from '$lib/constants';
 	import { MCPTransportType } from '$lib/enums';
 	import type { MCPCapabilitiesInfo, MCPServerInfo } from '$lib/types';
 
@@ -45,7 +45,7 @@
 				/>
 			</div>
 
-			{#if capabilities || transportType}
+			{#if !IS_PICO_BUILD && (capabilities || transportType)}
 				<div class="flex flex-wrap items-center gap-1.5">
 					{#if transportType}
 						{@const TransportIcon = MCP_TRANSPORT_ICONS[transportType]}
@@ -66,7 +66,12 @@
 		</div>
 
 		<div class="flex shrink-0 items-center pl-2">
-			<Switch checked={enabled} {disabled} onCheckedChange={onToggle} />
+			<Switch
+				aria-label={IS_PICO_BUILD ? `Enable ${displayName}` : undefined}
+				checked={enabled}
+				{disabled}
+				onCheckedChange={onToggle}
+			/>
 		</div>
 	</div>
 </div>
