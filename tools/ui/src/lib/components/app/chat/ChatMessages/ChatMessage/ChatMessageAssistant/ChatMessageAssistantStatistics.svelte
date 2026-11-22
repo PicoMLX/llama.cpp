@@ -1,5 +1,7 @@
 <script lang="ts">
+	import PicoResponseDetails from '../../PicoResponseDetails.svelte';
 	import { ChatMessageStatistics } from '$lib/components/app';
+	import { IS_PICO_BUILD } from '$lib/constants/app.constants';
 	import { ChatMessageStatisticsMode } from '$lib/enums';
 	import type { UseProcessingStateReturn } from '$lib/hooks/use-processing-state.svelte';
 	import { agenticStore } from '$lib/stores';
@@ -22,7 +24,9 @@
 	);
 </script>
 
-{#if showMessageStats && isLiveFlowRoot && liveLlm}
+{#if IS_PICO_BUILD}
+	<PicoResponseDetails {isLoading} {message} {processingState} {showMessageStats} />
+{:else if showMessageStats && isLiveFlowRoot && liveLlm}
 	<ChatMessageStatistics
 		isLive
 		mode={ChatMessageStatisticsMode.GENERATION}

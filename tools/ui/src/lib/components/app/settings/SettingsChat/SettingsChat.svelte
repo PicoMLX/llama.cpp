@@ -7,6 +7,7 @@
 		SettingsChatMobileHeader,
 		SettingsChatToolsTab,
 		SettingsFooter,
+		SettingsMcpServers,
 		SettingsResetButton
 	} from '$lib/components/app/settings';
 	import { Button } from '$lib/components/ui/button';
@@ -47,21 +48,23 @@
 			SETTINGS_CHAT_SECTIONS[0]
 	);
 
+	let baselineConfig: SettingsConfigType = $state({ ...settingsStore.config });
 	let localConfig: SettingsConfigType = $state({ ...settingsStore.config });
 
 	// inputs hand back strings for numeric fields, so compare stringified values
-	let hasChanges = $derived.by(() => {
-		const saved = settingsStore.config;
-		const keys = new Set([...Object.keys(saved), ...Object.keys(localConfig)]);
+	let changedConfig = $derived.by(() => {
+		const changes: Partial<SettingsConfigType> = {};
+		const keys = new Set([...Object.keys(baselineConfig), ...Object.keys(localConfig)]);
 
 		for (const key of keys) {
-			if (String(localConfig[key] ?? '') !== String(saved[key] ?? '')) {
-				return true;
+			if (String(localConfig[key] ?? '') !== String(baselineConfig[key] ?? '')) {
+				changes[key] = localConfig[key];
 			}
 		}
 
-		return false;
+		return changes;
 	});
+	let hasChanges = $derived(Object.keys(changedConfig).length > 0);
 
 	let mobileHeader: { updateCarousel: () => void } | undefined;
 
@@ -95,19 +98,21 @@
 	}
 
 	function handleReset() {
-		localConfig = { ...settingsStore.config };
+		reset();
 		setMode(localConfig.theme as ColorMode);
 		mobileHeader?.updateCarousel();
 	}
 
 	function handleSave() {
+		const processedConfig = { ...changedConfig };
+
 		if (
-			localConfig.customJson &&
-			typeof localConfig.customJson === 'string' &&
-			localConfig.customJson.trim()
+			processedConfig.customJson &&
+			typeof processedConfig.customJson === 'string' &&
+			processedConfig.customJson.trim()
 		) {
 			try {
-				JSON.parse(localConfig.customJson);
+				JSON.parse(processedConfig.customJson);
 			} catch (error) {
 				alert('Invalid JSON in custom parameters. Please check the format and try again.');
 				console.error(error);
@@ -115,8 +120,6 @@
 				return;
 			}
 		}
-
-		const processedConfig = { ...localConfig };
 
 		for (const field of NUMERIC_FIELDS) {
 			if (processedConfig[field] !== undefined && processedConfig[field] !== '') {
@@ -143,11 +146,13 @@
 		}
 
 		settingsStore.updateMultipleConfig(processedConfig);
+		reset();
 		onClose?.();
 	}
 
 	export function reset() {
-		localConfig = { ...settingsStore.config };
+		baselineConfig = { ...settingsStore.config };
+		localConfig = { ...baselineConfig };
 	}
 </script>
 
@@ -169,7 +174,19 @@
 		<div class="mx-auto max-w-2xl px-4 flex-1 md:mt-4">
 			<div class="space-y-6 pt-3">
 				<div class="grid">
-					{#if currentSection.slug === SETTINGS_SECTION_SLUGS.TOOLS}
+					{#if currentSection.slug === SETTINGS_SECTION_SLUGS.CONNECTIONS}
+						<div class="space-y-4">
+							<div class="space-y-1">
+								<h2 class="text-lg font-semibold">Connections</h2>
+
+								<p class="text-sm text-muted-foreground">
+									Connect apps and services to use their tools in chats.
+								</p>
+							</div>
+
+							<SettingsMcpServers />
+						</div>
+					{:else if currentSection.slug === SETTINGS_SECTION_SLUGS.TOOLS}
 						<SettingsChatToolsTab />
 					{:else if currentSection.slug === SETTINGS_SECTION_SLUGS.IMPORT_EXPORT}
 						<SettingsChatImportExportTab />

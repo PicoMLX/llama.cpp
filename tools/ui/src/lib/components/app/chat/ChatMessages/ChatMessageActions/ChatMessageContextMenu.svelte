@@ -2,6 +2,7 @@
 	import { ArrowRight, Copy, Edit, GitBranch, RefreshCw, Trash2 } from '@lucide/svelte';
 	import { ContextMenuActions } from '$lib/components/app';
 	import { NATIVE_CONTEXT_MENU_SELECTOR } from '$lib/constants';
+	import { IS_PICO_BUILD } from '$lib/constants/app.constants';
 	import { getChatMessageActionsContext, getChatMessageEditContext } from '$lib/contexts';
 	import { MessageRole } from '$lib/enums';
 	import type { MenuAction } from '$lib/types';
@@ -11,11 +12,19 @@
 		role: MessageRole.USER | MessageRole.ASSISTANT;
 		children: Snippet;
 		disabled?: boolean;
+		isLoading?: boolean;
 		onRegenerate?: () => void;
 		onContinue?: () => void;
 	}
 
-	let { children, disabled = false, onContinue, onRegenerate, role }: Props = $props();
+	let {
+		children,
+		disabled = false,
+		isLoading = false,
+		onContinue,
+		onRegenerate,
+		role
+	}: Props = $props();
 
 	const messageActions = getChatMessageActionsContext();
 	const editCtx = getChatMessageEditContext();
@@ -25,7 +34,16 @@
 		{ icon: Copy, label: 'Copy', onclick: messageActions.copy },
 		{ icon: Edit, label: 'Edit', onclick: editCtx.startEdit },
 		...(role === MessageRole.ASSISTANT && onRegenerate
-			? [{ icon: RefreshCw, label: 'Regenerate', onclick: () => onRegenerate() }]
+			? [
+					{
+						disabled: IS_PICO_BUILD && isLoading,
+						icon: RefreshCw,
+						label: IS_PICO_BUILD ? 'Retry' : 'Regenerate',
+						onclick: () => {
+							if (!IS_PICO_BUILD || !isLoading) onRegenerate();
+						}
+					}
+				]
 			: []),
 		...(role === MessageRole.ASSISTANT && onContinue
 			? [{ icon: ArrowRight, label: 'Continue', onclick: () => onContinue() }]
@@ -34,7 +52,7 @@
 			? [
 					{
 						icon: GitBranch,
-						label: 'Fork conversation',
+						label: IS_PICO_BUILD ? 'Branch into new chat' : 'Fork conversation',
 						onclick: () => messageActions.setShowForkDialog(true)
 					}
 				]

@@ -8,6 +8,7 @@
 		MarkdownContent
 	} from '$lib/components/app';
 	import { COLLAPSIBLE_TRANSITION_MS } from '$lib/constants';
+	import { IS_PICO_BUILD } from '$lib/constants/app.constants';
 	import { getChatMessageEditContext } from '$lib/contexts';
 	import { useProcessingState } from '$lib/hooks/use-processing-state.svelte';
 	import { chatStore, conversationsStore, settingsStore } from '$lib/stores';
@@ -137,19 +138,35 @@
 			<!-- The summary's own statistics live with the summary, so the divider
 			     stays a one-line headline. Only the conversation model writes the
 			     summary, so there is no selector to swap it with. -->
-			<div class="info my-6 grid gap-4 tabular-nums">
-				<ChatMessageAssistantStatistics
-					isLoading={chatStore.isLoading}
-					{message}
-					{processingState}
-					showMessageStats={currentConfig.showMessageStats}
-				/>
-			</div>
+			{#if !IS_PICO_BUILD}
+				<div class="info my-6 grid gap-4 tabular-nums">
+					<ChatMessageAssistantStatistics
+						isLoading={chatStore.isLoading}
+						{message}
+						{processingState}
+						showMessageStats={currentConfig.showMessageStats}
+					/>
+				</div>
+			{/if}
 
 			{#if hasContent && !isSummarizing}
 				<!-- Copy, edit, fork, regenerate and delete all apply to the summary:
 				     regenerate re-runs it in place. Continue stays a chat-turn flow. -->
-				<ChatMessageActionIcons actionsPosition="left" justify="start" {onRegenerate} />
+				<ChatMessageActionIcons
+					actionsPosition="left"
+					isLoading={chatStore.isLoading}
+					justify="start"
+					{onRegenerate}
+				>
+					{#snippet details()}
+						<ChatMessageAssistantStatistics
+							isLoading={isSummarizing}
+							{message}
+							{processingState}
+							showMessageStats={currentConfig.showMessageStats}
+						/>
+					{/snippet}
+				</ChatMessageActionIcons>
 			{/if}
 		</CollapsibleContentBlock>
 	{/if}

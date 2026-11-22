@@ -1,5 +1,5 @@
 import { page } from '$app/state';
-import { NEW_CHAT_TAB_ID } from '$lib/constants';
+import { IS_PICO_BUILD, NEW_CHAT_TAB_ID } from '$lib/constants';
 import { KeyboardKey } from '$lib/enums';
 import { conversationsStore, settingsStore, tabsStore } from '$lib/stores';
 
@@ -69,7 +69,7 @@ export function useKeyboardShortcuts(callbacks: KeyboardShortcutsCallbacks) {
 			if (event.defaultPrevented) return;
 
 			// close-tab only makes sense with conversation tabs enabled
-			if (!settingsStore.config.conversationTabs) return;
+			if (IS_PICO_BUILD || !settingsStore.config.conversationTabs) return;
 
 			event.preventDefault();
 
@@ -101,11 +101,15 @@ export function useKeyboardShortcuts(callbacks: KeyboardShortcutsCallbacks) {
 		}
 
 		if (isCmdOrCtrl && event.altKey && event.shiftKey && event.code === KeyboardKey.BRACKET_LEFT) {
+			if (IS_PICO_BUILD) return;
+
 			event.preventDefault();
 			callbacks.navigateToPrevTab?.();
 		}
 
 		if (isCmdOrCtrl && event.altKey && event.shiftKey && event.code === KeyboardKey.BRACKET_RIGHT) {
+			if (IS_PICO_BUILD) return;
+
 			event.preventDefault();
 			callbacks.navigateToNextTab?.();
 		}

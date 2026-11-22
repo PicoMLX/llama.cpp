@@ -6,6 +6,7 @@
 		ChatMessageStatistics,
 		ChatMessageUserBubble
 	} from '$lib/components/app/chat';
+	import { IS_PICO_BUILD } from '$lib/constants/app.constants';
 	import { getChatMessageEditContext } from '$lib/contexts';
 	import { ChatMessageStatisticsMode, MessageRole } from '$lib/enums';
 	import { useProcessingState } from '$lib/hooks/use-processing-state.svelte';
@@ -51,11 +52,14 @@
 	});
 
 	let showStoredReadingStats = $derived(
-		Boolean(currentConfig.showMessageStats) && storedReadingStats !== null
+		!IS_PICO_BUILD && Boolean(currentConfig.showMessageStats) && storedReadingStats !== null
 	);
 
 	let showLiveReadingStats = $derived(
-		Boolean(currentConfig.showMessageStats) && isActivelyProcessing && storedReadingStats === null
+		!IS_PICO_BUILD &&
+			Boolean(currentConfig.showMessageStats) &&
+			isActivelyProcessing &&
+			storedReadingStats === null
 	);
 
 	$effect(() => {

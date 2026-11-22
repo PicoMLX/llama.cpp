@@ -10,6 +10,7 @@ import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
 import { page } from '$app/state';
 import {
+	IS_PICO_BUILD,
 	MODELS_ROUTE_ID,
 	ROUTES,
 	SETTINGS_KEYS,
@@ -310,7 +311,9 @@ class UiStore {
 	private loadSidebarExpanded(): boolean {
 		if (!browser || deviceStore.isMobile) return false;
 
-		return localStorage.getItem(SIDEBAR_EXPANDED_LOCALSTORAGE_KEY) === 'true';
+		const saved = localStorage.getItem(SIDEBAR_EXPANDED_LOCALSTORAGE_KEY);
+
+		return saved === null ? IS_PICO_BUILD : saved === 'true';
 	}
 
 	private loadSidebarWidth(): number | null {

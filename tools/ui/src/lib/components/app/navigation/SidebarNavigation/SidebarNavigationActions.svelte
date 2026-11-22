@@ -7,6 +7,7 @@
 		ICON_CLASS_DEFAULT,
 		ICON_STRIP_TRANSITION_DELAY_MULTIPLIER,
 		ICON_STRIP_TRANSITION_DURATION,
+		IS_PICO_BUILD,
 		SIDEBAR_ACTIONS_ITEMS
 	} from '$lib/constants';
 	import { SidebarAction } from '$lib/enums';
@@ -22,15 +23,22 @@
 		onAction?: (action: SidebarAction) => void;
 		/** Called before following a route item, so a phone can collapse the sidebar. */
 		onNavigate?: () => void;
+		footer?: boolean;
 	}
 
-	let { class: className, onAction, onNavigate }: Props = $props();
+	let { class: className, footer = false, onAction, onNavigate }: Props = $props();
 
 	// the models manager stays desktop-only: a phone picks its models in the selector
 	const actions = $derived(
-		SIDEBAR_ACTIONS_ITEMS.filter(
-			(item) => item.action !== SidebarAction.MANAGE_MODELS || !deviceStore.isMobile
-		)
+		SIDEBAR_ACTIONS_ITEMS.filter((item) => {
+			if (IS_PICO_BUILD) {
+				return footer
+					? item.action === SidebarAction.SETTINGS
+					: item.action === SidebarAction.NEW_CHAT || item.action === SidebarAction.SEARCH;
+			}
+
+			return item.action !== SidebarAction.MANAGE_MODELS || !deviceStore.isMobile;
+		})
 	);
 	let initialized = $state(false);
 	let showIcons = $state(false);

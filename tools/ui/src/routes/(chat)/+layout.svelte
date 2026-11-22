@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { ChatScreen, ChatTabs } from '$lib/components/app';
-	import { NEW_CHAT_TAB_ID } from '$lib/constants';
+	import { IS_PICO_BUILD, NEW_CHAT_TAB_ID } from '$lib/constants';
 	import { settingsStore, tabsStore } from '$lib/stores';
 
 	let { children } = $props();
@@ -10,14 +10,15 @@
 	let showCenteredEmpty = $derived(!page.params.id);
 
 	let showTabs = $derived(
-		Boolean(settingsStore.config.conversationTabs) &&
+		!IS_PICO_BUILD &&
+			Boolean(settingsStore.config.conversationTabs) &&
 			(page.params.id || tabsStore.openTabs.some((id) => id !== NEW_CHAT_TAB_ID))
 	);
 
 	$effect(() => {
 		const id = page.params.id ?? (page.route.id === '/(chat)' ? NEW_CHAT_TAB_ID : undefined);
 
-		if (id && settingsStore.config.conversationTabs) {
+		if (!IS_PICO_BUILD && id && settingsStore.config.conversationTabs) {
 			tabsStore.syncWithRoute(id);
 		}
 	});

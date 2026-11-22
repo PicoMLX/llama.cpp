@@ -11,6 +11,7 @@
 		FAVICON_PATHS,
 		FAVICON_SELECTORS,
 		HEADERS,
+		IS_PICO_BUILD,
 		MODELS_ROUTE_ID,
 		NEW_CHAT_TAB_ID,
 		SETTINGS_KEYS,
@@ -81,7 +82,7 @@
 
 	function navigateToTab(direction: -1 | 1) {
 		// only makes sense with conversation tabs enabled
-		if (!settingsStore.config.conversationTabs) return;
+		if (IS_PICO_BUILD || !settingsStore.config.conversationTabs) return;
 
 		const openTabs = tabsStore.openTabs;
 
