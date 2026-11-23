@@ -22,13 +22,19 @@ import {
 } from '$lib/constants';
 import { ChatStorageLocation, MessageRole, MessageType } from '$lib/enums';
 import { DatabaseService } from '$lib/services/database.service';
+import { MigrationService } from '$lib/services/migration.service';
 import { chatActivityStore } from '$lib/stores/chat/activity.svelte';
 import { chatStore } from '$lib/stores/chat/index.svelte';
 import { chatStorageStore } from '$lib/stores/chat-storage.svelte';
 import { conversationsStore } from '$lib/stores/conversations/index.svelte';
 import { groupsStore } from '$lib/stores/groups.svelte';
+import { initStores } from '$lib/stores/init';
+import { permissionsStore } from '$lib/stores/permissions.svelte';
 import { serverStore } from '$lib/stores/server.svelte';
 import { settingsStore } from '$lib/stores/settings/index.svelte';
+import { tabsStore } from '$lib/stores/tabs.svelte';
+import { toolsStore } from '$lib/stores/tools.svelte';
+import { versionStore } from '$lib/stores/version.svelte';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const KEY_A = 'account-a-secret';
@@ -585,6 +591,34 @@ describe('the notices stream', () => {
 		await settle(CONVERSATION_EVENTS.RELOAD_DEBOUNCE_MS + 100);
 		held.release();
 		await switched;
+
+		await vi.waitFor(() => expect(listName(THEIR_CHAT)).toBe('Theirs'));
+	});
+
+	it("reads a notice that comes during the page's first read of the list after that read", async () => {
+		let firstRead!: Promise<void>;
+
+		vi.spyOn(MigrationService, 'runAllMigrations').mockResolvedValue();
+		vi.spyOn(settingsStore, 'initialize').mockImplementation(() => {});
+		vi.spyOn(permissionsStore, 'initialize').mockImplementation(() => {});
+		vi.spyOn(toolsStore, 'initialize').mockImplementation(() => {});
+		vi.spyOn(versionStore, 'initialize').mockImplementation(() => {});
+		vi.spyOn(tabsStore, 'init').mockImplementation(() => {});
+		// the switch in beforeEach already made the store's one first read, so this read stands in for it
+		vi.spyOn(conversationsStore, 'initialize').mockImplementation(
+			() => (firstRead = conversationsStore.loadConversations())
+		);
+
+		const held = holdAnswer(API_CONVERSATIONS.CONVERSATIONS);
+
+		// the saved Pico Server choice opens the stream before the page reads the chats
+		await initStores();
+		await held.read;
+		await createChatElsewhere(THEIR_CHAT, 'Theirs');
+		// time for the notice's reload to read the list, had it not waited
+		await settle(CONVERSATION_EVENTS.RELOAD_DEBOUNCE_MS + 100);
+		held.release();
+		await firstRead;
 
 		await vi.waitFor(() => expect(listName(THEIR_CHAT)).toBe('Theirs'));
 	});
