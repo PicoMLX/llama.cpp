@@ -429,8 +429,13 @@ try {
 			await expect(metrics).toContainText('Decode');
 			await page.mouse.move(0, 0);
 			await expect(metrics).toHaveCSS('opacity', '0');
-			await page.getByRole('button', { exact: true, name: 'Retry' }).first().focus();
-			await expect(metrics).toHaveCSS('opacity', '1');
+			const retry = page.getByRole('button', { exact: true, name: 'Retry' }).first();
+
+			// After a reply, the composer takes focus back on a timer that can run after this focus on a busy machine, so focus Retry again until it keeps focus.
+			await expect(async () => {
+				await retry.focus();
+				await expect(metrics).toHaveCSS('opacity', '1', { timeout: 1000 });
+			}).toPass({ timeout: 10000 });
 			for (const kind of cardKinds) {
 				const card = page.locator(`[data-pico-card="${kind}"]`);
 
