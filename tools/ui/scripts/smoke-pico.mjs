@@ -431,8 +431,7 @@ try {
 			await expect(metrics).toHaveCSS('opacity', '0');
 			const retry = page.getByRole('button', { exact: true, name: 'Retry' }).first();
 
-			// Once a reply finishes, the composer takes focus back on a timer, which a busy
-			// machine can run after this focus; focus Retry again until it keeps it.
+			// After a reply, the composer takes focus back on a timer that can run after this focus on a busy machine, so focus Retry again until it keeps focus.
 			await expect(async () => {
 				await retry.focus();
 				await expect(metrics).toHaveCSS('opacity', '1', { timeout: 1000 });
