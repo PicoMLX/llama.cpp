@@ -521,10 +521,18 @@ try {
 	await translatedPage.goto(origin, { waitUntil: 'networkidle' });
 	await translatedPage.getByRole('heading', { name: 'Verbinden met Pico' }).waitFor();
 	await translatedContext.close();
+	const badge = await readFile(resolve(uiDir, 'src/lib/assets/pico-logo.svg'), 'utf8');
+
+	// Node can't resolve pico.test, so read the icons over loopback.
+	for (const icon of ['favicon.svg', 'favicon-dark.svg']) {
+		const response = await fetch(`http://127.0.0.1:${server.address().port}/${icon}`);
+
+		assert.equal(await response.text(), badge, `${icon} must be the Pico badge`);
+	}
 	assert.deepEqual(pageErrors, []);
 	assert.deepEqual(missingAssets, []);
 	console.log(
-		`Pico packaged UI smoke passed (${lanHTTP ? 'LAN HTTP' : 'loopback'}): assets, Pico UX, mobile navigation and attachments, saved-profile migration, settings autosave, access validation, invite authentication, Responses, model lifecycle.`
+		`Pico packaged UI smoke passed (${lanHTTP ? 'LAN HTTP' : 'loopback'}): assets, Pico badge, Pico UX, mobile navigation and attachments, saved-profile migration, settings autosave, access validation, invite authentication, Responses, model lifecycle.`
 	);
 } finally {
 	await browser?.close();
