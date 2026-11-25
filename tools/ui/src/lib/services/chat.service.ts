@@ -448,7 +448,8 @@ export class ChatService {
 		abortSignal?: AbortSignal,
 		onConnectionState?: (state: StreamConnectionState) => void,
 		streamModel?: string | null,
-		isReplay = false
+		isReplay = false,
+		onReasoningEnd?: () => void
 	): Promise<void> {
 		let reader = response.body?.getReader();
 
@@ -481,12 +482,25 @@ export class ChatService {
 		let fullReasoningContent = '';
 		let aggregatedToolCalls: ApiChatCompletionToolCall[] = [];
 		let lastTimings: ChatMessageTimings | undefined;
+		let reasoningEnded = false;
 
-		const reasoningTiming = IS_PICO_BUILD ? createReasoningTiming(!isReplay) : undefined;
+		const emitReasoningEnd = () => {
+			if (!reasoningEnded) return;
+
+			reasoningEnded = false;
+			onReasoningEnd?.();
+		};
+		const reasoningTiming = IS_PICO_BUILD
+			? createReasoningTiming(!isReplay, () => {
+					reasoningEnded = true;
+				})
+			: undefined;
 		const finishReasoning = () => {
 			if (!reasoningTiming) return;
 
 			const timings = reasoningTiming.finish(lastTimings);
+
+			emitReasoningEnd();
 
 			if (timings?.reasoning_ms !== lastTimings?.reasoning_ms) {
 				lastTimings = timings;
@@ -684,21 +698,23 @@ export class ChatService {
 									lastTimings = timings;
 								}
 
-								if (content) {
-									finalizeOpenToolCallBatch();
-									aggregatedContent += content;
-
-									if (!abortSignal?.aborted) {
-										onChunk?.(content);
-									}
-								}
-
 								if (reasoningContent) {
 									finalizeOpenToolCallBatch();
 									fullReasoningContent += reasoningContent;
 
 									if (!abortSignal?.aborted) {
 										onReasoningChunk?.(reasoningContent);
+									}
+								}
+
+								emitReasoningEnd();
+
+								if (content) {
+									finalizeOpenToolCallBatch();
+									aggregatedContent += content;
+
+									if (!abortSignal?.aborted) {
+										onChunk?.(content);
 									}
 								}
 
@@ -1119,6 +1135,7 @@ export class ChatService {
 			onError,
 			onModel,
 			onReasoningChunk,
+			onReasoningEnd,
 			onTimings,
 			onToolCallChunk,
 			presence_penalty,
@@ -1336,7 +1353,9 @@ export class ChatService {
 					conversationId,
 					signal,
 					onConnectionState,
-					streamModel
+					streamModel,
+					false,
+					onReasoningEnd
 				);
 
 				return;

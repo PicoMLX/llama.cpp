@@ -34,6 +34,64 @@ function makeToolMsg(overrides: Partial<DatabaseMessage> = {}): DatabaseMessage 
 }
 
 describe('deriveAgenticSections', () => {
+	it('uses the live reasoning phase over saved duration and existing answer content', () => {
+		const msg = makeAssistant({
+			content: 'Previous answer',
+			reasoningContent: 'Continued thought',
+			timings: { reasoning_ms: 2000 }
+		});
+		const [thinking] = deriveAgenticSections(msg, [], [], true, {
+			active: true,
+			messageId: msg.id
+		});
+		const [thought] = deriveAgenticSections(msg, [], [], true, {
+			active: false,
+			messageId: msg.id
+		});
+
+		expect(thinking.type).toBe(AgenticSectionType.REASONING_PENDING);
+		expect(thinking.reasoningMs).toBe(2000);
+		expect(thought.type).toBe(AgenticSectionType.REASONING);
+		expect(msg.timings?.reasoning_ms).toBe(2000);
+	});
+
+	it('closes the live phase without requiring a measured duration', () => {
+		const msg = makeAssistant({ reasoningContent: 'Replayed thought' });
+		const [thought] = deriveAgenticSections(msg, [], [], true, {
+			active: false,
+			messageId: msg.id
+		});
+
+		expect(thought.type).toBe(AgenticSectionType.REASONING);
+		expect(thought.reasoningMs).toBeUndefined();
+	});
+
+	it('applies live reasoning only to the targeted turn in a grouped response', () => {
+		const first = makeAssistant({
+			content: 'Earlier answer',
+			reasoningContent: 'Earlier thought',
+			timings: { reasoning_ms: 2000 }
+		});
+		const second = makeAssistant({
+			id: 'ast-2',
+			reasoningContent: 'Later thought',
+			timings: { reasoning_ms: 3000 }
+		});
+
+		for (const target of [first, second]) {
+			const reasoning = deriveAgenticSections(first, [second], [], true, {
+				active: true,
+				messageId: target.id
+			}).filter((section) => section.reasoningMs !== undefined);
+
+			expect(reasoning.map((section) => section.type)).toEqual(
+				target === first
+					? [AgenticSectionType.REASONING_PENDING, AgenticSectionType.REASONING]
+					: [AgenticSectionType.REASONING, AgenticSectionType.REASONING_PENDING]
+			);
+		}
+	});
+
 	it('closes reasoning on its timing boundary while the response is still streaming', () => {
 		const msg = makeAssistant({ reasoningContent: 'Thought', timings: { reasoning_ms: 2500 } });
 		const [reasoning] = deriveAgenticSections(msg, [], [], true);

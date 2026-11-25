@@ -21,6 +21,11 @@ import type {
 	DatabaseMessageExtraImageFile
 } from '$lib/types/database';
 
+interface StreamingReasoningState {
+	messageId: string;
+	active: boolean;
+}
+
 /**
  * Derives display sections from a single assistant message and its direct tool results.
  *
@@ -32,7 +37,8 @@ function deriveSingleTurnSections(
 	message: DatabaseMessage,
 	toolMessages: DatabaseMessage[] = [],
 	streamingToolCalls: ApiChatCompletionToolCall[] = [],
-	isStreaming: boolean = false
+	isStreaming: boolean = false,
+	reasoningState?: StreamingReasoningState
 ): AgenticSection[] {
 	const sections: AgenticSection[] = [];
 
@@ -42,7 +48,10 @@ function deriveSingleTurnSections(
 		const hasContentAfterReasoning =
 			!!message.content?.trim() || toolCalls.length > 0 || streamingToolCalls.length > 0;
 		const isPending =
-			isStreaming && !hasContentAfterReasoning && message.timings?.reasoning_ms === undefined;
+			isStreaming &&
+			(reasoningState?.messageId === message.id
+				? reasoningState.active
+				: !hasContentAfterReasoning && message.timings?.reasoning_ms === undefined);
 
 		sections.push({
 			content: message.reasoningContent,
@@ -168,10 +177,17 @@ function deriveTurnSections(
 	message: DatabaseMessage,
 	toolMessages: DatabaseMessage[],
 	streamingToolCalls: ApiChatCompletionToolCall[],
-	isStreaming: boolean
+	isStreaming: boolean,
+	reasoningState?: StreamingReasoningState
 ): AgenticSection[] {
 	if (isStreaming || streamingToolCalls.length > 0) {
-		return deriveSingleTurnSections(message, toolMessages, streamingToolCalls, isStreaming);
+		return deriveSingleTurnSections(
+			message,
+			toolMessages,
+			streamingToolCalls,
+			isStreaming,
+			reasoningState
+		);
 	}
 
 	const cached = turnSectionsCache.get(message);
@@ -215,18 +231,33 @@ export function deriveAgenticSections(
 	message: DatabaseMessage,
 	toolMessages: DatabaseMessage[] = [],
 	streamingToolCalls: ApiChatCompletionToolCall[] = [],
-	isStreaming: boolean = false
+	isStreaming: boolean = false,
+	reasoningState?: StreamingReasoningState
 ): AgenticSection[] {
 	const hasAssistantContinuations = toolMessages.some((m) => m.role === MessageRole.ASSISTANT);
 
 	if (!hasAssistantContinuations) {
-		return deriveTurnSections(message, toolMessages, streamingToolCalls, isStreaming);
+		return deriveTurnSections(
+			message,
+			toolMessages,
+			streamingToolCalls,
+			isStreaming,
+			reasoningState
+		);
 	}
 
 	const sections: AgenticSection[] = [];
 	const firstTurnToolMsgs = collectToolMessages(toolMessages, 0);
 
-	sections.push(...deriveTurnSections(message, firstTurnToolMsgs, [], false));
+	sections.push(
+		...deriveTurnSections(
+			message,
+			firstTurnToolMsgs,
+			[],
+			isStreaming && reasoningState?.messageId === message.id,
+			reasoningState
+		)
+	);
 
 	let i = firstTurnToolMsgs.length;
 
@@ -236,13 +267,16 @@ export function deriveAgenticSections(
 		if (msg.role === MessageRole.ASSISTANT) {
 			const turnToolMsgs = collectToolMessages(toolMessages, i + 1);
 			const isLastTurn = i + 1 + turnToolMsgs.length >= toolMessages.length;
+			const isTurnStreaming =
+				isStreaming && (reasoningState ? reasoningState.messageId === msg.id : isLastTurn);
 
 			sections.push(
 				...deriveTurnSections(
 					msg,
 					turnToolMsgs,
 					isLastTurn ? streamingToolCalls : [],
-					isLastTurn && isStreaming
+					isTurnStreaming,
+					reasoningState
 				)
 			);
 

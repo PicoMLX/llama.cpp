@@ -441,6 +441,7 @@ class AgenticStore {
 			onFlowComplete,
 			onModel,
 			onReasoningChunk,
+			onReasoningEnd,
 			onTimings,
 			onToolCallsStreaming,
 			onTurnComplete,
@@ -531,6 +532,7 @@ class AgenticStore {
 							turnReasoningContent += chunk;
 							onReasoningChunk?.(chunk);
 						},
+						onReasoningEnd,
 						onTimings: (timings?: ChatMessageTimings, progress?: ChatMessagePromptProgress) => {
 							onTimings?.(timings, progress);
 

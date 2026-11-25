@@ -275,6 +275,7 @@ export class ChatMessageFlows {
 						});
 						this.host.setChatReasoning(msg.convId, true);
 					},
+					onReasoningEnd: () => this.host.setChatReasoning(msg.convId, false),
 					onTimings: (timings?: ChatMessageTimings, promptProgress?: ChatMessagePromptProgress) => {
 						this.host.processing.applyStreamTimings(timings, promptProgress, msg.convId);
 

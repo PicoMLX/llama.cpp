@@ -1,6 +1,6 @@
 import type { ChatMessageTimings } from '$lib/types';
 
-export function createReasoningTiming(allowWallClock = true) {
+export function createReasoningTiming(allowWallClock = true, onReasoningEnd?: () => void) {
 	let startedAt: number | undefined;
 	let generationBeforeReasoning = 0;
 	let previousGeneration = 0;
@@ -24,6 +24,7 @@ export function createReasoningTiming(allowWallClock = true) {
 
 			startedAt = undefined;
 			reasoningGeneration = undefined;
+			onReasoningEnd?.();
 		}
 
 		return apply(timings);

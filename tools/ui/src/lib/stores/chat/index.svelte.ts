@@ -71,7 +71,13 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 	chatReasoningStates = new SvelteMap<string, boolean>();
 	chatStreamingStates = new SvelteMap<
 		string,
-		{ response: string; messageId: string; model?: string | null; reasoningContent?: string }
+		{
+			response: string;
+			messageId: string;
+			model?: string | null;
+			reasoning?: boolean;
+			reasoningContent?: string;
+		}
 	>();
 	errorDialogState = $state<ErrorDialogState | null>(null);
 	// true while the active conversation has a local pipe (send, attach or resume-wait)
@@ -546,7 +552,9 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		return apiOptions;
 	}
 
-	getChatStreaming(convId: string): { response: string; messageId: string } | undefined {
+	getChatStreaming(
+		convId: string
+	): { response: string; messageId: string; reasoning?: boolean } | undefined {
 		return this.getChatStreamingState(convId);
 	}
 
@@ -934,6 +942,12 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 	setChatReasoning(convId: string, reasoning: boolean): void {
 		if (reasoning) this.chatReasoningStates.set(convId, true);
 		else this.chatReasoningStates.delete(convId);
+
+		const stream = this.chatStreamingStates.get(convId);
+
+		if (stream && stream.reasoning !== reasoning) {
+			this.chatStreamingStates.set(convId, { ...stream, reasoning });
+		}
 	}
 
 	setChatStreaming(
@@ -948,6 +962,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		this.chatStreamingStates.set(convId, {
 			messageId,
 			model: model ?? previous?.model,
+			reasoning: previous?.messageId === messageId ? previous.reasoning : undefined,
 			reasoningContent:
 				reasoningContent ??
 				(previous?.messageId === messageId ? previous.reasoningContent : undefined),
@@ -1346,6 +1361,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 				});
 				this.setChatReasoning(convId, true);
 			},
+			onReasoningEnd: () => this.setChatReasoning(convId, false),
 			onTimings: (timings?: ChatMessageTimings, promptProgress?: ChatMessagePromptProgress) => {
 				this.processing.applyStreamTimings(timings, promptProgress, convId);
 
@@ -1618,7 +1634,9 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 
 	private getChatStreamingState(
 		convId: string
-	): { response: string; messageId: string; reasoningContent?: string } | undefined {
+	):
+		| { response: string; messageId: string; reasoning?: boolean; reasoningContent?: string }
+		| undefined {
 		return this.chatStreamingStates.get(convId);
 	}
 

@@ -36,6 +36,7 @@ export interface ChatStreamHost {
 	streamConnectionState: StreamConnectionState;
 	getOrCreateAbortController(convId: string): AbortController;
 	setChatLoading(convId: string, loading: boolean): void;
+	setChatReasoning(convId: string, reasoning: boolean): void;
 	setChatStreaming(
 		convId: string,
 		response: string,
@@ -389,6 +390,7 @@ export class ChatStreamManager {
 
 					writeActive({ content: displayed });
 					this.host.setChatStreaming(convId, displayed, targetMessageId);
+					this.host.setChatReasoning(convId, false);
 				},
 				async (
 					finalContent?: string,
@@ -428,6 +430,7 @@ export class ChatStreamManager {
 						: streamedReasoningContent;
 
 					writeActive({ reasoningContent: displayed });
+					this.host.setChatReasoning(convId, true);
 				},
 				undefined,
 				undefined,
@@ -456,7 +459,8 @@ export class ChatStreamManager {
 					}
 				},
 				attachedModel,
-				true
+				true,
+				() => this.host.setChatReasoning(convId, false)
 			);
 
 			if (abortController.signal.aborted && reasoningMs !== existingReasoningMs) {

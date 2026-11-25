@@ -1,3 +1,4 @@
+import PicoActivityHarness from './components/PicoActivityHarness.svelte';
 import { IS_PICO_BUILD } from '$lib/constants/app.constants';
 import { MessageRole, MessageType } from '$lib/enums';
 import { ChatService } from '$lib/services/chat.service';
@@ -6,6 +7,7 @@ import { localChatStore } from '$lib/services/local-chat-store';
 import { chatStore, conversationsStore } from '$lib/stores';
 import type { DatabaseMessage, ExportedConversation } from '$lib/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { render } from 'vitest-browser-svelte';
 
 let session: ExportedConversation;
 
@@ -61,6 +63,100 @@ afterEach(async () => {
 });
 
 describe.runIf(IS_PICO_BUILD)('continued reasoning persistence', () => {
+	it.each(
+		['', 'Original answer'].flatMap((content) =>
+			(['complete', 'stop'] as const).map((ending) => ({ content, ending }))
+		)
+	)(
+		'shows a new thinking phase after a saved "$content" reply is continued and then $ending',
+		async ({ content, ending }) => {
+			const replyId = session.messages[1].id;
+			const stopped = { ...session.messages[1], content };
+
+			await DatabaseService.updateMessage(replyId, { content });
+			conversationsStore.updateMessageAtIndex(1, stopped);
+			const storedReply = async () =>
+				(await DatabaseService.getConversationMessages(session.conv.id)).find(
+					(item) => item.id === replyId
+				)!;
+			const screen = render(PicoActivityHarness, { message: stopped });
+
+			await expect
+				.element(screen.getByText(content ? 'Thought for 2 seconds' : 'Cancelled', { exact: true }))
+				.toBeVisible();
+
+			vi.spyOn(ChatService, 'sendMessage').mockImplementation(async (_messages, options = {}) => {
+				options.onReasoningChunk?.(' continued thought');
+				await screen.rerender({
+					isStreaming: true,
+					message: conversationsStore.activeMessages[1]
+				});
+
+				expect((await storedReply()).timings?.reasoning_ms).toBe(2000);
+				await expect.element(screen.getByText('Thinking', { exact: true })).toBeVisible();
+				expect(screen.container.textContent).not.toContain('Thought for');
+				conversationsStore.updateMessageAtIndex(1, { timings: (await storedReply()).timings });
+				await screen.rerender({
+					isStreaming: true,
+					message: conversationsStore.activeMessages[1]
+				});
+				await expect.element(screen.getByText('Thinking', { exact: true })).toBeVisible();
+				const timings = { predicted_ms: 3000, predicted_n: 30, reasoning_ms: 3000 };
+
+				if (ending === 'stop') {
+					await chatStore.stopGenerationForChat(session.conv.id);
+					options.onTimings?.(timings);
+
+					return;
+				}
+
+				options.onTimings?.(timings);
+				await screen.rerender({
+					isStreaming: true,
+					message: conversationsStore.activeMessages[1]
+				});
+				await expect.element(screen.getByText('Thinking', { exact: true })).toBeVisible();
+				expect(screen.container.textContent).not.toContain('Thought for');
+				options.onReasoningEnd?.();
+				await screen.rerender({
+					isStreaming: true,
+					message: conversationsStore.activeMessages[1]
+				});
+				await expect
+					.element(screen.getByText('Thought for 5 seconds', { exact: true }))
+					.toBeVisible();
+				expect((await storedReply()).timings?.reasoning_ms).toBe(2000);
+				options.onChunk?.('Continued answer');
+				await screen.rerender({
+					isStreaming: true,
+					message: conversationsStore.activeMessages[1]
+				});
+				await expect
+					.element(screen.getByText('Thought for 5 seconds', { exact: true }))
+					.toBeVisible();
+				await options.onComplete?.('Continued answer', ' continued thought', timings);
+			});
+
+			await chatStore.continueAssistantMessage(replyId);
+			const saved = await storedReply();
+
+			expect(saved.reasoningContent).toBe('Original thought continued thought');
+			expect(saved.timings?.reasoning_ms).toBe(5000);
+			expect(saved.content).toBe(content + (ending === 'complete' ? 'Continued answer' : ''));
+			await screen.rerender({ isStreaming: false, message: saved });
+			await expect
+				.element(
+					screen.getByText(
+						ending === 'complete' || content ? 'Thought for 5 seconds' : 'Cancelled',
+						{
+							exact: true
+						}
+					)
+				)
+				.toBeVisible();
+		}
+	);
+
 	it.each(['complete', 'stop'] as const)(
 		'keeps the replay baseline until partial content is saved on %s',
 		async (ending) => {

@@ -223,6 +223,7 @@ export class OpenResponsesService {
 			onError,
 			onModel,
 			onReasoningChunk,
+			onReasoningEnd,
 			onTimings,
 			onToolCallChunk,
 			presence_penalty,
@@ -377,7 +378,8 @@ export class OpenResponsesService {
 					onModel,
 					onCompletionId,
 					onTimings,
-					signal
+					signal,
+					onReasoningEnd
 				);
 
 				return;
@@ -785,7 +787,8 @@ export class OpenResponsesService {
 		onModel?: (model: string) => void,
 		onCompletionId?: (id: string) => void,
 		onTimings?: (timings?: ChatMessageTimings, promptProgress?: ChatMessagePromptProgress) => void,
-		abortSignal?: AbortSignal
+		abortSignal?: AbortSignal,
+		onReasoningEnd?: () => void
 	): Promise<void> {
 		const reader = response.body?.getReader();
 
@@ -799,7 +802,7 @@ export class OpenResponsesService {
 		let fullReasoningContent = '';
 		let lastTimings: ChatMessageTimings | undefined;
 
-		const reasoningTiming = IS_PICO_BUILD ? createReasoningTiming() : undefined;
+		const reasoningTiming = IS_PICO_BUILD ? createReasoningTiming(true, onReasoningEnd) : undefined;
 		const finishReasoning = () => {
 			if (!reasoningTiming) return;
 

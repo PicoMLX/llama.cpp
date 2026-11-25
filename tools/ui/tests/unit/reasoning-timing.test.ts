@@ -11,6 +11,27 @@ afterEach(() => {
 });
 
 describe('reasoning duration', () => {
+	it('notifies once per active phase even when its duration is unknown or unchanged', () => {
+		const ended = vi.fn();
+		const timing = createReasoningTiming(false, ended);
+
+		timing.finish(undefined);
+		expect(ended).not.toHaveBeenCalled();
+		timing.update(true, false, undefined);
+		timing.finish(undefined);
+		timing.finish(undefined);
+		expect(ended).toHaveBeenCalledTimes(1);
+		timing.update(true, false, { predicted_ms: 1000 });
+		timing.update(false, true, { predicted_ms: 2000 });
+		expect(ended).toHaveBeenCalledTimes(2);
+		timing.update(true, false, { predicted_ms: 2000 });
+		timing.update(true, false, { predicted_ms: 2000 });
+		expect(ended).toHaveBeenCalledTimes(2);
+		timing.update(false, true, { predicted_ms: 2000 });
+		timing.finish(undefined);
+		expect(ended).toHaveBeenCalledTimes(3);
+	});
+
 	it('uses generation timings for replay and excludes prompt and answer time', () => {
 		const timing = createReasoningTiming(false);
 
@@ -62,6 +83,35 @@ describe('reasoning duration', () => {
 });
 
 describe.runIf(!IS_PICO_BUILD)('generic provider timing fields', () => {
+	it('does not introduce reasoning-end events into the generic stream', async () => {
+		const ended = vi.fn();
+		const response = new Response(
+			`data: ${JSON.stringify({
+				choices: [{ delta: { reasoning_content: 'Thought' } }]
+			})}\n\ndata: [DONE]\n\n`
+		);
+
+		await ChatService.handleStreamResponse(
+			response,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			false,
+			ended
+		);
+
+		expect(ended).not.toHaveBeenCalled();
+	});
+
 	it('preserves a provider reasoning duration through stream completion', async () => {
 		const response = new Response(
 			`data: ${JSON.stringify({
@@ -81,6 +131,154 @@ describe.runIf(!IS_PICO_BUILD)('generic provider timing fields', () => {
 });
 
 describe.runIf(IS_PICO_BUILD)('Pico reasoning stream timings', () => {
+	it('ends reasoning after a mixed reasoning and tool-call delta exactly once', async () => {
+		const response = new Response(
+			`data: ${JSON.stringify({
+				choices: [
+					{
+						delta: {
+							reasoning_content: 'Use the tool',
+							tool_calls: [
+								{
+									function: { arguments: '{}', name: 'example' },
+									id: 'call-1',
+									index: 0,
+									type: 'function'
+								}
+							]
+						}
+					}
+				]
+			})}\n\ndata: [DONE]\n\n`
+		);
+		const events: string[] = [];
+
+		await ChatService.handleStreamResponse(
+			response,
+			undefined,
+			undefined,
+			undefined,
+			() => {
+				events.push('reasoning');
+			},
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			true,
+			() => {
+				events.push('end');
+			}
+		);
+
+		expect(events).toEqual(['reasoning', 'end']);
+	});
+
+	it('leaves a combined reasoning and answer delta in the answer phase', async () => {
+		const response = new Response(
+			`data: ${JSON.stringify({ choices: [{ delta: { content: 'Answer', reasoning_content: 'Thought' } }] })}\n\ndata: [DONE]\n\n`
+		);
+
+		let thinking = false;
+
+		await ChatService.handleStreamResponse(
+			response,
+			() => {
+				thinking = false;
+			},
+			undefined,
+			undefined,
+			() => {
+				thinking = true;
+			}
+		);
+
+		expect(thinking).toBe(false);
+	});
+
+	it('ends an unknown replay phase before answer output without inventing a duration', async () => {
+		const events: string[] = [];
+		const response = new Response(
+			[
+				{ choices: [{ delta: { reasoning_content: 'Thought' } }] },
+				{ choices: [{ delta: { content: 'Answer' } }] }
+			]
+				.map((event) => `data: ${JSON.stringify(event)}\n\n`)
+				.join('') + 'data: [DONE]\n\n'
+		);
+
+		let completed: ChatMessageTimings | undefined;
+
+		await ChatService.handleStreamResponse(
+			response,
+			() => events.push('answer'),
+			(_text, _reasoning, timings) => {
+				completed = timings;
+			},
+			undefined,
+			() => events.push('reasoning'),
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			true,
+			() => events.push('end')
+		);
+
+		expect(events).toEqual(['reasoning', 'end', 'answer']);
+		expect(completed).toBeUndefined();
+	});
+
+	it('does not end a second phase when its chunks carry the first phase duration', async () => {
+		const events: string[] = [];
+		const chunks = [
+			{ choices: [{ delta: { reasoning_content: 'First' } }], timings: { predicted_ms: 1000 } },
+			{ choices: [{ delta: { content: 'Interim' } }], timings: { predicted_ms: 2000 } },
+			{ choices: [{ delta: { reasoning_content: 'Second' } }], timings: { predicted_ms: 3000 } },
+			{ choices: [{ delta: { reasoning_content: ' more' } }], timings: { predicted_ms: 4000 } },
+			{ choices: [{ delta: { content: 'Answer' } }], timings: { predicted_ms: 5000 } }
+		];
+		const response = new Response(
+			chunks.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('') + 'data: [DONE]\n\n'
+		);
+
+		await ChatService.handleStreamResponse(
+			response,
+			() => events.push('answer'),
+			undefined,
+			undefined,
+			() => events.push('reasoning'),
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			false,
+			() => events.push('end')
+		);
+
+		expect(events).toEqual([
+			'reasoning',
+			'end',
+			'answer',
+			'reasoning',
+			'reasoning',
+			'end',
+			'answer'
+		]);
+	});
+
 	it('publishes the duration before answer chunks and preserves final provider fields', async () => {
 		const events = [
 			{
@@ -169,8 +367,15 @@ describe.runIf(IS_PICO_BUILD)('Pico reasoning stream timings', () => {
 	});
 
 	it('publishes OpenResponses reasoning completion before the answer and keeps it with usage', async () => {
+		const ended = vi.fn();
 		const events = [
 			{ delta: 'Thought', timings: { predicted_ms: 2500 }, type: 'response.reasoning_text.delta' },
+			{ type: 'response.reasoning_text.done' },
+			{
+				delta: 'More thought',
+				timings: { predicted_ms: 2500 },
+				type: 'response.reasoning_text.delta'
+			},
 			{ type: 'response.reasoning_text.done' },
 			{ delta: 'Answer', type: 'response.output_text.delta' },
 			{ response: { usage: { input_tokens: 10, output_tokens: 20 } }, type: 'response.completed' }
@@ -191,10 +396,12 @@ describe.runIf(IS_PICO_BUILD)('Pico reasoning stream timings', () => {
 		let latest: ChatMessageTimings | undefined;
 		let completed: ChatMessageTimings | undefined;
 		let durationAtFirstAnswer: number | undefined;
+		let endsAtFirstAnswer = 0;
 
 		await OpenResponsesService.sendMessage([{ content: 'Hi', role: 'user' }], {
 			onChunk: () => {
 				durationAtFirstAnswer = latest?.reasoning_ms;
+				endsAtFirstAnswer = ended.mock.calls.length;
 			},
 			onComplete: (
 				_text: string,
@@ -203,6 +410,7 @@ describe.runIf(IS_PICO_BUILD)('Pico reasoning stream timings', () => {
 			) => {
 				completed = timings;
 			},
+			onReasoningEnd: ended,
 			onTimings: (timings: ChatMessageTimings | undefined) => {
 				latest = timings;
 			},
@@ -210,6 +418,8 @@ describe.runIf(IS_PICO_BUILD)('Pico reasoning stream timings', () => {
 		});
 
 		expect(durationAtFirstAnswer).toBe(2500);
+		expect(endsAtFirstAnswer).toBe(2);
+		expect(ended).toHaveBeenCalledTimes(2);
 		expect(completed).toMatchObject({ predicted_n: 20, prompt_n: 10, reasoning_ms: 2500 });
 	});
 });
