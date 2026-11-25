@@ -192,8 +192,31 @@ describe.runIf(IS_PICO_BUILD)('Pico edit guards', () => {
 		modelsStore.models = [
 			{ capabilities: [], id: 'available', model: 'available', name: 'Available' }
 		];
-		modelsStore.selectedModelId = 'available';
-		modelsStore.selectedModelName = 'available';
+		await screen.getByRole('button', { name: 'Model for the next response' }).click();
+		await page.getByRole('option', { name: /^available/i }).click();
+		expect(modelsStore.selectedModelName).toBe('available');
+		await screen.getByRole('button', { name: 'Send changes' }).click();
+		expect(onSave).toHaveBeenCalledOnce();
+	});
+
+	it('keeps the chosen future model when the prompt editor mounts', async () => {
+		const { assistant } = await persistedAssistant();
+
+		serverStore.role = ServerRole.ROUTER;
+		modelsStore.models = [
+			{ capabilities: [], id: assistant.model!, model: assistant.model!, name: 'Previous model' },
+			{ capabilities: [], id: 'future-model', model: 'future-model', name: 'Future model' }
+		];
+		modelsStore.selectedModelId = 'future-model';
+		modelsStore.selectedModelName = 'future-model';
+		vi.spyOn(modelsStore, 'fetch').mockResolvedValue();
+		const onSave = vi.fn();
+		const screen = render(PicoEditGateHarness, { onSave });
+
+		await expect
+			.element(screen.getByRole('button', { name: 'Model for the next response' }))
+			.toHaveTextContent('future model');
+		expect(modelsStore.selectedModelName).toBe('future-model');
 		await screen.getByRole('button', { name: 'Send changes' }).click();
 		expect(onSave).toHaveBeenCalledOnce();
 	});

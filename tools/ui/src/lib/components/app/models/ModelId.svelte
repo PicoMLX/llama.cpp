@@ -13,6 +13,7 @@
 	import { type ModelSidecarBadge } from '$lib/types/models';
 	import { isAuxSidecar } from '$lib/utils';
 	import { formatParameters } from '$lib/utils';
+	import { formatModelDisplayName } from '$lib/utils/model-display-name';
 
 	interface Props {
 		modelId: string;
@@ -21,6 +22,7 @@
 		hideModalities?: boolean;
 		hideCapabilities?: boolean;
 		hideParameters?: boolean;
+		readableName?: boolean;
 		showRaw?: boolean;
 		showRawTooltip?: boolean;
 		hideQuantization?: boolean;
@@ -65,6 +67,7 @@
 		iconsOnNewLine = false,
 		modalities,
 		modelId,
+		readableName = false,
 		showRaw = undefined,
 		showRawTooltip = false,
 		sizeRange,
@@ -87,7 +90,8 @@
 
 	let parsed = $derived(ModelsService.parseModelId(modelId));
 	let resolvedShowRaw = $derived(
-		showRaw ?? (settingsStore.config.showRawModelNames as boolean) ?? false
+		showRaw ??
+			(readableName ? false : ((settingsStore.config.showRawModelNames as boolean) ?? false))
 	);
 	let resolvedHideQuantization = $derived(
 		hideQuantization ?? !settingsStore.config.showModelQuantization
@@ -103,7 +107,11 @@
 	]);
 
 	let primaryAlias = $derived(uniqueAliases.length === 1 ? uniqueAliases[0] : null);
-	let displayName = $derived(primaryAlias ?? parsed.modelName ?? modelId);
+	let displayName = $derived(
+		readableName
+			? formatModelDisplayName(parsed, uniqueAliases)
+			: (primaryAlias ?? parsed.modelName ?? modelId)
+	);
 
 	let hasBadges = $derived(
 		parsed.sidecar ||
@@ -111,8 +119,7 @@
 			uniqueDraftSidecars.length > 0 ||
 			(parsed.params && !hideParameters) ||
 			(parsed.quantization && !resolvedHideQuantization) ||
-			primaryAlias ||
-			uniqueAliases.length > 1 ||
+			(!readableName && (primaryAlias || uniqueAliases.length > 1)) ||
 			(uniqueTags.length > 0 && !resolvedHideTags)
 	);
 </script>
@@ -143,7 +150,9 @@
 
 				{#if parsed.params && !hideParameters}
 					<span class={badgeClass}>
-						{parsed.params}{parsed.activatedParams ? `-${parsed.activatedParams}` : ''}
+						{parsed.params}{parsed.activatedParams
+							? `${readableName ? ' ' : '-'}${parsed.activatedParams}`
+							: ''}
 					</span>
 				{/if}
 
@@ -161,13 +170,13 @@
 
 				<ModelDraftSidecars {draftSidecars} />
 
-				{#if primaryAlias}
+				{#if !readableName && primaryAlias}
 					{#if primaryAlias !== parsed.modelName}
 						<span class="{badgeClass} max-w-32 truncate" title={parsed.modelName ?? modelId}>
 							{parsed.modelName ?? modelId}
 						</span>
 					{/if}
-				{:else if uniqueAliases.length > 1}
+				{:else if !readableName && uniqueAliases.length > 1}
 					{#each uniqueAliases.slice(0, MAX_ALIAS_BADGES) as alias (alias)}
 						<span class="{badgeClass} max-w-32 truncate" title={alias}>
 							{alias}

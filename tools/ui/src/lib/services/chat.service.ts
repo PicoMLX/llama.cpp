@@ -32,6 +32,7 @@ import {
 	StreamConnectionState
 } from '$lib/enums';
 import { modelsStore } from '$lib/stores/models/index.svelte';
+import { serverStore } from '$lib/stores/server.svelte';
 import { settingsStore } from '$lib/stores/settings/index.svelte';
 import type { DatabaseMessageExtraMcpPrompt, DatabaseMessageExtraMcpResource } from '$lib/types';
 import type {
@@ -52,7 +53,7 @@ interface ResumableStreamState {
 	updatedAt: number;
 
 	// model frozen at POST time, lets a reload rebuild the exact conv::model identity the
-	// server keyed the session under. null when the POST carried no explicit model
+	// server keyed the session under. null for a bare conversation identity
 	model?: string | null;
 }
 
@@ -950,9 +951,8 @@ export class ChatService {
 	}
 
 	/**
-	 * Rebuild the stream identity for a resume. The model persisted at POST time wins, including a
-	 * stored null which means the POST carried no explicit model so the identity stays the bare conv
-	 * id. Only fall back to the caller supplied current model when nothing was persisted.
+	 * Use the POST model for resume. A stored null keeps the conversation identity bare.
+	 * Only fall back to the caller supplied model when nothing was persisted.
 	 */
 	static resumeStreamIdentity(
 		conversationId: string,
@@ -1062,6 +1062,7 @@ export class ChatService {
 			return OpenResponsesService.sendMessage(messages, options, conversationId, signal);
 		}
 
+		const streamModel = serverStore.isRouterMode ? options.model : undefined;
 		const {
 			backend_sampling,
 			continueFinalMessage,
@@ -1259,14 +1260,12 @@ export class ChatService {
 		try {
 			const headers: Record<string, string> = { ...getJsonHeaders() };
 
-			// tag streaming requests with the conversation id, this single header is the opt in for the
-			// server side replay buffer and powers discoverActiveStream on tab reopen. with an explicit
-			// model the ::model suffix keeps the per model session distinct
+			// Tag streaming requests for replay. Router sessions use the model suffix.
 			if (stream && conversationId) {
-				headers[HEADERS.X_CONVERSATION_ID_HEADER] = streamIdentity(conversationId, options.model);
+				headers[HEADERS.X_CONVERSATION_ID_HEADER] = streamIdentity(conversationId, streamModel);
 				// persist the pending stream before the fetch: a reload during the model load or
 				// the prompt processing must still find its way back to the session once it exists
-				ChatService.saveStreamState(conversationId, 0, options.model ?? null);
+				ChatService.saveStreamState(conversationId, 0, streamModel ?? null);
 			}
 
 			const response = await fetch(API_CHAT.COMPLETIONS, {
@@ -1306,7 +1305,7 @@ export class ChatService {
 					conversationId,
 					signal,
 					onConnectionState,
-					options.model
+					streamModel
 				);
 
 				return;

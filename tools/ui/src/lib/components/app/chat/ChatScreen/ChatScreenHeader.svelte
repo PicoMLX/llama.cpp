@@ -1,7 +1,6 @@
 <script lang="ts">
 	import ContextGaugeDetails from '../ChatForm/ChatFormContextGauge/ContextGaugeDetails.svelte';
 	import { Info, MessageSquare, MoreHorizontal } from '@lucide/svelte';
-	import { ModelsSelector } from '$lib/components/app';
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
@@ -10,7 +9,7 @@
 	import { useContextGauge } from '$lib/hooks/use-context-gauge.svelte';
 	import { useConversationProcessing } from '$lib/hooks/use-conversation-processing.svelte';
 	import { RouterService } from '$lib/services/router.service';
-	import { chatStore, conversationsStore, serverStore } from '$lib/stores';
+	import { chatStore, conversationsStore } from '$lib/stores';
 
 	let { onInstructions }: { onInstructions?: () => void } = $props();
 
@@ -64,16 +63,14 @@
 	aria-label="Chat controls"
 	class="sticky top-0 z-[5] -mx-4 flex flex-col bg-background/95 px-4 backdrop-blur-sm"
 >
-	<div class="flex h-14 min-w-0 items-center justify-between gap-3 pl-11 md:pl-0">
-		<ModelsSelector disabled={!!serverStore.error} header useGlobalSelection />
-
+	<div class="flex h-14 min-w-0 items-center justify-end gap-3 pl-11 md:pl-0">
 		<DropdownMenu.Root>
 			<DropdownMenu.Trigger>
 				{#snippet child({ props })}
 					<Button
 						{...props}
 						aria-label="Chat options"
-						class="size-9 min-h-11 min-w-11 shrink-0 rounded-full p-0"
+						class="size-9 min-h-11 min-w-11 shrink-0 rounded-full p-0 max-md:translate-y-2"
 						variant="ghost"
 					>
 						<MoreHorizontal class="size-5" />

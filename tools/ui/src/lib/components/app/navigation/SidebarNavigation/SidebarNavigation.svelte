@@ -606,7 +606,9 @@
 			(uiStore.isSidebarExpanded || (isFloating && isPeeking)) &&
 				'md:bg-muted/60 md:backdrop-blur-xl shadow-md',
 			isFloating && 'md:-mr-[calc(var(--sidebar-width)-3rem)]',
-			isStripHidden && 'md:pointer-events-none',
+			IS_PICO_BUILD && !uiStore.isSidebarExpanded
+				? 'pointer-events-none'
+				: isStripHidden && 'md:pointer-events-none',
 			uiStore.isSidebarExpanded && 'is-expanded'
 		]}
 		onfocusin={peek}
@@ -656,6 +658,14 @@
 				/>
 			</div>
 
+			{#if IS_PICO_BUILD && !uiStore.isSidebarExpanded && isOnMobile}
+				<SidebarNavigationActions
+					class="ml-2 mr-auto flex-row!"
+					iconOnly
+					onAction={handleSidebarAction}
+				/>
+			{/if}
+
 			{#if isOnMobile && !IS_PICO_BUILD}
 				<div
 					in:fade={{ delay: 50, duration: 150, easing: circIn }}
@@ -677,6 +687,10 @@
 				</div>
 			{/if}
 		</div>
+
+		{#if IS_PICO_BUILD && !uiStore.isSidebarExpanded && !isOnMobile}
+			<SidebarNavigationActions class="mt-2" iconOnly onAction={handleSidebarAction} />
+		{/if}
 
 		<!-- inert, not only invisible: an open section or a context-menu trigger would otherwise catch clicks meant for the page -->
 		<div
