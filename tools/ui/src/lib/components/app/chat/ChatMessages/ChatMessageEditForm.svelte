@@ -135,7 +135,7 @@
 		onValueChange={editCtx.setContent}
 		placeholder="Edit your message..."
 		showAddButton={editCtx.messageRole === MessageRole.USER}
-		showModelSelector={!IS_PICO_BUILD && editCtx.messageRole === MessageRole.USER}
+		showModelSelector={isUserMessage}
 		value={editCtx.editedContent}
 	/>
 </div>

@@ -29,7 +29,6 @@
 		currentModel?: string | null;
 		disabled?: boolean;
 		forceForegroundText?: boolean;
-		header?: boolean;
 		onModelChange?: (modelId: string, modelName: string) => Promise<boolean> | boolean | void;
 		useGlobalSelection?: boolean;
 	}
@@ -38,7 +37,6 @@
 		currentModel = null,
 		disabled = false,
 		forceForegroundText = false,
-		header = false,
 		onModelChange,
 		useGlobalSelection = false
 	}: Props = $props();
@@ -105,24 +103,25 @@
 		highlightedId = null;
 	});
 
-	// Keyboard navigation follows the on-screen row order, not the flat option list order.
-	let visualOrder = $derived.by(() => {
-		if (IS_PICO_BUILD) return ms.filteredOptions.map((option) => option.id);
+	function renderedModelRows(event: KeyboardEvent): HTMLElement[] {
+		const picker = (event.currentTarget as HTMLElement).closest(
+			'[data-slot="dropdown-menu-content"], [data-slot="drawer-content"]'
+		);
 
-		const order: string[] = [];
+		return picker
+			? [...picker.querySelectorAll<HTMLElement>('[role="option"][data-model-id]')].filter(
+					(row) =>
+						!row.closest(
+							'.collapsible-region[data-expanded="false"], [inert], [aria-hidden="true"]'
+						) &&
+						row.getClientRects().length > 0 &&
+						getComputedStyle(row).visibility !== 'hidden'
+				)
+			: [];
+	}
 
-		for (const item of ms.favoriteItems) order.push(item.option.id);
-		for (const group of ms.groupedFilteredOptions.available) {
-			for (const item of group.items) order.push(item.option.id);
-		}
-
-		return order;
-	});
-
-	let highlightedIndex = $derived(highlightedId ? visualOrder.indexOf(highlightedId) : -1);
-
-	function moveHighlight(direction: 1 | -1) {
-		const len = visualOrder.length;
+	function moveHighlight(direction: 1 | -1, rows: HTMLElement[]) {
+		const len = rows.length;
 
 		if (len === 0) {
 			highlightedId = null;
@@ -130,7 +129,7 @@
 			return;
 		}
 
-		let index = highlightedIndex;
+		let index = rows.findIndex((row) => row.dataset.modelId === highlightedId);
 
 		if (index === -1) {
 			index = direction === 1 ? 0 : len - 1;
@@ -138,7 +137,8 @@
 			index = (index + direction + len) % len;
 		}
 
-		highlightedId = visualOrder[index];
+		highlightedId = rows[index].dataset.modelId ?? null;
+		rows[index].scrollIntoView({ block: 'nearest' });
 	}
 
 	// Alt+Enter only unloads and keeps the picker open.
@@ -161,17 +161,18 @@
 
 		if (event.key === KeyboardKey.ARROW_DOWN) {
 			event.preventDefault();
-			moveHighlight(1);
+			moveHighlight(1, renderedModelRows(event));
 		} else if (event.key === KeyboardKey.ARROW_UP) {
 			event.preventDefault();
-			moveHighlight(-1);
+			moveHighlight(-1, renderedModelRows(event));
 		} else if (event.key === KeyboardKey.ENTER) {
 			event.preventDefault();
+			const rows = renderedModelRows(event);
 
-			if (highlightedId) {
+			if (highlightedId && rows.some((row) => row.dataset.modelId === highlightedId)) {
 				void handleModelKeyAction(highlightedId, event.altKey);
-			} else if (visualOrder.length > 0) {
-				highlightedId = visualOrder[0];
+			} else {
+				highlightedId = rows[0]?.dataset.modelId ?? null;
 			}
 		}
 	}
@@ -232,10 +233,13 @@
 	<span class="flex min-w-0 items-center gap-0.5">
 		{#if selectedOption}
 			<ModelId
+				aliases={IS_PICO_BUILD ? selectedOption.aliases : undefined}
 				class="min-w-0 overflow-hidden"
 				hideOrgName={!showOrgName}
 				hideQuantization
+				hideTags={IS_PICO_BUILD ? true : undefined}
 				modelId={selectedOption.model}
+				readableName={IS_PICO_BUILD}
 			/>
 		{:else}
 			<span class="min-w-0 font-medium">Select model</span>
@@ -295,6 +299,7 @@
 					hideOrgName={!showOrgName}
 					hideQuantization
 					modelId={displayModel}
+					readableName={IS_PICO_BUILD}
 				/>
 
 				<span class="ml-2 text-xs whitespace-nowrap opacity-70">(not available)</span>
@@ -315,7 +320,6 @@
 			renderOption={modelOption}
 			sectionHeaderClass="[&:not(:first-child)]:mt-2 mb-1 px-2 py-2.5 text-sm font-semibold text-foreground/80 select-none"
 			{showOrgName}
-			simpleOptions={IS_PICO_BUILD ? ms.filteredOptions : undefined}
 		/>
 	</div>
 {/snippet}
@@ -344,7 +348,7 @@
 			style="max-width: min(calc(100cqw - 10rem), 48rem)"
 		>
 			{#if IS_PICO_BUILD}
-				<ModelId hideOrgName hideQuantization hideTags modelId={displayModel} />
+				<ModelId hideOrgName hideQuantization hideTags modelId={displayModel} readableName />
 			{:else}
 				<MODEL_ICON class="h-3.5 w-3.5 shrink-0" />
 			{/if}
@@ -357,10 +361,8 @@
 {:else if ms.isMultiModel || IS_PICO_BUILD}
 	{#if isMobile}
 		<button
-			aria-label={header ? 'Model for the next response' : undefined}
-			class={header
-				? 'relative inline-flex min-h-11 min-w-11 cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-base hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60'
-				: 'relative inline-grid cursor-pointer grid-cols-[1fr_auto_1fr] items-center gap-1 rounded-sm bg-background px-1.5 py-1 text-xs shadow-sm transition hover:bg-muted-foreground/20 max-md:gap-1.5 max-md:h-7 max-md:px-2.25 max-md:py-1 max-md:text-[13px] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-muted-foreground/15 dark:text-secondary-foreground'}
+			aria-label={IS_PICO_BUILD ? 'Model for the next response' : undefined}
+			class="relative inline-grid min-w-0 cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1 rounded-sm bg-background px-1.5 py-1 text-xs shadow-sm transition hover:bg-muted-foreground/20 max-md:gap-1.5 max-md:h-7 max-md:px-2.25 max-md:py-1 max-md:text-[13px] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-muted-foreground/15 dark:text-secondary-foreground"
 			disabled={disabled || ms.updating}
 			onclick={() => ms.handleOpenChange(true)}
 			style="max-width: min(calc(100vw-4rem), 32rem)"
@@ -386,7 +388,6 @@
 			bind:open={isOpen}
 			currentModel={displayModel}
 			disabled={disabled || isOffline}
-			{header}
 			{highlightedId}
 			{ms}
 			onHighlight={(id) => (highlightedId = id)}

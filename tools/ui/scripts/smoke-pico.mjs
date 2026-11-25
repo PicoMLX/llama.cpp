@@ -193,7 +193,7 @@ async function assertPicoChatSurface(page) {
 	await expect(picker).toBeVisible();
 	await expect(
 		page.locator('form').getByRole('button', { name: 'Model for the next response' })
-	).toHaveCount(0);
+	).toHaveCount(1);
 	await expect(page.getByRole('navigation', { name: 'Open conversations' })).toHaveCount(0);
 	await expect(page.locator('[data-context-gauge-trigger]')).toHaveCount(0);
 	const sidebar = page.locator('aside');
@@ -320,12 +320,17 @@ async function assertPicoMobile(browser) {
 		await expect(picker).toBeVisible();
 		await expect(
 			page.locator('form').getByRole('button', { name: 'Model for the next response' })
-		).toHaveCount(0);
+		).toHaveCount(1);
 		await expect(page.getByRole('navigation', { name: 'Open conversations' })).toHaveCount(0);
 		await assertNoHorizontalOverflow(page, 'chat');
-		await page.getByRole('button', { exact: true, name: 'Expand navigation' }).click();
 		const sidebar = page.locator('aside');
 
+		await expect(sidebar.getByRole('button', { exact: true, name: 'New chat' })).toBeVisible();
+		await expect(sidebar.getByRole('button', { exact: true, name: 'Search' })).toBeVisible();
+		await page.getByRole('button', { exact: true, name: 'Chat options' }).click();
+		await expect(page.getByRole('menuitem', { exact: true, name: 'Instructions' })).toBeVisible();
+		await page.keyboard.press('Escape');
+		await page.getByRole('button', { exact: true, name: 'Expand navigation' }).click();
 		await expect(sidebar.getByRole('button', { name: /^New chat/ })).toBeVisible();
 		await expect(sidebar.getByRole('button', { name: /^Search/ })).toBeVisible();
 		await assertNoHorizontalOverflow(page, 'navigation');

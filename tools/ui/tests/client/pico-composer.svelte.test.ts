@@ -2,7 +2,13 @@ import PicoComposerHarness from './components/PicoComposerHarness.svelte';
 import { IS_PICO_BUILD } from '$lib/constants';
 import { MessageRole, MessageType, ServerModelStatus, ServerRole } from '$lib/enums';
 import { PropsService } from '$lib/services/props.service';
-import { chatStore, conversationsStore, modelsStore, serverStore } from '$lib/stores';
+import {
+	chatStore,
+	conversationsStore,
+	modelsStore,
+	serverStore,
+	settingsStore
+} from '$lib/stores';
 import type {
 	ApiLlamaCppServerProps,
 	ApiModelDataEntry,
@@ -57,6 +63,7 @@ beforeEach(async () => {
 	conversationsStore.activeMessages = [];
 	modelsStore.models = [option(MODEL), option(OTHER_MODEL)];
 	modelsStore.hiddenModelIds = new Set();
+	modelsStore.favoriteModelIds = new Set();
 	modelsStore.routerModels = [listing(MODEL), listing(OTHER_MODEL)];
 	modelsStore.selectedModelId = MODEL;
 	modelsStore.selectedModelName = MODEL;
@@ -69,6 +76,8 @@ beforeEach(async () => {
 	} as ApiLlamaCppServerProps);
 	vi.spyOn(modelsStore.props, 'getModelContextSize').mockReturnValue(1000);
 	vi.spyOn(modelsStore.props, 'checkModelSupportsThinking').mockReturnValue(false);
+	vi.spyOn(modelsStore, 'isGroupOpen').mockImplementation((_id, fallback) => fallback);
+	vi.spyOn(modelsStore, 'collapsedGroupsUnder').mockReturnValue([]);
 });
 
 afterEach(() => {
@@ -85,7 +94,7 @@ afterEach(() => {
 });
 
 describe.runIf(IS_PICO_BUILD)('Pico composing controls', () => {
-	it('keeps one model picker in the header and hides unsupported Thinking', async () => {
+	it('keeps one compact model picker in the composer and hides unsupported Thinking', async () => {
 		const screen = render(PicoComposerHarness);
 
 		await expect
@@ -93,6 +102,9 @@ describe.runIf(IS_PICO_BUILD)('Pico composing controls', () => {
 			.toBeVisible();
 		expect(
 			screen.container.querySelector('form [aria-label="Model for the next response"]')
+		).not.toBeNull();
+		expect(
+			screen.container.querySelector('header [aria-label="Model for the next response"]')
 		).toBeNull();
 		expect(screen.container.querySelector('[aria-label="Thinking"]')).toBeNull();
 		expect(screen.container.querySelector('[data-context-gauge-trigger]')).toBeNull();
@@ -138,7 +150,7 @@ describe.runIf(IS_PICO_BUILD)('Pico composing controls', () => {
 		await expect.poll(() => screen.container.querySelector('[aria-label="Thinking"]')).toBeNull();
 	});
 
-	it('shows a variant discriminator when friendly model names collide', async () => {
+	it('shows the unique raw identifier only when friendly model names collide', async () => {
 		const otherQuant = 'example/alpha-8b:Q8_0';
 
 		modelsStore.models = [option(MODEL), option(otherQuant)];
@@ -146,11 +158,165 @@ describe.runIf(IS_PICO_BUILD)('Pico composing controls', () => {
 		const screen = render(PicoComposerHarness);
 
 		await screen.getByRole('button', { name: 'Model for the next response' }).click();
-		await expect.element(page.getByText('Q4_K_M', { exact: true })).toBeVisible();
-		await expect.element(page.getByText('Q8_0', { exact: true })).toBeVisible();
+		await expect
+			.element(
+				page
+					.getByRole('option', { name: /example\/alpha-8b:Q4_K_M/ })
+					.getByText(MODEL, { exact: true })
+			)
+			.toBeVisible();
+		await expect
+			.element(
+				page
+					.getByRole('option', { name: /example\/alpha-8b:Q8_0/ })
+					.getByText(otherQuant, { exact: true })
+			)
+			.toBeVisible();
 	});
 
-	it('opens the header picker when validation finds no selected model', async () => {
+	it('distinguishes cleaned MLX precision names and selects each raw identifier', async () => {
+		const first = 'mlx-community/Model-4bit';
+		const second = 'mlx-community/Model-8bit';
+
+		modelsStore.models = [option(first), option(second)];
+		modelsStore.routerModels = [listing(first), listing(second)];
+		modelsStore.selectedModelId = first;
+		modelsStore.selectedModelName = first;
+		const screen = render(PicoComposerHarness);
+		const picker = screen.getByRole('button', { name: 'Model for the next response' });
+
+		await picker.click();
+		const secondRow = page.getByRole('option', { name: /mlx-community\/Model-8bit/ });
+
+		await expect.element(secondRow.getByText(second, { exact: true })).toBeVisible();
+		await secondRow.click();
+		expect(modelsStore.selectedModelName).toBe(second);
+		await expect.element(picker).not.toHaveTextContent(/mlx-community|8bit|4bit/);
+		await picker.click();
+		const firstRow = page.getByRole('option', { name: /mlx-community\/Model-4bit/ });
+
+		await expect.element(firstRow.getByText(first, { exact: true })).toBeVisible();
+		await firstRow.click();
+		expect(modelsStore.selectedModelName).toBe(first);
+	});
+
+	it('keeps distinct meaningful model variants free of raw collision details', async () => {
+		const instruct = 'Qwen/Qwen3-30B-A3B-Instruct-2507:Q4_K_M';
+		const thinking = 'Qwen/Qwen3-30B-A3B-Thinking-2507:Q8_0';
+
+		modelsStore.models = [option(instruct), option(thinking)];
+		modelsStore.routerModels = [listing(instruct), listing(thinking)];
+		const screen = render(PicoComposerHarness);
+
+		await screen.getByRole('button', { name: 'Model for the next response' }).click();
+		for (const variant of ['Instruct', 'Thinking']) {
+			const row = page.getByRole('option', { name: new RegExp(`Qwen3 ${variant} 2507`) });
+
+			await expect.element(row).toBeVisible();
+			await expect.element(row).not.toHaveTextContent(/Qwen\/|Q4_K_M|Q8_0/);
+		}
+	});
+
+	it.each([
+		{ label: 'Inkling 3.1', model: 'mlx-community/Inkling-3.1-24B-8bit' },
+		{ label: 'Gemma 4 it', model: '/models/Gemma-4-12B-it-Q4_K_M.gguf' },
+		{ label: 'Qwen3 Instruct 2507', model: 'Qwen/Qwen3-30B-A3B-Instruct-2507:Q4_K_M' },
+		{ label: 'Inkling v2', model: 'example/Inkling-v2-MLX-4bit' },
+		{ label: 'Model 3.2.1', model: 'example/Model-3.2.1-8B-F16' },
+		{ aliases: ['Inkling Pro 2'], label: 'Inkling Pro 2', model: 'example/noisy-alias-model:Q8_0' }
+	])(
+		'uses the readable label $label while selecting the raw model ID',
+		async ({ aliases, label, model }) => {
+			const previousShowRaw = settingsStore.config.showRawModelNames;
+
+			settingsStore.config.showRawModelNames = true;
+			modelsStore.models = [option(MODEL), { ...option(model), aliases }];
+			modelsStore.routerModels = [listing(MODEL), listing(model)];
+			try {
+				const screen = render(PicoComposerHarness);
+				const picker = screen.getByRole('button', { name: 'Model for the next response' });
+
+				await picker.click();
+				const row = page.getByRole('option', { name: new RegExp(label.replaceAll('.', '\\.')) });
+
+				await expect.element(row).toBeVisible();
+				await expect
+					.element(row)
+					.not.toHaveTextContent(/mlx-community|Q4_K_M|Q8_0|F16|8bit|4bit|GGUF/i);
+				await row.click();
+
+				expect(modelsStore.selectedModelName).toBe(model);
+				await expect.element(picker).toHaveTextContent(label);
+				await expect.element(picker).not.toHaveTextContent(/Q4_K_M|Q8_0|F16|8bit|4bit|GGUF/i);
+			} finally {
+				settingsStore.config.showRawModelNames = previousShowRaw;
+			}
+		}
+	);
+
+	it('uses the displayed loaded-first model order for keyboard selection', async () => {
+		modelsStore.models = [option(OTHER_MODEL), option(MODEL)];
+		modelsStore.routerModels = [listing(OTHER_MODEL, ServerModelStatus.UNLOADED), listing(MODEL)];
+		modelsStore.selectedModelId = OTHER_MODEL;
+		modelsStore.selectedModelName = OTHER_MODEL;
+		const screen = render(PicoComposerHarness);
+
+		await screen.getByRole('button', { name: 'Model for the next response' }).click();
+		await expect.element(page.getByText('Loaded models', { exact: true })).toBeVisible();
+		await expect
+			.poll(() => document.activeElement?.getAttribute('placeholder'))
+			.toBe('Search models...');
+		await userEvent.keyboard('{ArrowDown}{Enter}');
+
+		await expect.poll(() => modelsStore.selectedModelName).toBe(MODEL);
+	});
+
+	it('skips a collapsed loaded section when selecting from the search keyboard', async () => {
+		modelsStore.models = [option(MODEL), option(OTHER_MODEL)];
+		modelsStore.routerModels = [listing(MODEL), listing(OTHER_MODEL, ServerModelStatus.UNLOADED)];
+		vi.mocked(modelsStore.isGroupOpen).mockImplementation(
+			(id, fallback) => id !== 'loaded' && fallback
+		);
+		vi.spyOn(modelsStore.status, 'load').mockResolvedValue();
+		const screen = render(PicoComposerHarness);
+
+		await screen.getByRole('button', { name: 'Model for the next response' }).click();
+		await expect.element(page.getByRole('option', { name: /alpha/i })).not.toBeInTheDocument();
+		await page.getByPlaceholder('Search models...').click();
+		await userEvent.keyboard('{ArrowDown}{Enter}');
+
+		await expect.poll(() => modelsStore.selectedModelName).toBe(OTHER_MODEL);
+	});
+
+	it('follows the rendered family order rather than the original model array', async () => {
+		const first = 'example/Alpha-1-8B:Q4_K_M';
+		const secondFamily = 'example/Beta-1-8B:Q4_K_M';
+		const nextInFamily = 'example/Alpha-2-8B:Q4_K_M';
+		const previousGrouping = settingsStore.config.groupModelsByFamily;
+
+		settingsStore.config.groupModelsByFamily = true;
+		modelsStore.models = [option(first), option(secondFamily), option(nextInFamily)];
+		modelsStore.routerModels = [first, secondFamily, nextInFamily].map((id) =>
+			listing(id, ServerModelStatus.UNLOADED)
+		);
+		modelsStore.selectedModelId = first;
+		modelsStore.selectedModelName = first;
+		vi.spyOn(modelsStore.status, 'load').mockResolvedValue();
+		try {
+			const screen = render(PicoComposerHarness);
+
+			await screen.getByRole('button', { name: 'Model for the next response' }).click();
+			await expect.element(page.getByRole('option', { name: /Alpha 2/ })).toBeVisible();
+			await page.getByPlaceholder('Search models...').click();
+			await userEvent.keyboard('{ArrowDown}{ArrowDown}{Enter}');
+
+			await expect.poll(() => modelsStore.selectedModelName).toBe(nextInFamily);
+		} finally {
+			settingsStore.config.groupModelsByFamily = previousGrouping;
+		}
+	});
+
+	it('opens the composer picker when validation finds no selected model', async () => {
 		modelsStore.clearSelection();
 		const screen = render(PicoComposerHarness);
 
@@ -163,7 +329,7 @@ describe.runIf(IS_PICO_BUILD)('Pico composing controls', () => {
 		).toHaveLength(1);
 	});
 
-	it('preserves /model dispatch through the sole header picker', async () => {
+	it('preserves /model dispatch through the sole composer picker', async () => {
 		const screen = render(PicoComposerHarness);
 		const textarea = screen.container.querySelector('textarea');
 

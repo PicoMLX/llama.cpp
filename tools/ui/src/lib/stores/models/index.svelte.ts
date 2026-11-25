@@ -119,12 +119,12 @@ class ModelsStore implements ModelPropsHost, ModelStatusHost {
 	private linkedModelId: string | null = null;
 
 	/**
-	 * Model the active conversation view resolves to. Router mode: the user's
+	 * Model the active conversation view resolves to. With model selection: the user's
 	 * selection first, then the conversation's own model. Otherwise the single
 	 * served model, from the models list or the server props as a fallback.
 	 */
 	get activeModelId(): string | null {
-		if (!serverStore.isRouterMode) {
+		if (!serverStore.supportsModelSelection) {
 			return this.models.length > 0 ? this.models[0].model : this.singleModelName;
 		}
 
@@ -245,6 +245,16 @@ class ModelsStore implements ModelPropsHost, ModelStatusHost {
 				if (this.isModelLoaded(lastModel)) {
 					await this.props.fetchModelProps(lastModel);
 				}
+
+				return;
+			}
+		}
+
+		if (serverStore.isPicoServer && !serverStore.isRouterMode && !lastModel) {
+			const defaultModel = this.findModelByName(this.singleModelName ?? '');
+
+			if (defaultModel) {
+				await this.selectModelById(defaultModel.id);
 
 				return;
 			}
@@ -769,6 +779,16 @@ class ModelsStore implements ModelPropsHost, ModelStatusHost {
 				}
 			} else {
 				this.models = await this.fetchModelModeInternal();
+
+				if (
+					serverStore.isPicoServer &&
+					!this.selectedModelName &&
+					!this.getModelFromLastAssistantResponse()
+				) {
+					const defaultModel = this.findModelByName(this.singleModelName ?? '');
+
+					if (defaultModel) await this.selectModelById(defaultModel.id);
+				}
 			}
 		} catch (error) {
 			this.models = [];

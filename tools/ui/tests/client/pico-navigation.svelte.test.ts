@@ -1,6 +1,8 @@
+import '../../src/app.css';
 import PicoNavigationHarness from './components/PicoNavigationHarness.svelte';
+import SidebarNavigationHarness from './components/SidebarNavigationHarness.svelte';
 import { goto } from '$app/navigation';
-import { CONVERSATION_TABS_LOCALSTORAGE_KEY, IS_PICO_BUILD } from '$lib/constants';
+import { CONVERSATION_TABS_LOCALSTORAGE_KEY, IS_PICO_BUILD, ROUTES } from '$lib/constants';
 import { SidebarAction } from '$lib/enums';
 import { useKeyboardShortcuts } from '$lib/hooks/use-keyboard-shortcuts.svelte';
 import { MigrationService } from '$lib/services/migration.service';
@@ -11,11 +13,13 @@ import {
 	settingsStore,
 	tabsStore,
 	toolsStore,
+	uiStore,
 	versionStore
 } from '$lib/stores';
 import { initStores } from '$lib/stores/init';
 import { tick } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { page } from 'vitest/browser';
 import { render } from 'vitest-browser-svelte';
 
 vi.mock('$app/navigation', async (importOriginal) => ({
@@ -131,5 +135,140 @@ describe.runIf(IS_PICO_BUILD)('Pico navigation with legacy tabs enabled', () => 
 		expect(tabsStore.openTabs).toEqual([]);
 		await tabsStore.closeConversation(conversation.id);
 		expect(goto).toHaveBeenCalledWith('#/');
+	});
+});
+
+describe.runIf(IS_PICO_BUILD)('Pico collapsed sidebar actions', () => {
+	let wasExpanded: boolean;
+	let previousConversations: DatabaseConversation[];
+	let previousGroups: typeof groupsStore.groups;
+
+	beforeEach(async () => {
+		wasExpanded = uiStore.isSidebarExpanded;
+		previousConversations = conversationsStore.conversations;
+		previousGroups = groupsStore.groups;
+		uiStore.isSidebarExpanded = false;
+		conversationsStore.conversations = [conversation];
+		groupsStore.groups = [];
+		await page.viewport(1280, 900);
+	});
+
+	afterEach(() => {
+		uiStore.isSidebarExpanded = wasExpanded;
+		conversationsStore.conversations = previousConversations;
+		groupsStore.groups = previousGroups;
+	});
+
+	it('keeps both icon actions clickable while history and Settings remain inert', async () => {
+		const newChat = vi.spyOn(conversationsStore, 'openNewChat').mockResolvedValue();
+		const screen = render(SidebarNavigationHarness);
+
+		await expect
+			.element(screen.getByRole('button', { exact: true, name: 'New chat' }))
+			.toBeVisible();
+		await expect.element(screen.getByRole('button', { exact: true, name: 'Search' })).toBeVisible();
+		const aside = screen.container.querySelector('aside')!;
+
+		await expect.poll(() => Math.round(aside.getBoundingClientRect().width)).toBe(48);
+		for (const name of ['New chat', 'Search']) {
+			const button = aside.querySelector<HTMLButtonElement>(`button[aria-label="${name}"]`)!;
+			const box = button.getBoundingClientRect();
+			const rail = aside.getBoundingClientRect();
+
+			expect(button.textContent?.trim()).toBe('');
+			expect(box.width).toBeGreaterThanOrEqual(44);
+			expect(box.height).toBeGreaterThanOrEqual(44);
+			expect(box.left).toBeGreaterThanOrEqual(rail.left);
+			expect(box.right).toBeLessThanOrEqual(rail.right);
+			expect(
+				document
+					.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+					?.closest('button')
+			).toBe(button);
+		}
+		const history = aside.querySelector('[data-conversation-row]')!;
+		const protectedBody = history.closest<HTMLElement>('[inert]')!;
+
+		expect(protectedBody).not.toBeNull();
+		expect(protectedBody.textContent).toContain('Settings');
+		await expect.poll(() => getComputedStyle(protectedBody).opacity).toBe('0');
+		const historyBox = history.getBoundingClientRect();
+
+		expect(
+			protectedBody.contains(
+				document.elementFromPoint(
+					historyBox.left + historyBox.width / 2,
+					historyBox.top + historyBox.height / 2
+				)
+			)
+		).toBe(false);
+		await screen.getByRole('button', { exact: true, name: 'New chat' }).click();
+		expect(newChat).toHaveBeenCalledWith({ inNewTab: true });
+		expect(uiStore.isSidebarExpanded).toBe(false);
+	});
+
+	it('opens Search from the collapsed rail without expanding the sidebar', async () => {
+		const screen = render(SidebarNavigationHarness);
+
+		await screen.getByRole('button', { exact: true, name: 'Search' }).click();
+		await expect.element(page.getByRole('dialog', { exact: true, name: 'Search' })).toBeVisible();
+		expect(uiStore.isSidebarExpanded).toBe(false);
+	});
+
+	it('restores labeled actions and history when expanded', async () => {
+		const screen = render(SidebarNavigationHarness);
+
+		await screen.getByRole('button', { name: 'Expand navigation' }).click();
+		await expect.element(screen.getByText('New chat', { exact: true })).toBeVisible();
+		await expect.element(screen.getByText('Search', { exact: true })).toBeVisible();
+		await expect.element(screen.getByRole('button', { name: /^Settings/ })).toBeVisible();
+		await expect.element(screen.getByText(conversation.name, { exact: true })).toBeVisible();
+		expect(screen.container.querySelector('[inert]')).toBeNull();
+	});
+
+	it('keeps mobile icon actions clickable without expanding or intercepting the rest of the header', async () => {
+		await page.viewport(390, 844);
+		const newChat = vi.spyOn(conversationsStore, 'openNewChat').mockResolvedValue();
+		const screen = render(SidebarNavigationHarness);
+
+		vi.mocked(goto).mockClear();
+		await expect.element(screen.getByRole('button', { name: 'Expand navigation' })).toBeVisible();
+		await expect
+			.element(screen.getByRole('button', { exact: true, name: 'New chat' }))
+			.toBeVisible();
+		await expect.element(screen.getByRole('button', { exact: true, name: 'Search' })).toBeVisible();
+		const aside = screen.container.querySelector('aside')!;
+		const toggle = aside.querySelector('[aria-label="Expand navigation"]')!.getBoundingClientRect();
+
+		let previousRight = toggle.right;
+
+		for (const name of ['New chat', 'Search']) {
+			const button = aside.querySelector<HTMLButtonElement>(`button[aria-label="${name}"]`)!;
+			const box = button.getBoundingClientRect();
+
+			expect(button.textContent?.trim()).toBe('');
+			expect(box.width).toBeGreaterThanOrEqual(44);
+			expect(box.height).toBeGreaterThanOrEqual(44);
+			expect(box.left).toBeGreaterThanOrEqual(previousRight);
+			expect(Math.abs(box.top + box.height / 2 - toggle.top - toggle.height / 2)).toBeLessThan(1);
+			expect(
+				document
+					.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+					?.closest('button')
+			).toBe(button);
+			previousRight = box.right;
+		}
+		const rail = aside.getBoundingClientRect();
+
+		expect(
+			aside.contains(document.elementFromPoint(rail.right - 24, toggle.top + toggle.height / 2))
+		).toBe(false);
+		expect(aside.querySelector('[data-conversation-row]')?.closest('[inert]')).not.toBeNull();
+		await screen.getByRole('button', { exact: true, name: 'Search' }).click();
+		expect(goto).toHaveBeenCalledWith(ROUTES.SEARCH);
+		expect(uiStore.isSidebarExpanded).toBe(false);
+		await screen.getByRole('button', { exact: true, name: 'New chat' }).click();
+		expect(newChat).toHaveBeenCalledWith({ inNewTab: true });
+		expect(uiStore.isSidebarExpanded).toBe(false);
 	});
 });

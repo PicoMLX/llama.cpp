@@ -58,12 +58,12 @@ export class ModelPropsManager {
 	 * Whether the selected model's chat template supports thinking/reasoning.
 	 * Uses heuristic detection on the model's chat_template from /props.
 	 *
-	 * - MODEL mode: the global /props already describes the single loaded model,
+	 * - Single-model servers: the global /props describes the loaded model,
 	 *   so its chat_template is used directly and no per-model cache is involved
-	 * - ROUTER mode: reads the selected model's cached props
+	 * - Servers with model selection: reads the selected model's cached props
 	 */
 	get supportsThinking(): boolean {
-		if (!serverStore.isRouterMode) {
+		if (!serverStore.supportsModelSelection) {
 			return detectThinkingSupport(serverStore.props?.chat_template ?? '');
 		}
 
@@ -93,11 +93,10 @@ export class ModelPropsManager {
 
 	/**
 	 * Check if a specific model supports thinking.
-	 * In MODEL mode the global /props describes the single loaded model.
-	 * In ROUTER mode, reads cached model props.
+	 * Single-model servers use global /props. Servers with model selection use cached model props.
 	 */
 	checkModelSupportsThinking(modelId: string): boolean {
-		if (!serverStore.isRouterMode) {
+		if (!serverStore.supportsModelSelection) {
 			return detectThinkingSupport(serverStore.props?.chat_template ?? '');
 		}
 
@@ -189,7 +188,7 @@ export class ModelPropsManager {
 	}
 
 	getModelModalities(modelId: string): ModelModalities | null {
-		if (!serverStore.isRouterMode && serverStore.props?.modalities) {
+		if (!serverStore.supportsModelSelection && serverStore.props?.modalities) {
 			return this.buildModalities(serverStore.props.modalities);
 		}
 
@@ -236,7 +235,7 @@ export class ModelPropsManager {
 	getReasoningEfforts(modelId: string): ReasoningEffort[] {
 		let props: ApiLlamaCppServerProps | null = serverStore.props;
 
-		if (serverStore.isRouterMode) {
+		if (serverStore.supportsModelSelection) {
 			if (!modelId) return [];
 
 			props = this.getModelProps(modelId);

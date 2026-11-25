@@ -78,6 +78,7 @@
 		'focus:bg-accent',
 		IS_PICO_BUILD || isLoaded ? 'text-popover-foreground' : 'text-muted-foreground'
 	]}
+	data-model-id={option.id}
 	onclick={() => onSelect(option.id)}
 	onkeydown={onKeyDown}
 	onmouseenter={onMouseEnter}
@@ -85,25 +86,28 @@
 	tabindex="0"
 	title={loadTitle}
 >
-	{#if !IS_PICO_BUILD}
-		<ModelAvatar {option} size="size-5 max-md:size-7" />
-	{/if}
+	<ModelAvatar {option} showQuantBadge={!IS_PICO_BUILD} size="size-5 max-md:size-7" />
 
 	<div class={IS_PICO_BUILD ? 'min-w-0 flex-1' : 'contents'}>
 		<ModelId
 			aliases={option.aliases}
 			class="min-w-0 flex-1"
-			draftSidecars={IS_PICO_BUILD && !showVariant ? undefined : option.draftSidecars}
+			draftSidecars={IS_PICO_BUILD ? undefined : option.draftSidecars}
 			hideCapabilities
 			hideModalities
-			hideOrgName={IS_PICO_BUILD ? !showVariant : hideOrgName}
-			hideQuantization={IS_PICO_BUILD ? !showVariant : undefined}
-			hideTags={IS_PICO_BUILD ? !showVariant : undefined}
+			hideOrgName={IS_PICO_BUILD ? true : hideOrgName}
+			hideQuantization={IS_PICO_BUILD ? true : undefined}
+			hideTags={IS_PICO_BUILD ? true : undefined}
 			{modalities}
 			modelId={option.model}
+			readableName={IS_PICO_BUILD}
 			tags={option.tags}
 			title={option.model}
 		/>
+
+		{#if IS_PICO_BUILD && showVariant}
+			<p class="mt-0.5 break-all font-mono text-xs text-muted-foreground">{option.model}</p>
+		{/if}
 
 		{#if IS_PICO_BUILD && capabilityLabel}
 			<p class="mt-0.5 text-xs text-muted-foreground">{capabilityLabel}</p>

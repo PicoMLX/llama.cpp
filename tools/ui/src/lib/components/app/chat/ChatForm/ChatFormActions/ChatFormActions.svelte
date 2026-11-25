@@ -16,7 +16,7 @@
 	import { useChatFormModel } from '$lib/hooks/use-chat-form-model.svelte';
 	import { t } from '$lib/i18n';
 	import { ChatService } from '$lib/services';
-	import { chatStore, conversationsStore, settingsStore, uiStore } from '$lib/stores';
+	import { chatStore, conversationsStore, settingsStore } from '$lib/stores';
 	import { getFileTypeCategory } from '$lib/utils';
 
 	interface Props {
@@ -56,7 +56,7 @@
 	let currentConfig = $derived(settingsStore.config);
 
 	const formModel = useChatFormModel({
-		synchronizeSelection: () => !IS_PICO_BUILD || showModelSelector
+		synchronizeSelection: () => !IS_PICO_BUILD || (showModelSelector && !hideSubmitButton)
 	});
 
 	let hasAudioModality = $derived(formModel.hasAudioModality);
@@ -82,11 +82,7 @@
 	let selectorModelRef: ModelsSelector | undefined = $state(undefined);
 
 	export function openModelSelector() {
-		if (IS_PICO_BUILD) {
-			uiStore.openModelsSelector();
-		} else {
-			selectorModelRef?.open();
-		}
+		selectorModelRef?.open();
 	}
 	// the streaming assistant message carries both the completion id and the model that
 	// produced it, targeting reasoning control from the same source keeps them consistent
@@ -170,24 +166,22 @@
 		</div>
 	{/if}
 
-	{#if !IS_PICO_BUILD}
-		<div class="flex items-center gap-1.5">
-			{#if hasProcessedTokens}
-				<ChatFormContextGauge />
-			{/if}
+	<div class="flex min-w-0 items-center gap-1.5">
+		{#if !IS_PICO_BUILD && hasProcessedTokens}
+			<ChatFormContextGauge />
+		{/if}
 
-			{#if showModelSelector}
-				<ChatFormActionReasoning />
+		{#if showModelSelector}
+			{#if !IS_PICO_BUILD}<ChatFormActionReasoning />{/if}
 
-				<ModelsSelector
-					bind:this={selectorModelRef}
-					{disabled}
-					forceForegroundText
-					useGlobalSelection
-				/>
-			{/if}
-		</div>
-	{/if}
+			<ModelsSelector
+				bind:this={selectorModelRef}
+				{disabled}
+				forceForegroundText
+				useGlobalSelection
+			/>
+		{/if}
+	</div>
 
 	{#if !hideSubmitButton && isReasoning && !canSend}
 		<Button

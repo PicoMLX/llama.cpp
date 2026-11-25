@@ -20,6 +20,7 @@ interface UseChatFormModelOptions {
 
 export function useChatFormModel(options: UseChatFormModelOptions = {}) {
 	const isRouter = $derived(serverStore.isRouterMode);
+	const supportsModelSelection = $derived(serverStore.supportsModelSelection);
 	const conversationModel = $derived(
 		getConversationModel(conversationsStore.activeMessages as DatabaseMessage[])
 	);
@@ -128,11 +129,11 @@ export function useChatFormModel(options: UseChatFormModelOptions = {}) {
 		return activeModelId ? modelsStore.props.modelSupportsVision(activeModelId) : false;
 	});
 	const hasModelSelected = $derived(
-		!isRouter ||
+		!supportsModelSelection ||
 			(IS_PICO_BUILD ? !!activeModelId : !!conversationModel || !!modelsStore.selectedModelId)
 	);
 	const isSelectedModelInCache = $derived.by(() => {
-		if (!isRouter) return true;
+		if (!supportsModelSelection) return true;
 
 		if (IS_PICO_BUILD) return activeModelId !== null;
 

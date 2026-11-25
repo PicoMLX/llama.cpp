@@ -17,7 +17,6 @@
 	} from '$lib/constants';
 	import { ModelDownloadConfirmAction } from '$lib/enums';
 	import { modelsStore, settingsStore } from '$lib/stores';
-	import type { ModelOption } from '$lib/types/models';
 	import {
 		type GroupedModelOptions,
 		groupModelFamilies,
@@ -40,7 +39,6 @@
 		loaded?: ModelItem[];
 		/** Show the organization name in every model id of the list. */
 		showOrgName?: boolean;
-		simpleOptions?: ModelOption[];
 	}
 
 	let {
@@ -52,8 +50,7 @@
 		onSelect,
 		renderOption,
 		sectionHeaderClass = 'm-0 px-2 py-2 text-[13px] font-semibold text-muted-foreground/70 select-none',
-		showOrgName = true,
-		simpleOptions
+		showOrgName = true
 	}: Props = $props();
 	let render = $derived(renderOption ?? defaultOption);
 	// a large catalog mounts a window at a time: the sentinel at the end of the list
@@ -65,12 +62,11 @@
 		groups.available.reduce((count, group) => count + group.items.length, 0)
 	);
 	const hasMoreLocal = $derived(localGroups.shown < localRowCount);
-	const hasMoreRows = $derived(simpleOptions ? simpleOptions.length > visibleCount : hasMoreLocal);
 
 	$effect(() => {
 		const sentinel = sentinelEl;
 
-		if (!sentinel || !hasMoreRows) return;
+		if (!sentinel || !hasMoreLocal) return;
 
 		// scroll does not bubble, so listen in the capture phase and ask the
 		// sentinel where it is instead of guessing which ancestor scrolls
@@ -172,85 +168,75 @@
 	/>
 {/snippet}
 
-{#if simpleOptions}
-	{#each simpleOptions.slice(0, visibleCount) as option (option.id)}
-		{@render render({ option }, !showOrgName)}
-	{/each}
+{#if loaded.length > 0}
+	<ModelsSection
+		count={loaded.length}
+		label="Loaded models"
+		persistKey="loaded"
+		revealChevronOnHover
+		sticky
+	>
+		{#snippet icon()}
+			<Power class="h-3.5 w-3.5 shrink-0" />
+		{/snippet}
 
-	{#if hasMoreRows}
+		{#each loaded as item (item.option.id)}
+			{@render render(item, !showOrgName)}
+		{/each}
+	</ModelsSection>
+{/if}
+
+{#if favorites.length > 0}
+	<!-- Favorites come first; the sections below skip them -->
+	<ModelsSection label="Favorites" persistKey="favorites" revealChevronOnHover sticky>
+		{#snippet icon()}
+			<Heart class="h-3.5 w-3.5 shrink-0" />
+		{/snippet}
+
+		{#each favorites as item (`fav-${item.option.id}`)}
+			{@render render(item, !showOrgName)}
+		{/each}
+	</ModelsSection>
+{/if}
+
+{#if downloadEntries.length > 0}
+	<p class={headerClass} style={headerStyle}>Downloading</p>
+
+	{#each downloadEntries as entry (entry.repoWithTag)}
+		<ModelsSelectorDownloadItem
+			{entry}
+			onRequestCancel={requestCancel}
+			{showOrgName}
+			sidecars={modelsStore.status.getDraftSidecars(repoOf(entry.repoWithTag))}
+		/>
+	{/each}
+{/if}
+
+{#snippet localRows()}
+	{@render listRows(
+		localGroups.available.flatMap((group) => group.items),
+		'local'
+	)}
+
+	{#if hasMoreLocal}
 		<div bind:this={sentinelEl} aria-hidden="true" class="h-px"></div>
 	{/if}
-{:else}
-	{#if loaded.length > 0}
-		<ModelsSection
-			count={loaded.length}
-			label="Loaded models"
-			persistKey="loaded"
-			revealChevronOnHover
-			sticky
-		>
-			{#snippet icon()}
-				<Power class="h-3.5 w-3.5 shrink-0" />
-			{/snippet}
+{/snippet}
 
-			{#each loaded as item (item.option.id)}
-				{@render render(item, !showOrgName)}
-			{/each}
-		</ModelsSection>
-	{/if}
+{#if groups.available.length > 0}
+	<ModelsSection label="Local models" persistKey={LOCAL_BACKEND_ID} revealChevronOnHover sticky>
+		{#snippet icon()}
+			<Logo class="shrink-0" style="--size: 0.875rem" />
+		{/snippet}
 
-	{#if favorites.length > 0}
-		<!-- Favorites come first; the sections below skip them -->
-		<ModelsSection label="Favorites" persistKey="favorites" revealChevronOnHover sticky>
-			{#snippet icon()}
-				<Heart class="h-3.5 w-3.5 shrink-0" />
-			{/snippet}
-
-			{#each favorites as item (`fav-${item.option.id}`)}
-				{@render render(item, !showOrgName)}
-			{/each}
-		</ModelsSection>
-	{/if}
-
-	{#if downloadEntries.length > 0}
-		<p class={headerClass} style={headerStyle}>Downloading</p>
-
-		{#each downloadEntries as entry (entry.repoWithTag)}
-			<ModelsSelectorDownloadItem
-				{entry}
-				onRequestCancel={requestCancel}
-				{showOrgName}
-				sidecars={modelsStore.status.getDraftSidecars(repoOf(entry.repoWithTag))}
-			/>
-		{/each}
-	{/if}
-
-	{#snippet localRows()}
-		{@render listRows(
-			localGroups.available.flatMap((group) => group.items),
-			'local'
-		)}
-
-		{#if hasMoreLocal}
-			<div bind:this={sentinelEl} aria-hidden="true" class="h-px"></div>
-		{/if}
-	{/snippet}
-
-	{#if groups.available.length > 0}
-		<ModelsSection label="Local models" persistKey={LOCAL_BACKEND_ID} revealChevronOnHover sticky>
-			{#snippet icon()}
-				<Logo class="shrink-0" style="--size: 0.875rem" />
-			{/snippet}
-
-			{@render localRows()}
-		</ModelsSection>
-	{/if}
-
-	<DialogConfirmDownload
-		action={ModelDownloadConfirmAction.CANCEL}
-		onClose={() => (cancelOpen = false)}
-		onConfirm={() => void modelsStore.status.cancelDownload(pendingCancel)}
-		open={cancelOpen}
-		repoWithTag={pendingCancel}
-	/>
+		{@render localRows()}
+	</ModelsSection>
 {/if}
+
+<DialogConfirmDownload
+	action={ModelDownloadConfirmAction.CANCEL}
+	onClose={() => (cancelOpen = false)}
+	onConfirm={() => void modelsStore.status.cancelDownload(pendingCancel)}
+	open={cancelOpen}
+	repoWithTag={pendingCancel}
+/>

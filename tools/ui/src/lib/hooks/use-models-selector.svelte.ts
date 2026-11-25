@@ -8,6 +8,7 @@ import {
 	groupModelOptions,
 	type ModelItem
 } from '$lib/utils';
+import { modelDisplayNameKey } from '$lib/utils/model-display-name';
 import { nameOf } from '$lib/utils/model-names';
 import { onMount } from 'svelte';
 import { SvelteMap, SvelteSet } from 'svelte/reactivity';
@@ -70,18 +71,19 @@ export function useModelsSelector(opts: UseModelsSelectorOptions): UseModelsSele
 	const activeId = $derived(modelsStore.selectedModelId);
 	// a lone llama.cpp server without a router has nothing to choose from
 	const isRouter = $derived(serverStore.isRouterMode);
+	const supportsModelSelection = $derived(serverStore.supportsModelSelection);
 	const serverModel = $derived(modelsStore.singleModelName);
 	const currentModel = $derived(opts.currentModel());
 	const onModelChange = $derived(opts.onModelChange?.());
 	const isHighlightedCurrentModelActive = $derived.by(() => {
-		if (!isRouter || !currentModel) return false;
+		if (!supportsModelSelection || !currentModel) return false;
 
 		const currentOption = options.find((option) => option.model === currentModel);
 
 		return currentOption ? currentOption.id === activeId : false;
 	});
 	const isCurrentModelInCache = $derived.by(() => {
-		if (!isRouter || !currentModel) return true;
+		if (!supportsModelSelection || !currentModel) return true;
 
 		return options.some((option) => option.model === currentModel);
 	});
@@ -94,8 +96,7 @@ export function useModelsSelector(opts: UseModelsSelectorOptions): UseModelsSele
 		const counts = new SvelteMap<string, number>();
 		const labels = visibleOptions.map((option) => {
 			const parsed = ModelsService.parseModelId(option.model);
-			const name = option.aliases?.length === 1 ? option.aliases[0] : parsed.modelName;
-			const label = `${name}:${parsed.params ?? ''}:${parsed.sidecar ?? ''}`;
+			const label = modelDisplayNameKey(parsed, option.aliases);
 
 			counts.set(label, (counts.get(label) ?? 0) + 1);
 
@@ -143,7 +144,7 @@ export function useModelsSelector(opts: UseModelsSelectorOptions): UseModelsSele
 
 		// a single-model desktop server has no list: the trigger opens the manager
 		// instead. a phone has no manager, so its drawer opens with the one model
-		if (!IS_PICO_BUILD && !isRouter && !deviceStore.isMobile) {
+		if (!IS_PICO_BUILD && !supportsModelSelection && !deviceStore.isMobile) {
 			if (open) uiStore.openModelsManager();
 
 			return;
@@ -203,7 +204,7 @@ export function useModelsSelector(opts: UseModelsSelectorOptions): UseModelsSele
 	}
 
 	function getDisplayOption(): ModelOption | undefined {
-		if (!isRouter) {
+		if (!supportsModelSelection) {
 			const displayModel = serverModel || currentModel;
 
 			if (displayModel) {
@@ -288,7 +289,7 @@ export function useModelsSelector(opts: UseModelsSelectorOptions): UseModelsSele
 		},
 
 		get isMultiModel() {
-			return isRouter;
+			return supportsModelSelection;
 		},
 
 		get isRouter() {

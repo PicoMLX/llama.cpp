@@ -467,7 +467,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 			value !== undefined && value !== null && value !== '';
 		const apiOptions: Record<string, unknown> = { stream: true, timings_per_token: true };
 
-		if (serverStore.isRouterMode) {
+		if (serverStore.supportsModelSelection) {
 			const modelName = modelsStore.selectedModelName;
 
 			if (modelName) apiOptions.model = modelName;
@@ -1028,12 +1028,18 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		// and reattach all agree, regardless of fresh send vs regenerate passing a resolved model
 		let effectiveModel: string | null | undefined = undefined;
 
-		if (serverStore.isRouterMode) {
+		if (serverStore.supportsModelSelection) {
 			const conversationModel = getConversationModel(allMessages);
 
-			effectiveModel = modelOverride || modelsStore.selectedModelName || conversationModel;
+			effectiveModel =
+				modelOverride ||
+				(requestSnapshot.options.model as string | undefined) ||
+				modelsStore.selectedModelName ||
+				conversationModel;
 		}
 
+		const streamModel = serverStore.isRouterMode ? effectiveModel : undefined;
+		const preserveModelId = serverStore.isPicoServer;
 		// a router serves the props the request options read once the model is loaded, so the
 		// request waits for the load, and a stop during the wait aborts it
 		const abortController = this.getOrCreateAbortController(assistantMessage.convId);
@@ -1042,9 +1048,12 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 			await modelsStore.status.ensureLoaded(effectiveModel);
 
 			if (abortController.signal.aborted) return;
+		}
 
-			if (!modelsStore.props.getModelProps(effectiveModel))
-				await modelsStore.props.fetchModelProps(effectiveModel);
+		if (effectiveModel && !modelsStore.props.getModelProps(effectiveModel)) {
+			await modelsStore.props.fetchModelProps(effectiveModel);
+
+			if (abortController.signal.aborted) return;
 		}
 
 		const requestOptions = { ...requestSnapshot.options };
@@ -1099,12 +1108,12 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 
 		// freeze the POST identity from t0 so a stop cancels with the exact session key,
 		// never a stale or empty model resolved later
-		this.setChatStreaming(convId, streamedContent, currentMessageId, effectiveModel);
+		this.setChatStreaming(convId, streamedContent, currentMessageId, streamModel);
 
 		const recordModel = (modelName: string | null | undefined, persistImmediately = true): void => {
 			if (!modelName) return;
 
-			const n = normalizeModelName(modelName);
+			const n = preserveModelId ? modelName.trim() : normalizeModelName(modelName);
 
 			if (!n || n === resolvedModel) return;
 
@@ -1132,7 +1141,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 			});
 		};
 		const updateStreamingUI = () => {
-			this.setChatStreaming(convId, streamedContent, currentMessageId, effectiveModel);
+			this.setChatStreaming(convId, streamedContent, currentMessageId, streamModel);
 			updateActiveFlowMessage(currentMessageId, { content: streamedContent });
 		};
 		const cleanupStreamingState = () => {
@@ -1174,7 +1183,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 
 				currentMessageId = msg.id;
 				lastCreatedInFlow = msg.id;
-				this.setChatStreaming(convId, '', msg.id, effectiveModel);
+				this.setChatStreaming(convId, '', msg.id, streamModel);
 
 				return msg;
 			},
@@ -1321,7 +1330,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 					convId,
 					streamedContent,
 					currentMessageId,
-					effectiveModel,
+					streamModel,
 					streamedReasoningContent
 				);
 				updateActiveFlowMessage(currentMessageId, {
@@ -1548,7 +1557,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		convId: string
 	): Promise<void> {
 		const effectiveModel =
-			serverStore.isRouterMode && modelsStore.selectedModelName
+			serverStore.supportsModelSelection && modelsStore.selectedModelName
 				? modelsStore.selectedModelName
 				: undefined;
 		const configValue = settingsStore.config;
@@ -1740,9 +1749,10 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		// Model resolution mirrors the request funnel: the selected model
 		// first, then the model the branch was generated with, so router
 		// mode targets the child that owns this conversation's KV cache.
-		const effectiveModel = serverStore.isRouterMode
+		const effectiveModel = serverStore.supportsModelSelection
 			? modelsStore.selectedModelName || getConversationModel(source)
 			: undefined;
+		const streamModel = serverStore.isRouterMode ? effectiveModel : undefined;
 
 		let summary = '';
 		// a summary the output limit cut is no summary
@@ -1859,7 +1869,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 
 			if (isAbortError(error)) {
 				// The server keeps generating a detached summary otherwise.
-				void ChatService.cancelServerStream(compactionStreamId, effectiveModel);
+				void ChatService.cancelServerStream(compactionStreamId, streamModel);
 			} else {
 				console.error('Failed to compact conversation:', error);
 				this.showErrorDialog({

@@ -24,7 +24,6 @@
 		ms: UseModelsSelectorReturn;
 		currentModel?: string | null;
 		disabled?: boolean;
-		header?: boolean;
 		/** Model id the list highlights from the keyboard; the owner tracks it. */
 		highlightedId?: string | null;
 		/** Bind the menu's open state, so the owner sees the close too. */
@@ -39,7 +38,6 @@
 	let {
 		currentModel = null,
 		disabled = false,
-		header = false,
 		highlightedId = null,
 		ms,
 		onHighlight,
@@ -104,10 +102,13 @@
 	<span class="flex min-w-0 items-center gap-0.5">
 		{#if selectedOption}
 			<ModelId
+				aliases={IS_PICO_BUILD ? selectedOption.aliases : undefined}
 				class="min-w-0 overflow-hidden"
 				hideOrgName={!showOrgName}
 				hideQuantization
+				hideTags={IS_PICO_BUILD ? true : undefined}
 				modelId={selectedOption.model}
+				readableName={IS_PICO_BUILD}
 			/>
 		{:else}
 			<span class="min-w-0 font-medium">Select model</span>
@@ -156,16 +157,14 @@
 			{#snippet child({ props })}
 				<DropdownMenu.Trigger
 					{...props}
-					aria-label={header ? 'Model for the next response' : undefined}
+					aria-label={IS_PICO_BUILD ? 'Model for the next response' : undefined}
 					class={[
-						header
-							? 'relative inline-flex min-h-11 min-w-11 cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-lg hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60'
-							: `relative inline-grid cursor-pointer grid-cols-[1fr_auto_1fr] items-center gap-1 rounded-sm bg-background px-1.5 py-1 text-xs shadow-sm transition hover:bg-muted-foreground/20 max-md:h-8 max-md:px-2.25 max-md:py-1.25 max-md:text-[13px] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-muted-foreground/15 dark:text-secondary-foreground`,
+						'relative inline-grid min-w-0 cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1 rounded-sm bg-background px-1.5 py-1 text-xs shadow-sm transition hover:bg-muted-foreground/20 max-md:h-8 max-md:px-2.25 max-md:py-1.25 max-md:text-[13px] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-muted-foreground/15 dark:text-secondary-foreground',
 						!ms.isCurrentModelInCache
 							? 'bg-red-400/10 !text-red-400 hover:bg-red-400/20 hover:text-red-400'
 							: 'text-foreground',
 						open && 'text-foreground',
-						'max-w-[min(calc(100vw-4rem) md:max-w-[min(calc(100cqw-9rem),25rem)]'
+						'max-w-[min(calc(100cqw-9rem),25rem)]'
 					]}
 					disabled={disabled || ms.updating}
 				>
@@ -241,6 +240,7 @@
 					hideOrgName={!showOrgName}
 					hideQuantization
 					modelId={currentModel}
+					readableName={IS_PICO_BUILD}
 				/>
 
 				<span class="ml-2 text-xs whitespace-nowrap opacity-70">(not available)</span>
@@ -261,7 +261,6 @@
 			renderOption={modelOption}
 			sectionHeaderClass="[&:not(:first-child)]:mt-1 mb-1 px-2 py-2 text-[13px] font-semibold text-foreground/80 select-none"
 			{showOrgName}
-			simpleOptions={IS_PICO_BUILD ? ms.filteredOptions : undefined}
 		/>
 	</div>
 {/snippet}
