@@ -335,7 +335,24 @@
 	>
 {/snippet}
 
-{#if ms.loading && ms.options.length === 0 && (ms.isMultiModel || IS_PICO_BUILD)}
+{#if IS_PICO_BUILD && !ms.isMultiModel}
+	<span
+		aria-label="Response model"
+		class="inline-flex min-w-0 items-center px-1.5 py-1 text-xs text-muted-foreground"
+	>
+		{#if modelsStore.activeModelId}
+			<ModelId
+				hideOrgName
+				hideQuantization
+				hideTags
+				modelId={modelsStore.activeModelId}
+				readableName
+			/>
+		{:else}
+			{t('pico.models.empty')}
+		{/if}
+	</span>
+{:else if ms.loading && ms.options.length === 0 && (ms.isMultiModel || IS_PICO_BUILD)}
 	<div class="flex items-center gap-2 text-xs text-muted-foreground">
 		<Loader2 class="h-3.5 w-3.5 animate-spin" />
 

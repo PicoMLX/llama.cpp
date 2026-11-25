@@ -140,6 +140,8 @@ export function useModelsSelector(opts: UseModelsSelectorOptions): UseModelsSele
 	});
 
 	function handleOpenChange(open: boolean) {
+		if (IS_PICO_BUILD && !supportsModelSelection) return;
+
 		if (loading || updating) return;
 
 		// a single-model desktop server has no list: the trigger opens the manager
@@ -160,6 +162,8 @@ export function useModelsSelector(opts: UseModelsSelectorOptions): UseModelsSele
 	}
 
 	async function handleSelect(modelId: string) {
+		if (serverStore.isPicoServer && !supportsModelSelection) return;
+
 		const option = options.find((opt) => opt.id === modelId);
 
 		if (!option) return;
@@ -191,6 +195,7 @@ export function useModelsSelector(opts: UseModelsSelectorOptions): UseModelsSele
 		if (
 			!onModelChange &&
 			isRouter &&
+			!serverStore.isPicoServer &&
 			!modelsStore.isModelLoaded(option.model) &&
 			!modelsStore.isModelLoading(option.model)
 		) {

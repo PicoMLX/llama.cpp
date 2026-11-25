@@ -1,6 +1,8 @@
 import { API_CHAT, LEGACY_AGENTIC_REGEX as AGENTIC_REGEX } from '$lib/constants';
 import { IS_PICO_BUILD } from '$lib/constants/app.constants';
 import { AttachmentType, MessageRole, StreamConnectionState } from '$lib/enums';
+import { modelsStore } from '$lib/stores/models/index.svelte';
+import { serverStore } from '$lib/stores/server.svelte';
 import type {
 	ApiChatCompletionToolCall,
 	DatabaseMessageExtraMcpPrompt,
@@ -350,6 +352,10 @@ export class OpenResponsesService {
 			} catch (error) {
 				console.warn('Failed to parse custom parameters:', error);
 			}
+		}
+
+		if (serverStore.isPicoServer && !serverStore.supportsModelSelection) {
+			requestBody.model = modelsStore.activeModelId ?? undefined;
 		}
 
 		try {

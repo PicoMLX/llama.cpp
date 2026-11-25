@@ -4,7 +4,7 @@
 	import { page } from '$app/state';
 	import { DialogModelNotAvailable } from '$lib/components/app';
 	import { APP_NAME, IS_PICO_BUILD, ROUTES, URL_PARAMS } from '$lib/constants';
-	import { chatStore, conversationsStore, modelsStore } from '$lib/stores';
+	import { chatStore, conversationsStore, modelsStore, serverStore } from '$lib/stores';
 
 	let chatId = $derived(page.params.id);
 	let currentChatId: string | undefined = undefined;
@@ -37,7 +37,7 @@
 		await modelsStore.fetch();
 
 		// Handle model parameter - select model if provided
-		if (modelParam) {
+		if (modelParam && (!serverStore.isPicoServer || serverStore.supportsModelSelection)) {
 			const model = modelsStore.findModelByName(modelParam);
 
 			if (model) {

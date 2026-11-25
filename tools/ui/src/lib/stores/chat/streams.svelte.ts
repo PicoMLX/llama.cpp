@@ -17,6 +17,7 @@ import type { ChatProcessingStore } from '$lib/stores/chat/processing.svelte';
 // direct imports between stores, not via the barrel, to avoid circular deps
 import { conversationsStore } from '$lib/stores/conversations/index.svelte';
 import { modelsStore } from '$lib/stores/models/index.svelte';
+import { serverStore } from '$lib/stores/server.svelte';
 import type { ApiStreamSession, ChatMessageTimings, DatabaseMessage } from '$lib/types';
 import { streamIdentity } from '$lib/utils';
 import { SvelteMap, SvelteSet } from 'svelte/reactivity';
@@ -91,7 +92,7 @@ export class ChatStreamManager {
 			const streamId = ChatService.resumeStreamIdentity(
 				convId,
 				localState,
-				modelsStore.selectedModelName
+				serverStore.isPicoServer ? null : modelsStore.selectedModelName
 			);
 			// primary path: ask the server which sessions exist for this identity
 			const serverTarget = await this.probeServerStream(streamId);
@@ -250,7 +251,9 @@ export class ChatStreamManager {
 		// fetch the replay stream from byte 0, rebuild the assistant message from scratch.
 		// resolve the server side identity, fall back to streamIdentity when the caller does not
 		// pass a streamId. probeServerStream returns the full id (with ::model suffix when present)
-		const id = streamId || streamIdentity(convId, modelsStore.selectedModelName);
+		const id =
+			streamId ||
+			streamIdentity(convId, serverStore.isPicoServer ? null : modelsStore.selectedModelName);
 
 		let response: Response;
 

@@ -189,11 +189,17 @@ const origin = `http://${lanHTTP ? 'pico.test' : '127.0.0.1'}:${server.address()
 async function assertPicoChatSurface(page) {
 	const picker = page.getByRole('button', { exact: true, name: 'Model for the next response' });
 
-	await expect(picker).toHaveCount(1);
-	await expect(picker).toBeVisible();
-	await expect(
-		page.locator('form').getByRole('button', { name: 'Model for the next response' })
-	).toHaveCount(1);
+	if (mode === 'model') {
+		await expect(picker).toHaveCount(0);
+		await expect(page.locator('form').getByLabel('Response model')).toHaveText(/test/i);
+	} else {
+		await expect(picker).toHaveCount(1);
+		await expect(picker).toBeVisible();
+		await expect(
+			page.locator('form').getByRole('button', { name: 'Model for the next response' })
+		).toHaveCount(1);
+	}
+
 	await expect(page.getByRole('navigation', { name: 'Open conversations' })).toHaveCount(0);
 	await expect(page.locator('[data-context-gauge-trigger]')).toHaveCount(0);
 	const sidebar = page.locator('aside');
@@ -427,6 +433,10 @@ try {
 				.fill('Tell a joke.');
 			await page.getByRole('button', { exact: true, name: 'Send' }).click();
 			await page.getByText("Because they don't have the guts!", { exact: true }).waitFor();
+			assert.equal(
+				requests.find(({ path }) => path === '/v1/responses')?.body.model,
+				'smoke/test-4bit'
+			);
 			await expect(page.locator('.chat-message-user .pico-response-metrics')).toHaveCount(0);
 			const metrics = page.locator('.chat-message-assistant .pico-response-metrics').first();
 

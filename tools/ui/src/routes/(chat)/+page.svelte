@@ -28,7 +28,7 @@
 	async function handleUrlParams() {
 		await modelsStore.fetch();
 
-		if (modelParam) {
+		if (modelParam && (!serverStore.isPicoServer || serverStore.supportsModelSelection)) {
 			const model = modelsStore.findModelByName(modelParam);
 
 			if (model) {
@@ -40,6 +40,7 @@
 					if (
 						loadParam === 'true' &&
 						serverStore.isRouterMode &&
+						!serverStore.isPicoServer &&
 						!modelsStore.isModelLoaded(model.id)
 					) {
 						modelsStore.status
