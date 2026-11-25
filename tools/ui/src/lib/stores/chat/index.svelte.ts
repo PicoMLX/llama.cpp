@@ -1515,6 +1515,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 				onError: streamCallbacks.onError,
 				onModel: streamCallbacks.onModel,
 				onReasoningChunk: streamCallbacks.onReasoningChunk,
+				onReasoningEnd: streamCallbacks.onReasoningEnd,
 				onTimings: streamCallbacks.onTimings,
 				stream: true
 			},
