@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { IS_PICO_BUILD } from '$lib/constants/app.constants';
 	import type { UseProcessingStateReturn } from '$lib/hooks/use-processing-state.svelte';
 	import { fade } from 'svelte/transition';
 
@@ -18,8 +19,7 @@
 		<span class="shimmer-text text-sm">
 			{modelLoadingText ??
 				processingState.getPromptProgressText() ??
-				processingState.getProcessingMessage() ??
-				'Processing...'}
+				(processingState.getProcessingMessage() || (IS_PICO_BUILD ? 'Processing...' : ''))}
 		</span>
 	</div>
 </div>

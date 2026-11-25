@@ -35,10 +35,14 @@
 		toolMessages = []
 	}: Props = $props();
 
-	// The chat-level streaming flag is shared by every message; only the last
-	// assistant message is actually live, so earlier ones must not keep their
-	// unresolved tool calls spinning while a newer reply streams.
-	const isStreaming = $derived(isChatStreaming && isLastAssistantMessage);
+	const stream = $derived(IS_PICO_BUILD ? chatStore.getChatStreaming(message.convId) : undefined);
+	const isStreaming = $derived(
+		isChatStreaming &&
+			(stream
+				? stream.messageId === message.id ||
+					toolMessages.some((turn) => turn.id === stream.messageId)
+				: isLastAssistantMessage)
+	);
 
 	let expandedStates: Record<number, boolean> = $state({});
 	let cardActionPending = false;
@@ -86,7 +90,8 @@
 	);
 
 	const hasReasoningError = $derived(
-		isLastAssistantMessage ? !!agenticStore.getLastError(message.convId) : false
+		(IS_PICO_BUILD && chatStore.getResponseError(message.convId)?.messageId === message.id) ||
+			(isLastAssistantMessage ? !!agenticStore.getLastError(message.convId) : false)
 	);
 
 	const pendingPermission = $derived(
@@ -128,7 +133,17 @@
 		agenticStore.resolveContinue(message.convId, shouldContinue);
 	}
 
-	const sections = $derived(deriveAgenticSections(message, toolMessages, [], isStreaming));
+	const sections = $derived(
+		deriveAgenticSections(
+			message,
+			toolMessages,
+			[],
+			isStreaming,
+			IS_PICO_BUILD && stream?.reasoning !== undefined
+				? { active: stream.reasoning, messageId: stream.messageId }
+				: undefined
+		)
+	);
 
 	const currentlyExecutingToolCallId = $derived(
 		isStreaming ? agenticStore.getExecutingToolCallId(message.convId) : null

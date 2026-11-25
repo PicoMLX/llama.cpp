@@ -36,6 +36,7 @@ export interface ChatStreamHost {
 	streamConnectionState: StreamConnectionState;
 	getOrCreateAbortController(convId: string): AbortController;
 	setChatLoading(convId: string, loading: boolean): void;
+	setChatReasoning(convId: string, reasoning: boolean): void;
 	setChatStreaming(
 		convId: string,
 		response: string,
@@ -369,6 +370,12 @@ export class ChatStreamManager {
 		let streamedContent = '';
 		let streamedReasoningContent = '';
 
+		const existingReasoningMs = targetMessage.timings?.reasoning_ms;
+
+		let reasoningMs = existingReasoningMs;
+
+		const replayTimings = (timings: ChatMessageTimings | undefined) =>
+			reasoningMs === undefined ? timings : { ...timings, reasoning_ms: reasoningMs };
 		const cleanup = () => {
 			unlock();
 			this.host.processing.setState(convId, null);
@@ -383,6 +390,7 @@ export class ChatStreamManager {
 
 					writeActive({ content: displayed });
 					this.host.setChatStreaming(convId, displayed, targetMessageId);
+					this.host.setChatReasoning(convId, false);
 				},
 				async (
 					finalContent?: string,
@@ -390,6 +398,7 @@ export class ChatStreamManager {
 					timings?: ChatMessageTimings,
 					toolCalls?: string
 				) => {
+					timings = replayTimings(timings);
 					const streamed = streamedContent || finalContent || '';
 					const streamedR = streamedReasoningContent || reasoningContent || '';
 					const content = isAppendMode ? existingContent + streamed : streamed;
@@ -421,11 +430,27 @@ export class ChatStreamManager {
 						: streamedReasoningContent;
 
 					writeActive({ reasoningContent: displayed });
+					this.host.setChatReasoning(convId, true);
 				},
 				undefined,
 				undefined,
 				undefined,
-				undefined,
+				(timings) => {
+					if (timings?.reasoning_ms === undefined) return;
+
+					const total = (isAppendMode ? (existingReasoningMs ?? 0) : 0) + timings.reasoning_ms;
+
+					if (total === reasoningMs) return;
+
+					reasoningMs = total;
+					const updates = { timings: replayTimings(timings) };
+
+					writeActive(updates);
+
+					if (!isAppendMode) {
+						DatabaseService.updateMessage(targetMessageId, updates).catch(console.error);
+					}
+				},
 				convId,
 				abortController.signal,
 				(connState: StreamConnectionState) => {
@@ -433,8 +458,22 @@ export class ChatStreamManager {
 						this.host.streamConnectionState = connState;
 					}
 				},
-				attachedModel
+				attachedModel,
+				true,
+				() => this.host.setChatReasoning(convId, false)
 			);
+
+			if (abortController.signal.aborted && reasoningMs !== existingReasoningMs) {
+				const saved = (await DatabaseService.getConversationMessages(convId)).find(
+					(message) => message.id === targetMessageId
+				);
+
+				if (saved) {
+					await DatabaseService.updateMessage(targetMessageId, {
+						timings: { ...saved.timings, reasoning_ms: reasoningMs }
+					});
+				}
+			}
 		} catch (e) {
 			console.error('attachServerStream pipe crashed:', e);
 			cleanup();

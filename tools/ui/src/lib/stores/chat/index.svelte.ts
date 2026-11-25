@@ -71,7 +71,13 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 	chatReasoningStates = new SvelteMap<string, boolean>();
 	chatStreamingStates = new SvelteMap<
 		string,
-		{ response: string; messageId: string; model?: string | null; reasoningContent?: string }
+		{
+			response: string;
+			messageId: string;
+			model?: string | null;
+			reasoning?: boolean;
+			reasoningContent?: string;
+		}
 	>();
 	errorDialogState = $state<ErrorDialogState | null>(null);
 	// true while the active conversation has a local pipe (send, attach or resume-wait)
@@ -546,7 +552,9 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		return apiOptions;
 	}
 
-	getChatStreaming(convId: string): { response: string; messageId: string } | undefined {
+	getChatStreaming(
+		convId: string
+	): { response: string; messageId: string; reasoning?: boolean } | undefined {
 		return this.getChatStreamingState(convId);
 	}
 
@@ -934,6 +942,12 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 	setChatReasoning(convId: string, reasoning: boolean): void {
 		if (reasoning) this.chatReasoningStates.set(convId, true);
 		else this.chatReasoningStates.delete(convId);
+
+		const stream = this.chatStreamingStates.get(convId);
+
+		if (stream && stream.reasoning !== reasoning) {
+			this.chatStreamingStates.set(convId, { ...stream, reasoning });
+		}
 	}
 
 	setChatStreaming(
@@ -948,6 +962,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		this.chatStreamingStates.set(convId, {
 			messageId,
 			model: model ?? previous?.model,
+			reasoning: previous?.messageId === messageId ? previous.reasoning : undefined,
 			reasoningContent:
 				reasoningContent ??
 				(previous?.messageId === messageId ? previous.reasoningContent : undefined),
@@ -1073,6 +1088,12 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		let currentMessageId = assistantMessage.id;
 		let streamedContent = '';
 		let streamedReasoningContent = '';
+		let currentReasoningMs: number | undefined;
+		let anchorReasoningMs: number | undefined;
+
+		const anchorTimings = (timings: ChatMessageTimings): ChatMessageTimings =>
+			IS_PICO_BUILD ? { ...timings, reasoning_ms: anchorReasoningMs } : timings;
+
 		let resolvedModel: string | null = null;
 		let modelPersisted = false;
 
@@ -1182,6 +1203,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 				}
 
 				currentMessageId = msg.id;
+				currentReasoningMs = undefined;
 				lastCreatedInFlow = msg.id;
 				this.setChatStreaming(convId, '', msg.id, streamModel);
 
@@ -1305,6 +1327,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 			},
 			onFlowComplete: (finalTimings?: ChatMessageTimings) => {
 				if (finalTimings) {
+					finalTimings = anchorTimings(finalTimings);
 					updateActiveFlowMessage(assistantMessage.id, { timings: finalTimings });
 					DatabaseService.updateMessage(assistantMessage.id, {
 						timings: finalTimings
@@ -1338,8 +1361,18 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 				});
 				this.setChatReasoning(convId, true);
 			},
+			onReasoningEnd: () => this.setChatReasoning(convId, false),
 			onTimings: (timings?: ChatMessageTimings, promptProgress?: ChatMessagePromptProgress) => {
 				this.processing.applyStreamTimings(timings, promptProgress, convId);
+
+				if (timings?.reasoning_ms !== undefined && timings.reasoning_ms !== currentReasoningMs) {
+					currentReasoningMs = timings.reasoning_ms;
+
+					if (currentMessageId === assistantMessage.id) anchorReasoningMs = currentReasoningMs;
+
+					updateActiveFlowMessage(currentMessageId, { timings });
+					DatabaseService.updateMessage(currentMessageId, { timings }).catch(console.error);
+				}
 			},
 			onToolCallsStreaming: (toolCalls) => {
 				updateActiveFlowMessage(currentMessageId, {
@@ -1348,7 +1381,9 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 			},
 			onTurnComplete: (intermediateTimings: ChatMessageTimings) => {
 				// Update the first assistant message with cumulative agentic timings
-				updateActiveFlowMessage(assistantMessage.id, { timings: intermediateTimings });
+				updateActiveFlowMessage(assistantMessage.id, {
+					timings: anchorTimings(intermediateTimings)
+				});
 			},
 			updateToolResultMessage: async (
 				messageId: string,
@@ -1480,6 +1515,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 				onError: streamCallbacks.onError,
 				onModel: streamCallbacks.onModel,
 				onReasoningChunk: streamCallbacks.onReasoningChunk,
+				onReasoningEnd: streamCallbacks.onReasoningEnd,
 				onTimings: streamCallbacks.onTimings,
 				stream: true
 			},
@@ -1599,7 +1635,9 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 
 	private getChatStreamingState(
 		convId: string
-	): { response: string; messageId: string; reasoningContent?: string } | undefined {
+	):
+		| { response: string; messageId: string; reasoning?: boolean; reasoningContent?: string }
+		| undefined {
 		return this.chatStreamingStates.get(convId);
 	}
 
@@ -1695,6 +1733,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 
 			if (lastKnownState) {
 				updateData.timings = {
+					...streamedMessage.timings,
 					cache_n: lastKnownState.cacheTokens || 0,
 					predicted_ms:
 						lastKnownState.tokensPerSecond && lastKnownState.tokensDecoded

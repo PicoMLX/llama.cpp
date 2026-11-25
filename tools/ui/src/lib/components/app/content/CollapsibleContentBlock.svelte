@@ -8,38 +8,40 @@
 	import type { Component } from 'svelte';
 
 	interface Props {
-		open?: boolean;
+		children: Snippet;
 		class?: string;
-		icon?: Component;
-		iconClass?: string;
-		iconUrl?: string | null;
-		title?: string;
-		titleSnippet?: Snippet;
-		subtitle?: string;
-		shimmerTitle?: boolean;
-		/**
-		 * `divider` centers the toggle between two rules, for blocks that mark a
-		 * section boundary in the conversation instead of decorating a message.
-		 */
-		variant?: 'default' | 'divider';
 		/**
 		 * Render the header only, without a chevron or a body, for a block that
 		 * has nothing to show yet and turns into a collapsible once it has.
 		 */
 		collapsible?: boolean;
+		compact?: boolean;
 		/**
 		 * Drop the reasoning-style rule and indent, for a body that spans the
 		 * message width on its own.
 		 */
 		flushBody?: boolean;
+		icon?: Component;
+		iconClass?: string;
+		iconUrl?: string | null;
 		onToggle?: () => void;
-		children: Snippet;
+		open?: boolean;
+		shimmerTitle?: boolean;
+		subtitle?: string;
+		title?: string;
+		titleSnippet?: Snippet;
+		/**
+		 * `divider` centers the toggle between two rules, for blocks that mark a
+		 * section boundary in the conversation instead of decorating a message.
+		 */
+		variant?: 'default' | 'divider';
 	}
 
 	let {
 		children,
 		class: className = '',
 		collapsible = true,
+		compact = false,
 		flushBody = false,
 		icon: IconComponent,
 		iconClass = ICON_CLASS_DEFAULT,
@@ -95,9 +97,10 @@
 {#snippet toggleTitle(layoutClass: string)}
 	<span
 		class={cn(
-			'min-w-0 font-medium',
+			'min-w-0',
+			compact ? 'font-normal' : 'font-medium',
 			layoutClass,
-			shimmerTitle ? 'shimmer-text' : 'text-foreground/80'
+			shimmerTitle ? 'shimmer-text' : compact ? 'text-muted-foreground' : 'text-foreground/80'
 		)}
 	>
 		{#if titleSnippet}
@@ -135,19 +138,22 @@
 	{:else}
 		<Collapsible.Trigger
 			class={cn(
-				'flex w-full cursor-pointer items-start justify-between gap-2 text-left',
+				'flex cursor-pointer gap-2 text-left',
+				compact ? 'min-h-7 w-fit items-center' : 'w-full items-start justify-between',
 				'py-1.5 pr-1'
 			)}
 		>
 			<div class="flex min-w-0 items-start gap-2 text-muted-foreground">
 				{@render toggleIcon('mt-0.75')}
 
-				{@render toggleTitle('overflow-x-auto text-sm')}
+				{@render toggleTitle(compact ? 'text-xs' : 'overflow-x-auto text-sm')}
 			</div>
 
 			<ChevronDown
 				class={cn(
-					'size-4 shrink-0 text-muted-foreground/60 transition-all duration-150 ease-out opacity-0 group-hover/collapsible:opacity-100 mt-0.75',
+					'shrink-0 text-muted-foreground/60 transition-all duration-150 ease-out',
+					compact ? 'size-3.5' : 'size-4',
+					!compact && 'opacity-0 group-hover/collapsible:opacity-100 mt-0.75',
 					open && 'rotate-180'
 				)}
 			/>

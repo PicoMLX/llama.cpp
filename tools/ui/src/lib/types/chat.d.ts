@@ -80,6 +80,8 @@ export interface ChatMessagePromptProgress {
 
 export interface ChatMessageTimings {
 	cache_n?: number;
+	/** Time spent generating reasoning, excluding prompt evaluation and the answer. */
+	reasoning_ms?: number;
 	predicted_ms?: number;
 	predicted_n?: number;
 	prompt_ms?: number;
@@ -140,6 +142,7 @@ export interface ChatMessageToolCallTiming {
 export interface ChatStreamCallbacks {
 	onChunk?: (chunk: string) => void;
 	onReasoningChunk?: (chunk: string) => void;
+	onReasoningEnd?: () => void;
 	onToolCallsStreaming?: (toolCalls: ApiChatCompletionToolCall[]) => void;
 	onAttachments?: (messageId: string, extras: DatabaseMessageExtra[]) => void;
 	onModel?: (model: string) => void;

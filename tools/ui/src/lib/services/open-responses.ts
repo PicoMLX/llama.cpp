@@ -1,4 +1,5 @@
 import { API_CHAT, LEGACY_AGENTIC_REGEX as AGENTIC_REGEX } from '$lib/constants';
+import { IS_PICO_BUILD } from '$lib/constants/app.constants';
 import { AttachmentType, MessageRole, StreamConnectionState } from '$lib/enums';
 import type {
 	ApiChatCompletionToolCall,
@@ -8,6 +9,7 @@ import type {
 } from '$lib/types';
 import { isAbortError } from '$lib/utils/abort';
 import { getJsonHeaders } from '$lib/utils/api-headers';
+import { createReasoningTiming } from '$lib/utils/reasoning-timing';
 
 type OpenResponsesOutputItem = {
 	id?: string;
@@ -221,6 +223,7 @@ export class OpenResponsesService {
 			onError,
 			onModel,
 			onReasoningChunk,
+			onReasoningEnd,
 			onTimings,
 			onToolCallChunk,
 			presence_penalty,
@@ -375,7 +378,8 @@ export class OpenResponsesService {
 					onModel,
 					onCompletionId,
 					onTimings,
-					signal
+					signal,
+					onReasoningEnd
 				);
 
 				return;
@@ -783,7 +787,8 @@ export class OpenResponsesService {
 		onModel?: (model: string) => void,
 		onCompletionId?: (id: string) => void,
 		onTimings?: (timings?: ChatMessageTimings, promptProgress?: ChatMessagePromptProgress) => void,
-		abortSignal?: AbortSignal
+		abortSignal?: AbortSignal,
+		onReasoningEnd?: () => void
 	): Promise<void> {
 		const reader = response.body?.getReader();
 
@@ -796,6 +801,19 @@ export class OpenResponsesService {
 		let aggregatedContent = '';
 		let fullReasoningContent = '';
 		let lastTimings: ChatMessageTimings | undefined;
+
+		const reasoningTiming = IS_PICO_BUILD ? createReasoningTiming(true, onReasoningEnd) : undefined;
+		const finishReasoning = () => {
+			if (!reasoningTiming) return;
+
+			const timings = reasoningTiming.finish(lastTimings);
+
+			if (timings?.reasoning_ms !== lastTimings?.reasoning_ms) {
+				lastTimings = timings;
+				onTimings?.(timings);
+			}
+		};
+
 		let terminalResponse: Record<string, unknown> = {};
 		let modelEmitted = false;
 		let idEmitted = false;
@@ -922,11 +940,39 @@ export class OpenResponsesService {
 								onCompletionId?.(responseId);
 							}
 
-							if (parsed.prompt_progress || parsed.timings) {
-								if (parsed.timings) lastTimings = parsed.timings as ChatMessageTimings;
+							const reasoningDelta =
+								Boolean(parsed.delta) &&
+								(eventType === 'response.reasoning_summary_text.delta' ||
+									(!reasoningSummarySeen &&
+										(eventType === 'response.reasoning.delta' ||
+											eventType === 'response.reasoning_text.delta')));
+							const reasoningEnded =
+								(eventType === 'response.output_text.delta' && Boolean(parsed.delta)) ||
+								(eventType === 'response.output_item.added' &&
+									OpenResponsesService.isFunctionCallItem(parsed.item)) ||
+								[
+									'response.reasoning_text.done',
+									'response.reasoning_summary_text.done',
+									'response.completed',
+									'response.done',
+									'response.incomplete',
+									'response.failed',
+									'error'
+								].includes(eventType);
+							const measuredTimings = reasoningTiming?.update(
+								reasoningDelta,
+								reasoningEnded,
+								parsed.timings as ChatMessageTimings | undefined
+							);
+							const timings = measuredTimings
+								? { ...lastTimings, ...measuredTimings }
+								: parsed.timings;
+
+							if (parsed.prompt_progress || timings) {
+								if (timings) lastTimings = timings as ChatMessageTimings;
 
 								onTimings?.(
-									parsed.timings as ChatMessageTimings | undefined,
+									timings as ChatMessageTimings | undefined,
 									parsed.prompt_progress as ChatMessagePromptProgress | undefined
 								);
 							}
@@ -1132,7 +1178,11 @@ export class OpenResponsesService {
 								terminalResponse = responseData;
 
 								if (!parsed.timings && responseData.usage) {
-									lastTimings = OpenResponsesService.convertUsageToTimings(responseData.usage);
+									lastTimings = reasoningTiming
+										? reasoningTiming.apply(
+												OpenResponsesService.convertUsageToTimings(responseData.usage)
+											)
+										: OpenResponsesService.convertUsageToTimings(responseData.usage);
 
 									if (import.meta.env.DEV) {
 										console.log('[OpenResponses] response.completed usage:', responseData.usage);
@@ -1163,6 +1213,8 @@ export class OpenResponsesService {
 				if (abortSignal?.aborted) break;
 			}
 
+			finishReasoning();
+
 			if (abortSignal?.aborted) return;
 
 			closeOpenFunctionCallsAtTerminalIfNeeded();
@@ -1177,6 +1229,8 @@ export class OpenResponsesService {
 				OpenResponsesService.completionReason(terminalResponse, serializedToolCalls)
 			);
 		} catch (error) {
+			finishReasoning();
+
 			throw error instanceof Error ? error : new Error('Stream error');
 		} finally {
 			reader.releaseLock();

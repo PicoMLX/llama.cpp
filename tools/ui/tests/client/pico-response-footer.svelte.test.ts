@@ -66,7 +66,10 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-	chatStore.setChatLoading('footer-conversation', false);
+	chatStore.cleanupStreaming('footer-conversation');
+	chatStore.activity.applyRemoteSnapshot([]);
+	chatStore.activity.endCompacting('footer-conversation');
+	chatStore.processing.setActiveConversation(null);
 	conversationsStore.activeConversation = null;
 	conversationsStore.activeMessages = [];
 	modelsStore.models = [];
@@ -77,6 +80,174 @@ afterEach(async () => {
 });
 
 describe.runIf(IS_PICO_BUILD)('Pico response footer', () => {
+	function activate(assistant: DatabaseMessage) {
+		conversationsStore.activeConversation = {
+			currNode: assistant.id,
+			id: assistant.convId,
+			lastModified: 123,
+			name: 'Footer test'
+		};
+		conversationsStore.activeMessages = [assistant];
+		chatStore.processing.setActiveConversation(assistant.convId);
+	}
+
+	it('shows Processing only before decoding and restores response actions after completion', async () => {
+		const assistant = { ...message(), content: '', timings: undefined };
+
+		activate(assistant);
+		chatStore.setChatLoading(assistant.convId, true);
+		const screen = render(PicoMessageFooterHarness, {
+			chatActions: actions(),
+			isLastAssistantMessage: true,
+			message: assistant
+		});
+
+		await expect.element(screen.getByText('Processing...', { exact: true })).toBeVisible();
+		expect(screen.container.querySelector('.pico-message-actions')).toBeNull();
+		expect(screen.container.querySelector('[aria-label="Response details"]')).toBeNull();
+		chatStore.setChatStreaming(assistant.convId, '', assistant.id);
+		await screen.rerender({
+			message: { ...assistant, reasoningContent: 'Consider the question.' }
+		});
+		await expect.element(screen.getByText('Thinking', { exact: true })).toBeVisible();
+		expect(screen.container.textContent).not.toContain('Processing');
+		expect(screen.container.querySelector('.pico-message-actions')).toBeNull();
+		await screen.rerender({
+			message: {
+				...assistant,
+				content: 'The answer is streaming.',
+				reasoningContent: 'Consider it.'
+			}
+		});
+		await expect
+			.element(screen.getByText('The answer is streaming.', { exact: true }))
+			.toBeVisible();
+		expect(screen.container.textContent).not.toContain('Processing');
+		expect(screen.container.querySelector('.pico-message-actions')).toBeNull();
+		chatStore.cleanupStreaming(assistant.convId);
+		await expect.element(screen.getByRole('button', { exact: true, name: 'Copy' })).toBeVisible();
+		await expect.element(screen.getByRole('button', { exact: true, name: 'Retry' })).toBeVisible();
+		await expect
+			.element(screen.getByRole('button', { name: 'More message actions' }))
+			.toBeVisible();
+	});
+
+	it.each(['content', 'reasoningContent'] as const)(
+		'hides Processing at the first whitespace %s token despite retained prompt progress',
+		async (field) => {
+			const assistant = { ...message(), content: '', timings: undefined };
+
+			activate(assistant);
+			chatStore.processing.restoreFromMessages([message()], assistant.convId);
+			chatStore.setChatLoading(assistant.convId, true);
+			const screen = render(PicoMessageFooterHarness, {
+				chatActions: actions(),
+				isLastAssistantMessage: true,
+				message: assistant
+			});
+
+			await expect.element(screen.getByText('Processing...', { exact: true })).toBeVisible();
+			chatStore.processing.applyStreamTimings(
+				undefined,
+				{ cache: 0, processed: 50, time_ms: 100, total: 100 },
+				assistant.convId
+			);
+			await expect.element(screen.getByText('Processing 50%', { exact: true })).toBeVisible();
+			await screen.rerender({ message: { ...assistant, [field]: ' ' } });
+			await expect.poll(() => screen.container.textContent).not.toContain('Processing');
+			expect(screen.container.querySelector('.pico-message-actions')).toBeNull();
+		}
+	);
+
+	it('keeps a completed response actionable while a new question prepares its placeholder', async () => {
+		const assistant = message();
+
+		activate(assistant);
+		conversationsStore.activeMessages = [assistant, message(MessageRole.USER)];
+		chatStore.setChatLoading(assistant.convId, true);
+		const screen = render(PicoMessageFooterHarness, {
+			chatActions: actions(),
+			isLastAssistantMessage: true,
+			message: assistant
+		});
+
+		await expect.element(screen.getByRole('button', { exact: true, name: 'Copy' })).toBeVisible();
+	});
+
+	it('hides the grouped root actions while a later tool turn streams', async () => {
+		const assistant = message();
+		const nextTurn = { ...assistant, content: 'Finishing the answer.', id: 'next-turn' };
+
+		activate(assistant);
+		conversationsStore.activeMessages = [assistant, nextTurn];
+		chatStore.setChatStreaming(assistant.convId, nextTurn.content, nextTurn.id);
+		const screen = render(PicoMessageFooterHarness, {
+			chatActions: actions(),
+			isLastAssistantMessage: true,
+			message: assistant,
+			toolMessages: [nextTurn]
+		});
+
+		await expect.element(screen.getByText(nextTurn.content, { exact: true })).toBeVisible();
+		expect(screen.container.querySelector('.pico-message-actions')).toBeNull();
+		expect(screen.container.textContent).not.toContain('Processing');
+		chatStore.cleanupStreaming(assistant.convId);
+		await expect.element(screen.getByRole('button', { exact: true, name: 'Copy' })).toBeVisible();
+	});
+
+	it('waits for a remote response to finish and leaves older response actions available', async () => {
+		const assistant = message();
+
+		activate(assistant);
+		chatStore.activity.applyRemoteSnapshot([assistant.convId]);
+		const screen = render(PicoMessageFooterHarness, {
+			chatActions: actions(),
+			isLastAssistantMessage: true,
+			message: assistant
+		});
+
+		await expect.poll(() => screen.container.querySelector('.pico-message-actions')).toBeNull();
+		await screen.rerender({ isLastAssistantMessage: false });
+		await expect.element(screen.getByRole('button', { exact: true, name: 'Copy' })).toBeVisible();
+		await screen.rerender({ isLastAssistantMessage: true });
+		await expect.poll(() => screen.container.querySelector('.pico-message-actions')).toBeNull();
+		chatStore.activity.applyRemoteSnapshot([]);
+		await expect.element(screen.getByRole('button', { exact: true, name: 'Copy' })).toBeVisible();
+	});
+
+	it('hides actions on an older response when Continue targets that response', async () => {
+		const assistant = message();
+
+		activate(assistant);
+		conversationsStore.activeMessages = [assistant, { ...assistant, id: 'newer-response' }];
+		chatStore.setChatStreaming(assistant.convId, assistant.content, assistant.id);
+		const screen = render(PicoMessageFooterHarness, {
+			chatActions: actions(),
+			isLastAssistantMessage: false,
+			message: assistant
+		});
+
+		expect(screen.container.querySelector('.pico-message-actions')).toBeNull();
+		chatStore.cleanupStreaming(assistant.convId);
+		await expect.element(screen.getByRole('button', { exact: true, name: 'Copy' })).toBeVisible();
+	});
+
+	it('hides response details while an untimestamped response streams', async () => {
+		const assistant = { ...message(), timestamp: 0 };
+
+		activate(assistant);
+		chatStore.setChatLoading(assistant.convId, true);
+		const screen = render(PicoMessageFooterHarness, {
+			chatActions: actions(),
+			isLastAssistantMessage: true,
+			message: assistant
+		});
+
+		expect(screen.container.querySelector('[aria-label="Response details"]')).toBeNull();
+		chatStore.cleanupStreaming(assistant.convId);
+		await expect.element(screen.getByRole('button', { name: 'Response details' })).toBeVisible();
+	});
+
 	it('keeps prefill off user messages and exposes only the primary user actions', async () => {
 		const screen = render(PicoMessageFooterHarness, {
 			chatActions: actions(),
@@ -216,8 +387,13 @@ describe.runIf(IS_PICO_BUILD)('Pico response footer', () => {
 		};
 		chatStore.setChatLoading(assistant.convId, true);
 		const chatActions = actions();
-		const screen = render(PicoMessageFooterHarness, { chatActions, message: assistant });
+		const screen = render(PicoMessageFooterHarness, {
+			chatActions,
+			isLastAssistantMessage: true,
+			message: assistant
+		});
 
+		expect(screen.container.querySelector('.pico-message-actions')).toBeNull();
 		await screen.getByText('A short message.', { exact: true }).click({ button: 'right' });
 		await expect
 			.element(page.getByRole('menuitem', { exact: true, name: 'Retry' }))

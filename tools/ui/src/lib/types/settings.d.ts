@@ -127,6 +127,7 @@ export interface SettingsChatServiceOptions {
 	// Callbacks
 	onChunk?: (chunk: string) => void;
 	onReasoningChunk?: (chunk: string) => void;
+	onReasoningEnd?: () => void;
 	onToolCallChunk?: (chunk: string) => void;
 	onAttachments?: (extras: DatabaseMessageExtra[]) => void;
 	onModel?: (model: string) => void;

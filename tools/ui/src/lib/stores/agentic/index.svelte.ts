@@ -411,6 +411,7 @@ class AgenticStore {
 		if (agenticTimings.toolCallsCount === 0) return capturedTimings;
 
 		return {
+			...capturedTimings,
 			agentic: agenticTimings,
 			cache_n: capturedTimings?.cache_n,
 			predicted_ms: capturedTimings?.predicted_ms,
@@ -440,6 +441,7 @@ class AgenticStore {
 			onFlowComplete,
 			onModel,
 			onReasoningChunk,
+			onReasoningEnd,
 			onTimings,
 			onToolCallsStreaming,
 			onTurnComplete,
@@ -530,6 +532,7 @@ class AgenticStore {
 							turnReasoningContent += chunk;
 							onReasoningChunk?.(chunk);
 						},
+						onReasoningEnd,
 						onTimings: (timings?: ChatMessageTimings, progress?: ChatMessagePromptProgress) => {
 							onTimings?.(timings, progress);
 

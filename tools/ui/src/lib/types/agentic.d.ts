@@ -106,6 +106,7 @@ export interface AgenticFlowCallbacks {
 	onChunk?: (chunk: string) => void;
 	/** Reasoning content chunk for the current assistant message */
 	onReasoningChunk?: (chunk: string) => void;
+	onReasoningEnd?: () => void;
 	/** Tool calls being streamed (partial, accumulating) for the current turn */
 	onToolCallsStreaming?: (toolCalls: ApiChatCompletionToolCall[]) => void;
 	/** Attachments extracted from tool results */
@@ -213,6 +214,7 @@ export interface AgenticSection {
 	 *  currently-executing tool, e.g. to drive live-streaming UI state
 	 *  by matching against agenticStore.getExecutingToolCallId. */
 	toolCallId?: string;
+	reasoningMs?: number;
 	wasInterrupted?: boolean;
 }
 
