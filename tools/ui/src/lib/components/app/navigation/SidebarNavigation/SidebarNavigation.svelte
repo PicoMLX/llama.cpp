@@ -615,9 +615,9 @@
 		onfocusout={handleAsideFocusOut}
 		onmouseleave={() => (isPeeking = false)}
 	>
-		<div class="px-2 flex items-center justify-between">
+		<div class="{IS_PICO_BUILD ? 'px-0.5' : 'px-2'} flex items-center justify-between">
 			<div
-				class="relative"
+				class="relative {IS_PICO_BUILD ? 'flex shrink-0 items-center gap-2' : ''}"
 				onmouseenter={() => {
 					logoHovered = true;
 					peek();
@@ -635,7 +635,9 @@
 							: 'Go to start'}
 					class="{uiStore.isSidebarExpanded
 						? 'bg-muted! md:bg-foreground/5!'
-						: 'bg-transparent!'} md:h-9 md:w-9 h-10 w-10 rounded-full md:hover:bg-foreground/10! pointer-events-auto"
+						: 'bg-transparent!'} {IS_PICO_BUILD
+						? 'h-11 w-11'
+						: 'md:h-9 md:w-9 h-10 w-10'} rounded-full md:hover:bg-foreground/10! pointer-events-auto"
 					href={uiStore.isSidebarExpanded && !isLogoToggle ? ROUTES.START : undefined}
 					icon={IS_PICO_BUILD
 						? uiStore.isSidebarExpanded
@@ -656,9 +658,21 @@
 							: undefined}
 					tooltipSide={TooltipSide.RIGHT}
 				/>
+
+				{#if IS_PICO_BUILD}
+					<div
+						aria-hidden="true"
+						class="pointer-events-none flex shrink-0 items-center gap-2 whitespace-nowrap text-base font-semibold"
+						data-slot="pico-brand"
+					>
+						<Logo class="flex size-6 items-center justify-center" style="--size: 1.5rem" />
+
+						<span>Pico</span>
+					</div>
+				{/if}
 			</div>
 
-			{#if IS_PICO_BUILD && !uiStore.isSidebarExpanded && isOnMobile}
+			{#if IS_PICO_BUILD && isOnMobile}
 				<SidebarNavigationActions
 					class="ml-2 mr-auto flex-row!"
 					iconOnly
@@ -704,15 +718,17 @@
 				: ''} {isStripHidden ? 'md:opacity-0 md:invisible' : ''}"
 			inert={isStripHidden || (IS_PICO_BUILD && !uiStore.isSidebarExpanded)}
 		>
-			<SidebarNavigationActions
-				class="px-2 md:my-3"
-				onAction={handleSidebarAction}
-				onNavigate={() => {
-					if (deviceStore.isMobile) {
-						scheduleMobileCollapse();
-					}
-				}}
-			/>
+			{#if !IS_PICO_BUILD || !isOnMobile}
+				<SidebarNavigationActions
+					class="px-2 md:my-3"
+					onAction={handleSidebarAction}
+					onNavigate={() => {
+						if (deviceStore.isMobile) {
+							scheduleMobileCollapse();
+						}
+					}}
+				/>
+			{/if}
 
 			<div class="flex min-h-0 flex-1 flex-col overflow-y-auto opacity-(--sidebar-fade)">
 				<SidebarNavigationConversationList
