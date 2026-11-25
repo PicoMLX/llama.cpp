@@ -124,6 +124,12 @@ export class ChatMessageFlows {
 
 			const originalContent = dbMessage.content;
 			const originalReasoning = dbMessage.reasoningContent || '';
+			const originalReasoningMs = dbMessage.timings?.reasoning_ms;
+
+			let reasoningMs = originalReasoningMs;
+
+			const continuedTimings = (timings: ChatMessageTimings | undefined) =>
+				reasoningMs === undefined ? timings : { ...timings, reasoning_ms: reasoningMs };
 			// Hand the persisted DatabaseMessage straight to sendMessage so its
 			// internal converter preserves tool_calls and extras when present.
 			// Reconstructing a bare {role, content} here would drop those fields
@@ -162,6 +168,7 @@ export class ChatMessageFlows {
 						reasoningContent?: string,
 						timings?: ChatMessageTimings
 					) => {
+						timings = continuedTimings(timings);
 						const finalAppendedContent = hasReceivedContent ? appendedContent : finalContent || '';
 						const finalAppendedReasoning = hasReceivedContent
 							? appendedReasoning
@@ -207,7 +214,10 @@ export class ChatMessageFlows {
 								await DatabaseService.updateMessage(msg.id, {
 									content: originalContent + appendedContent,
 									reasoningContent: originalReasoning + appendedReasoning || undefined,
-									timestamp: Date.now()
+									timestamp: Date.now(),
+									...(reasoningMs !== originalReasoningMs
+										? { timings: continuedTimings(dbMessage.timings) }
+										: {})
 								});
 
 								conversationsStore.updateMessageAtIndex(
@@ -215,7 +225,10 @@ export class ChatMessageFlows {
 									{
 										content: originalContent + appendedContent,
 										reasoningContent: originalReasoning + appendedReasoning || undefined,
-										timestamp: Date.now()
+										timestamp: Date.now(),
+										...(reasoningMs !== originalReasoningMs
+											? { timings: continuedTimings(dbMessage.timings) }
+											: {})
 									}
 								);
 							}
@@ -230,12 +243,18 @@ export class ChatMessageFlows {
 						await DatabaseService.updateMessage(msg.id, {
 							content: originalContent + appendedContent,
 							reasoningContent: originalReasoning + appendedReasoning || undefined,
-							timestamp: Date.now()
+							timestamp: Date.now(),
+							...(reasoningMs !== originalReasoningMs
+								? { timings: continuedTimings(dbMessage.timings) }
+								: {})
 						});
 						conversationsStore.updateMessageAtIndex(conversationsStore.findMessageIndex(msg.id), {
 							content: originalContent + appendedContent,
 							reasoningContent: originalReasoning + appendedReasoning || undefined,
-							timestamp: Date.now()
+							timestamp: Date.now(),
+							...(reasoningMs !== originalReasoningMs
+								? { timings: continuedTimings(dbMessage.timings) }
+								: {})
 						});
 
 						this.host.cleanupStreaming(msg.convId);
@@ -258,12 +277,38 @@ export class ChatMessageFlows {
 					},
 					onTimings: (timings?: ChatMessageTimings, promptProgress?: ChatMessagePromptProgress) => {
 						this.host.processing.applyStreamTimings(timings, promptProgress, msg.convId);
+
+						if (timings?.reasoning_ms !== undefined) {
+							const total = (originalReasoningMs ?? 0) + timings.reasoning_ms;
+
+							if (total === reasoningMs) return;
+
+							reasoningMs = total;
+							const updates = { timings: continuedTimings(timings) };
+
+							conversationsStore.updateMessageAtIndex(
+								conversationsStore.findMessageIndex(msg.id),
+								updates
+							);
+						}
 					}
 				},
 
 				msg.convId,
 				abortController.signal
 			);
+
+			if (abortController.signal.aborted && reasoningMs !== originalReasoningMs) {
+				const saved = (await DatabaseService.getConversationMessages(msg.convId)).find(
+					(message) => message.id === msg.id
+				);
+
+				if (saved) {
+					await DatabaseService.updateMessage(msg.id, {
+						timings: { ...saved.timings, reasoning_ms: reasoningMs }
+					});
+				}
+			}
 		} catch (error) {
 			if (!isAbortError(error)) console.error('Failed to continue message:', error);
 

@@ -34,6 +34,44 @@ function makeToolMsg(overrides: Partial<DatabaseMessage> = {}): DatabaseMessage 
 }
 
 describe('deriveAgenticSections', () => {
+	it('closes reasoning on its timing boundary while the response is still streaming', () => {
+		const msg = makeAssistant({ reasoningContent: 'Thought', timings: { reasoning_ms: 2500 } });
+		const [reasoning] = deriveAgenticSections(msg, [], [], true);
+
+		expect(reasoning.type).toBe(AgenticSectionType.REASONING);
+		expect(reasoning.reasoningMs).toBe(2500);
+	});
+
+	it('invalidates completed reasoning sections when saved duration changes in place', () => {
+		const msg = makeAssistant({ content: 'Answer', reasoningContent: 'Thought' });
+		const [legacy] = deriveAgenticSections(msg);
+
+		msg.timings = { reasoning_ms: 2500 };
+		const [timed] = deriveAgenticSections(msg);
+
+		expect(legacy.reasoningMs).toBeUndefined();
+		expect(timed.reasoningMs).toBe(2500);
+		expect(timed).not.toBe(legacy);
+	});
+
+	it('keeps reasoning durations attached to their own turns', () => {
+		const first = makeAssistant({
+			content: 'Tool plan',
+			reasoningContent: 'First thought',
+			timings: { reasoning_ms: 2000 }
+		});
+		const second = makeAssistant({
+			id: 'ast-2',
+			reasoningContent: 'Second thought',
+			timings: { reasoning_ms: 4000 }
+		});
+		const reasoning = deriveAgenticSections(first, [second], [], true).filter(
+			(section) => section.reasoningMs !== undefined
+		);
+
+		expect(reasoning.map((section) => section.reasoningMs)).toEqual([2000, 4000]);
+	});
+
 	it('returns empty array for assistant with no content', () => {
 		const msg = makeAssistant({ content: '' });
 		const sections = deriveAgenticSections(msg);

@@ -26,6 +26,7 @@
 		responseModel?: string | null;
 		allowModelRetry?: boolean;
 		details?: Snippet;
+		hideActions?: boolean;
 		isLoading?: boolean;
 	}
 
@@ -33,6 +34,7 @@
 		actionsPosition,
 		allowModelRetry = false,
 		details,
+		hideActions = false,
 		isLoading = false,
 		justify,
 		onContinue,
@@ -85,19 +87,21 @@
 </script>
 
 {#if IS_PICO_BUILD}
-	<PicoMessageActions
-		{allowModelRetry}
-		{details}
-		{isLoading}
-		{justify}
-		{onContinue}
-		onFork={() => messageActions.setShowForkDialog(true)}
-		{onRawOutputToggle}
-		{onRegenerate}
-		{rawOutputEnabled}
-		{responseModel}
-		{showRawOutputSwitch}
-	/>
+	{#if !hideActions}
+		<PicoMessageActions
+			{allowModelRetry}
+			{details}
+			{isLoading}
+			{justify}
+			{onContinue}
+			onFork={() => messageActions.setShowForkDialog(true)}
+			{onRawOutputToggle}
+			{onRegenerate}
+			{rawOutputEnabled}
+			{responseModel}
+			{showRawOutputSwitch}
+		/>
+	{/if}
 {:else}
 	<div class="relative {justify === 'start' ? 'mt-2' : ''} flex h-6 items-center justify-between">
 		<div

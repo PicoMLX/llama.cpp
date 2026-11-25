@@ -1073,6 +1073,12 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		let currentMessageId = assistantMessage.id;
 		let streamedContent = '';
 		let streamedReasoningContent = '';
+		let currentReasoningMs: number | undefined;
+		let anchorReasoningMs: number | undefined;
+
+		const anchorTimings = (timings: ChatMessageTimings): ChatMessageTimings =>
+			IS_PICO_BUILD ? { ...timings, reasoning_ms: anchorReasoningMs } : timings;
+
 		let resolvedModel: string | null = null;
 		let modelPersisted = false;
 
@@ -1182,6 +1188,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 				}
 
 				currentMessageId = msg.id;
+				currentReasoningMs = undefined;
 				lastCreatedInFlow = msg.id;
 				this.setChatStreaming(convId, '', msg.id, streamModel);
 
@@ -1305,6 +1312,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 			},
 			onFlowComplete: (finalTimings?: ChatMessageTimings) => {
 				if (finalTimings) {
+					finalTimings = anchorTimings(finalTimings);
 					updateActiveFlowMessage(assistantMessage.id, { timings: finalTimings });
 					DatabaseService.updateMessage(assistantMessage.id, {
 						timings: finalTimings
@@ -1340,6 +1348,15 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 			},
 			onTimings: (timings?: ChatMessageTimings, promptProgress?: ChatMessagePromptProgress) => {
 				this.processing.applyStreamTimings(timings, promptProgress, convId);
+
+				if (timings?.reasoning_ms !== undefined && timings.reasoning_ms !== currentReasoningMs) {
+					currentReasoningMs = timings.reasoning_ms;
+
+					if (currentMessageId === assistantMessage.id) anchorReasoningMs = currentReasoningMs;
+
+					updateActiveFlowMessage(currentMessageId, { timings });
+					DatabaseService.updateMessage(currentMessageId, { timings }).catch(console.error);
+				}
 			},
 			onToolCallsStreaming: (toolCalls) => {
 				updateActiveFlowMessage(currentMessageId, {
@@ -1348,7 +1365,9 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 			},
 			onTurnComplete: (intermediateTimings: ChatMessageTimings) => {
 				// Update the first assistant message with cumulative agentic timings
-				updateActiveFlowMessage(assistantMessage.id, { timings: intermediateTimings });
+				updateActiveFlowMessage(assistantMessage.id, {
+					timings: anchorTimings(intermediateTimings)
+				});
 			},
 			updateToolResultMessage: async (
 				messageId: string,
@@ -1695,6 +1714,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 
 			if (lastKnownState) {
 				updateData.timings = {
+					...streamedMessage.timings,
 					cache_n: lastKnownState.cacheTokens || 0,
 					predicted_ms:
 						lastKnownState.tokensPerSecond && lastKnownState.tokensDecoded

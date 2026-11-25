@@ -86,7 +86,8 @@
 	);
 
 	const hasReasoningError = $derived(
-		isLastAssistantMessage ? !!agenticStore.getLastError(message.convId) : false
+		(IS_PICO_BUILD && chatStore.getResponseError(message.convId)?.messageId === message.id) ||
+			(isLastAssistantMessage ? !!agenticStore.getLastError(message.convId) : false)
 	);
 
 	const pendingPermission = $derived(

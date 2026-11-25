@@ -23,6 +23,7 @@ import {
 	STREAM_RESUME_LOCALSTORAGE_KEY_PREFIX,
 	STREAM_VISIBILITY_KICK_MS
 } from '$lib/constants';
+import { IS_PICO_BUILD } from '$lib/constants/app.constants';
 import {
 	AttachmentLabel,
 	AttachmentType,
@@ -46,6 +47,7 @@ import { isAbortError } from '$lib/utils/abort';
 import { ApiError } from '$lib/utils/api-fetch';
 import { getAuthHeaders, getJsonHeaders } from '$lib/utils/api-headers';
 import { formatAttachmentText } from '$lib/utils/formatters';
+import { createReasoningTiming } from '$lib/utils/reasoning-timing';
 import { streamIdentity } from '$lib/utils/stream-identity';
 
 interface ResumableStreamState {
@@ -445,7 +447,8 @@ export class ChatService {
 		conversationId?: string,
 		abortSignal?: AbortSignal,
 		onConnectionState?: (state: StreamConnectionState) => void,
-		streamModel?: string | null
+		streamModel?: string | null,
+		isReplay = false
 	): Promise<void> {
 		let reader = response.body?.getReader();
 
@@ -478,6 +481,19 @@ export class ChatService {
 		let fullReasoningContent = '';
 		let aggregatedToolCalls: ApiChatCompletionToolCall[] = [];
 		let lastTimings: ChatMessageTimings | undefined;
+
+		const reasoningTiming = IS_PICO_BUILD ? createReasoningTiming(!isReplay) : undefined;
+		const finishReasoning = () => {
+			if (!reasoningTiming) return;
+
+			const timings = reasoningTiming.finish(lastTimings);
+
+			if (timings?.reasoning_ms !== lastTimings?.reasoning_ms) {
+				lastTimings = timings;
+				onTimings?.(timings);
+			}
+		};
+
 		// why the model stopped, length once the output limit cut the answer
 		let finishReason: string | undefined;
 		let streamFinished = false;
@@ -635,7 +651,17 @@ export class ChatService {
 								const content = choice?.delta?.content;
 								const reasoningContent = choice?.delta?.reasoning_content;
 								const toolCalls = choice?.delta?.tool_calls;
-								const timings = parsed.timings;
+								const measuredTimings = reasoningTiming
+									? reasoningTiming.update(
+											Boolean(reasoningContent),
+											Boolean(content || toolCalls?.length),
+											parsed.timings
+										)
+									: parsed.timings;
+								const timings =
+									reasoningTiming && measuredTimings
+										? { ...lastTimings, ...measuredTimings }
+										: measuredTimings;
 								const promptProgress = parsed.prompt_progress;
 								const chunkModel = ChatService.extractModelName(parsed);
 
@@ -697,6 +723,7 @@ export class ChatService {
 
 				if (!madeProgress) {
 					onConnectionState?.(StreamConnectionState.LOST);
+					finishReasoning();
 					onError?.(new Error('Stream resume produced no new bytes, giving up'));
 
 					break;
@@ -722,6 +749,7 @@ export class ChatService {
 
 				if (!resumeResp || resumeResp.status !== 200) {
 					onConnectionState?.(StreamConnectionState.LOST);
+					finishReasoning();
 					onError?.(new Error('Stream connection lost and could not be resumed'));
 
 					break;
@@ -744,6 +772,8 @@ export class ChatService {
 				lastByteAt = Date.now();
 			}
 
+			finishReasoning();
+
 			if (abortSignal?.aborted) return;
 
 			if (streamFinished) {
@@ -765,6 +795,7 @@ export class ChatService {
 				);
 			}
 		} catch (error) {
+			finishReasoning();
 			const err = error instanceof Error ? error : new Error('Stream error');
 
 			onError?.(err);

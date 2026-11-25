@@ -5,17 +5,28 @@
 
 	let {
 		chatActions,
+		isLastAssistantMessage = false,
 		message,
 		nextAssistantMessage = null,
-		siblingInfo = null
+		siblingInfo = null,
+		toolMessages = []
 	}: {
 		message: DatabaseMessage;
 		chatActions: ChatMessageActions;
+		isLastAssistantMessage?: boolean;
 		nextAssistantMessage?: DatabaseMessage | null;
 		siblingInfo?: ChatMessageSiblingInfo | null;
+		toolMessages?: DatabaseMessage[];
 	} = $props();
 </script>
 
 <Tooltip.Provider>
-	<ChatMessage {chatActions} {message} {nextAssistantMessage} {siblingInfo} />
+	<ChatMessage
+		{chatActions}
+		{isLastAssistantMessage}
+		{message}
+		{nextAssistantMessage}
+		{siblingInfo}
+		{toolMessages}
+	/>
 </Tooltip.Provider>

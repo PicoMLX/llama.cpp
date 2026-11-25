@@ -205,9 +205,9 @@ describe.runIf(IS_PICO_BUILD)('Pico activity disclosure', () => {
 		const thinking = { ...message(), content: '', reasoningContent: 'thinking-body-marker' };
 		const screen = render(PicoActivityHarness, { isStreaming: true, message: thinking });
 
-		await expect.element(screen.getByText('Thinking...', { exact: true })).toBeVisible();
+		await expect.element(screen.getByText('Thinking', { exact: true })).toBeVisible();
 		expect(screen.container.textContent).not.toContain('thinking-body-marker');
-		await screen.getByText('Thinking...', { exact: true }).click();
+		await screen.getByText('Thinking', { exact: true }).click();
 		await expect.element(screen.getByText('thinking-body-marker')).toBeVisible();
 		await screen.rerender({
 			isStreaming: true,

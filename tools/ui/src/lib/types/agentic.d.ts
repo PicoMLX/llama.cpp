@@ -213,6 +213,7 @@ export interface AgenticSection {
 	 *  currently-executing tool, e.g. to drive live-streaming UI state
 	 *  by matching against agenticStore.getExecutingToolCallId. */
 	toolCallId?: string;
+	reasoningMs?: number;
 	wasInterrupted?: boolean;
 }
 

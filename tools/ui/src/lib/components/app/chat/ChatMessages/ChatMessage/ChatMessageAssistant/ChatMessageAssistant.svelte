@@ -13,7 +13,14 @@
 	import { getChatMessageEditContext } from '$lib/contexts';
 	import { MessageRole } from '$lib/enums';
 	import { useProcessingState } from '$lib/hooks/use-processing-state.svelte';
-	import { chatStore, modelsStore, serverStore, settingsStore } from '$lib/stores';
+	import {
+		agenticStore,
+		chatStore,
+		conversationsStore,
+		modelsStore,
+		serverStore,
+		settingsStore
+	} from '$lib/stores';
 	import { modelLoadProgressText } from '$lib/utils';
 	import { hasAgenticContent } from '$lib/utils';
 
@@ -57,6 +64,27 @@
 	// A compaction summary reports its own progress on the compaction row, so
 	// this turn stays quiet while it runs instead of duplicating the indicator.
 	let isCompacting = $derived(chatStore.isCompacting(message.convId));
+	let streamingResponseId = $derived(
+		(agenticStore.isRunning(message.convId)
+			? agenticStore.getFlowRootMessageId(message.convId)
+			: null) ?? chatStore.getChatStreaming(message.convId)?.messageId
+	);
+	let responseTargetId = $derived(
+		streamingResponseId ?? conversationsStore.activeMessages.at(-1)?.id
+	);
+	let isResponseGenerating = $derived(
+		(Boolean(streamingResponseId) || isLastAssistantMessage) &&
+			!isCompacting &&
+			(!responseTargetId ||
+				responseTargetId === message.id ||
+				toolMessages.some((toolMessage) => toolMessage.id === responseTargetId)) &&
+			(chatStore.isChatLoadingInternal(message.convId) ||
+				agenticStore.isRunning(message.convId) ||
+				chatStore.activity.isRemote(message.convId))
+	);
+	let hasDecodedOutput = $derived(
+		Boolean(message.content || message.reasoningContent) || isAgentic
+	);
 
 	// during a router auto-load the message has no model yet: target the model frozen in the
 	// persisted stream state (survives a reload), then fall back to the dropdown selection
@@ -74,11 +102,13 @@
 			!isCompacting &&
 			hasNoContent &&
 			!isAgentic &&
+			(!IS_PICO_BUILD || !hasDecodedOutput) &&
 			isLastAssistantMessage
 	);
 
 	let showProcessingInfoBottom = $derived(
-		message?.role === MessageRole.ASSISTANT &&
+		!IS_PICO_BUILD &&
+			message?.role === MessageRole.ASSISTANT &&
 			isActivelyProcessing &&
 			!isCompacting &&
 			(!hasNoContent || isAgentic) &&
@@ -223,6 +253,7 @@
 		<ChatMessageActionIcons
 			actionsPosition="left"
 			allowModelRetry={isRouter}
+			hideActions={IS_PICO_BUILD && isResponseGenerating}
 			isLoading={chatStore.isLoading}
 			justify="start"
 			onContinue={currentConfig.enableContinueGeneration ? onContinue : undefined}
@@ -241,7 +272,7 @@
 				/>
 			{/snippet}
 		</ChatMessageActionIcons>
-	{:else if IS_PICO_BUILD && !editCtx.isEditing}
+	{:else if IS_PICO_BUILD && !editCtx.isEditing && !isResponseGenerating}
 		<ChatMessageAssistantStatistics
 			isLoading={isLastAssistantMessage && chatStore.isLoading}
 			{message}

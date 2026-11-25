@@ -8,12 +8,12 @@
 	import type { AgenticSection, DatabaseMessageExtra } from '$lib/types';
 
 	interface Props {
-		section: AgenticSection;
-		open: boolean;
-		isStreaming: boolean;
-		hasReasoningError?: boolean;
 		attachments?: DatabaseMessageExtra[];
+		hasReasoningError?: boolean;
+		isStreaming: boolean;
 		onToggle?: () => void;
+		open: boolean;
+		section: AgenticSection;
 	}
 
 	let {
@@ -28,12 +28,25 @@
 	const currentConfig = settingsStore.config;
 
 	const REASONING_HEADER = IS_PICO_BUILD ? 'Thinking' : 'Reasoning';
-	const REASONING_HEADER_PENDING = IS_PICO_BUILD ? 'Thinking...' : 'Reasoning...';
+	const REASONING_HEADER_PENDING = IS_PICO_BUILD ? 'Thinking' : 'Reasoning...';
 	const REASONING_SUBTITLE_ERROR = 'Error';
 	const REASONING_SUBTITLE_CANCELLED = 'Cancelled';
 
 	const isPending = $derived(section.type === AgenticSectionType.REASONING_PENDING);
-	const title = $derived(isPending && isStreaming ? REASONING_HEADER_PENDING : REASONING_HEADER);
+	const title = $derived.by(() => {
+		if (isPending && isStreaming) return REASONING_HEADER_PENDING;
+
+		if (!IS_PICO_BUILD || section.wasInterrupted || (isPending && !isStreaming)) {
+			return REASONING_HEADER;
+		}
+
+		if (section.reasoningMs === undefined || !Number.isFinite(section.reasoningMs))
+			return 'Thought';
+
+		const seconds = Math.max(1, Math.round(section.reasoningMs / 1000));
+
+		return `Thought for ${seconds} second${seconds === 1 ? '' : 's'}`;
+	});
 	const subtitle = $derived.by(() => {
 		if (isPending && !isStreaming) {
 			return hasReasoningError ? REASONING_SUBTITLE_ERROR : REASONING_SUBTITLE_CANCELLED;
@@ -126,7 +139,8 @@
 
 <CollapsibleContentBlock
 	class="my-2"
-	icon={Lightbulb}
+	compact={IS_PICO_BUILD}
+	icon={IS_PICO_BUILD ? undefined : Lightbulb}
 	iconClass="h-3.5 w-3.5"
 	{onToggle}
 	{open}

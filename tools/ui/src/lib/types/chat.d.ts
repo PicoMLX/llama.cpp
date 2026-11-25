@@ -80,6 +80,8 @@ export interface ChatMessagePromptProgress {
 
 export interface ChatMessageTimings {
 	cache_n?: number;
+	/** Time spent generating reasoning, excluding prompt evaluation and the answer. */
+	reasoning_ms?: number;
 	predicted_ms?: number;
 	predicted_n?: number;
 	prompt_ms?: number;

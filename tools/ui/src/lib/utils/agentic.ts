@@ -41,10 +41,12 @@ function deriveSingleTurnSections(
 		const toolCalls = parseToolCalls(message.toolCalls);
 		const hasContentAfterReasoning =
 			!!message.content?.trim() || toolCalls.length > 0 || streamingToolCalls.length > 0;
-		const isPending = isStreaming && !hasContentAfterReasoning;
+		const isPending =
+			isStreaming && !hasContentAfterReasoning && message.timings?.reasoning_ms === undefined;
 
 		sections.push({
 			content: message.reasoningContent,
+			reasoningMs: message.timings?.reasoning_ms,
 			type: isPending ? AgenticSectionType.REASONING_PENDING : AgenticSectionType.REASONING,
 			wasInterrupted: !isStreaming && !hasContentAfterReasoning
 		});
@@ -113,6 +115,7 @@ interface TurnSectionsCacheEntry {
 	content: string | undefined;
 	extra: DatabaseMessageExtra[] | undefined;
 	reasoningContent: string | undefined;
+	reasoningMs: number | undefined;
 	toolCalls: string | undefined;
 	toolMessageContents: (string | undefined)[];
 	toolMessageExtras: (DatabaseMessageExtra[] | undefined)[];
@@ -130,6 +133,7 @@ function isTurnCacheValid(
 	if (
 		entry.content !== message.content ||
 		entry.reasoningContent !== message.reasoningContent ||
+		entry.reasoningMs !== message.timings?.reasoning_ms ||
 		entry.toolCalls !== message.toolCalls ||
 		entry.extra !== message.extra
 	) {
@@ -182,6 +186,7 @@ function deriveTurnSections(
 		content: message.content,
 		extra: message.extra,
 		reasoningContent: message.reasoningContent,
+		reasoningMs: message.timings?.reasoning_ms,
 		sections,
 		toolCalls: message.toolCalls,
 		toolMessageContents: toolMessages.map((tm) => tm.content),
