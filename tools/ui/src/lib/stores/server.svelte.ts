@@ -48,7 +48,7 @@ class ServerStore {
 	}
 
 	get supportsModelSelection(): boolean {
-		return this.isRouterMode || this.isPicoServer;
+		return this.isRouterMode;
 	}
 
 	get supportsModelStatusEvents(): boolean {

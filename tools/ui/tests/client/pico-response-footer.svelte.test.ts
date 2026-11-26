@@ -1,7 +1,7 @@
 import PicoMessageFooterHarness from './components/PicoMessageFooterHarness.svelte';
 import PicoResponseDetails from '$lib/components/app/chat/ChatMessages/PicoResponseDetails.svelte';
 import { IS_PICO_BUILD } from '$lib/constants/app.constants';
-import { MessageRole, MessageType, ServerRole } from '$lib/enums';
+import { MessageRole, MessageType, ServerModelStatus, ServerRole } from '$lib/enums';
 import type { UseProcessingStateReturn } from '$lib/hooks/use-processing-state.svelte';
 import { ModelsService } from '$lib/services/models.service';
 import {
@@ -12,7 +12,7 @@ import {
 	serverStore,
 	settingsStore
 } from '$lib/stores';
-import type { ChatMessageActions, DatabaseMessage } from '$lib/types';
+import type { ApiLlamaCppServerProps, ChatMessageActions, DatabaseMessage } from '$lib/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { page } from 'vitest/browser';
 import { render } from 'vitest-browser-svelte';
@@ -73,8 +73,10 @@ afterEach(async () => {
 	conversationsStore.activeConversation = null;
 	conversationsStore.activeMessages = [];
 	modelsStore.models = [];
+	modelsStore.routerModels = [];
 	modelsStore.clearSelection();
 	serverStore.role = null;
+	serverStore.props = null;
 	vi.restoreAllMocks();
 	await page.viewport(1280, 900);
 });
@@ -374,6 +376,64 @@ describe.runIf(IS_PICO_BUILD)('Pico response footer', () => {
 		await page.getByRole('option', { name: /other/ }).click();
 		expect(load).not.toHaveBeenCalled();
 		expect(chatActions.regenerateWithBranching).not.toHaveBeenCalled();
+	});
+
+	it('retries with an unloaded Pico model without loading it or changing the server default', async () => {
+		const assistant = message();
+		const replacement = 'example/other';
+
+		activate(assistant);
+		serverStore.role = ServerRole.ROUTER;
+		serverStore.props = {
+			bos_token: '',
+			build_info: 'Pico footer test',
+			chat_template: '',
+			default_generation_settings: {
+				n_ctx: 4096
+			} as ApiLlamaCppServerProps['default_generation_settings'],
+			eos_token: '',
+			modalities: { audio: false, video: false, vision: false },
+			model_alias: assistant.model,
+			model_path: assistant.model,
+			role: ServerRole.ROUTER,
+			server_name: 'Pico footer test',
+			total_slots: 1
+		} as ApiLlamaCppServerProps;
+		modelsStore.models = [assistant.model!, replacement].map((model) => ({
+			capabilities: [],
+			id: model,
+			model,
+			name: model
+		}));
+		modelsStore.routerModels = modelsStore.models.map(({ model }) => ({
+			created: 0,
+			id: model,
+			in_cache: true,
+			object: 'model',
+			owned_by: 'Pico footer test',
+			path: `/models/${model}`,
+			status: { value: ServerModelStatus.UNLOADED }
+		}));
+		vi.spyOn(modelsStore, 'fetch').mockResolvedValue();
+		vi.spyOn(modelsStore.props, 'fetchModelProps').mockResolvedValue(serverStore.props);
+		const load = vi.spyOn(modelsStore.status, 'load').mockResolvedValue();
+		const chatActions = actions();
+		const screen = render(PicoMessageFooterHarness, { chatActions, message: assistant });
+
+		await screen.getByRole('button', { name: 'More message actions' }).click();
+		await page.getByRole('menuitem', { name: 'Retry with another model...' }).click();
+		const dialog = page.getByRole('dialog', { name: 'Retry with another model' });
+
+		await expect.element(dialog).toBeVisible();
+		await dialog.getByRole('button', { name: 'Model for the next response' }).click();
+		await page.getByRole('option', { name: /other/ }).click();
+		await expect
+			.poll(() => vi.mocked(chatActions.regenerateWithBranching).mock.calls.length)
+			.toBe(1);
+
+		expect(chatActions.regenerateWithBranching).toHaveBeenCalledWith(assistant, replacement);
+		expect(load).not.toHaveBeenCalled();
+		expect(serverStore.props?.model_alias).toBe(assistant.model);
 	});
 
 	it('keeps right-click Retry disabled while generating and branches in one step', async () => {

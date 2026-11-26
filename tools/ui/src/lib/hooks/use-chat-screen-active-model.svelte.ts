@@ -2,8 +2,8 @@
  * Active model resolution and capability detection for the ChatScreen.
  *
  * Picks the model that should be used for the current view
- * (router: user-selected or conversation fallback; non-router: first
- * available option), and reactively tracks which modalities (vision /
+ * (router: user-selected or conversation fallback; Pico default-only:
+ * configured server model), and reactively tracks which modalities (vision /
  * audio / video) it supports — fetching model props from the server on
  * demand if they aren't cached yet.
  */

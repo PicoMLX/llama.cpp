@@ -125,6 +125,8 @@ class ModelsStore implements ModelPropsHost, ModelStatusHost {
 	 */
 	get activeModelId(): string | null {
 		if (!serverStore.supportsModelSelection) {
+			if (serverStore.isPicoServer) return this.serverDefaultModel?.model ?? null;
+
 			return this.models.length > 0 ? this.models[0].model : this.singleModelName;
 		}
 
@@ -169,6 +171,16 @@ class ModelsStore implements ModelPropsHost, ModelStatusHost {
 		if (!this.selectedModelName) return null;
 
 		return this.props.getModelContextSize(this.selectedModelName);
+	}
+
+	get serverDefaultModel(): ModelOption | null {
+		if (!serverStore.isPicoServer) return null;
+
+		const modelId = serverStore.props?.model_alias;
+
+		return modelId
+			? (this.models.find((model) => model.model === modelId || model.id === modelId) ?? null)
+			: null;
 	}
 
 	/**
@@ -221,6 +233,15 @@ class ModelsStore implements ModelPropsHost, ModelStatusHost {
 	 * model that is loading.
 	 */
 	async ensureFirstModelSelected(): Promise<void> {
+		if (serverStore.isPicoServer && !serverStore.supportsModelSelection) {
+			const defaultModel = this.serverDefaultModel;
+
+			if (defaultModel) await this.selectModelById(defaultModel.id);
+			else this.clearSelection();
+
+			return;
+		}
+
 		if (this.selectedModelName) {
 			const loadingModel = this.getLoadingModelToPreselect();
 
@@ -250,14 +271,14 @@ class ModelsStore implements ModelPropsHost, ModelStatusHost {
 			}
 		}
 
-		if (serverStore.isPicoServer && !serverStore.isRouterMode && !lastModel) {
-			const defaultModel = this.findModelByName(this.singleModelName ?? '');
+		if (serverStore.isPicoServer) {
+			const defaultModel = lastModel ? null : this.serverDefaultModel;
 
 			if (defaultModel) {
 				await this.selectModelById(defaultModel.id);
-
-				return;
 			}
+
+			return;
 		}
 
 		// a model that is loading is the one the user is waiting for
@@ -335,7 +356,11 @@ class ModelsStore implements ModelPropsHost, ModelStatusHost {
 
 			const visible = this.getVisibleModels();
 
-			if (visible.length === 1 && this.isModelLoaded(visible[0].model)) {
+			if (
+				!serverStore.isPicoServer &&
+				visible.length === 1 &&
+				this.isModelLoaded(visible[0].model)
+			) {
 				this.selectModelById(visible[0].id);
 			}
 		} catch (error) {
@@ -362,6 +387,8 @@ class ModelsStore implements ModelPropsHost, ModelStatusHost {
 	 * while the current selection is loaded or loading itself.
 	 */
 	getLoadingModelToPreselect(): ModelOption | null {
+		if (serverStore.isPicoServer) return null;
+
 		if (this.getModelFromLastAssistantResponse()) return null;
 
 		if (this.linkedModelId !== null && this.linkedModelId === this.selectedModelId) return null;
@@ -774,21 +801,25 @@ class ModelsStore implements ModelPropsHost, ModelStatusHost {
 
 				const visible = this.getVisibleModels();
 
-				if (visible.length === 1 && this.isModelLoaded(visible[0].model)) {
+				if (
+					!serverStore.isPicoServer &&
+					visible.length === 1 &&
+					this.isModelLoaded(visible[0].model)
+				) {
 					this.selectModelById(visible[0].id);
 				}
 			} else {
 				this.models = await this.fetchModelModeInternal();
+			}
 
-				if (
-					serverStore.isPicoServer &&
-					!this.selectedModelName &&
-					!this.getModelFromLastAssistantResponse()
-				) {
-					const defaultModel = this.findModelByName(this.singleModelName ?? '');
+			if (
+				serverStore.isPicoServer &&
+				!this.selectedModelName &&
+				!this.getModelFromLastAssistantResponse()
+			) {
+				const defaultModel = this.serverDefaultModel;
 
-					if (defaultModel) await this.selectModelById(defaultModel.id);
-				}
+				if (defaultModel) await this.selectModelById(defaultModel.id);
 			}
 		} catch (error) {
 			this.models = [];
