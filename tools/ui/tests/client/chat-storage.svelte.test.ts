@@ -104,9 +104,9 @@ describe('chat storage setting', () => {
 	});
 
 	it('saves the choice per server and account without the key', async () => {
-		await chatStorageStore.select(ChatStorageLocation.SERVER);
+		await chatStorageStore.select(ChatStorageLocation.BROWSER);
 
-		expect(chatStorageStore.location).toBe(ChatStorageLocation.SERVER);
+		expect(chatStorageStore.location).toBe(ChatStorageLocation.BROWSER);
 
 		const saved = localStorage.getItem(CHAT_STORAGE_LOCALSTORAGE_KEY)!;
 
@@ -118,11 +118,11 @@ describe('chat storage setting', () => {
 		// another account on the same server has made no choice
 		settingsStore.config.apiKey = KEY_B;
 		await chatStorageStore.sync();
-		expect(chatStorageStore.location).toBe(ChatStorageLocation.BROWSER);
+		expect(chatStorageStore.location).toBe(ChatStorageLocation.SERVER);
 
 		settingsStore.config.apiKey = KEY_A;
 		await chatStorageStore.sync();
-		expect(chatStorageStore.location).toBe(ChatStorageLocation.SERVER);
+		expect(chatStorageStore.location).toBe(ChatStorageLocation.BROWSER);
 	});
 
 	it('goes back to this browser when Pico Server stops offering it', async () => {
@@ -134,8 +134,7 @@ describe('chat storage setting', () => {
 		expect(chatStorageStore.location).toBe(ChatStorageLocation.BROWSER);
 	});
 
-	it('uses a saved Pico Server choice from the first read', async () => {
-		await chatStorageStore.select(ChatStorageLocation.SERVER);
+	it('reads chats from Pico Server by default on a fresh signed-in browser', async () => {
 		// a fresh page: the store in use starts as this browser's
 		await DatabaseService.useStore(localChatStore);
 		chatStorageStore.location = ChatStorageLocation.BROWSER;
@@ -255,10 +254,10 @@ describe('switching chat storage', () => {
 			DatabaseService.updateConversation(chat.id, { name: 'Renamed' })
 		]);
 
-		// another account, which keeps its chats in this browser
+		// This account chooses browser storage while the first account has a write in flight.
 		settingsStore.config.apiKey = KEY_B;
 
-		const switched = chatStorageStore.sync();
+		const switched = chatStorageStore.select(ChatStorageLocation.BROWSER);
 
 		await new Promise((resolve) => setTimeout(resolve, 50));
 		write.resolve();

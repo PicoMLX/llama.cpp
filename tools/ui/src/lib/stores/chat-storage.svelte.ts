@@ -108,8 +108,8 @@ class ChatStorageStore {
 	}
 
 	/**
-	 * Picks the saved store before any chat is read. Called from initStores();
-	 * waits for /props only when the saved choice is Pico Server.
+	 * Picks the store before the first chat is read. Signed-in browsers use Pico
+	 * Server when available unless the person explicitly chose browser storage.
 	 */
 	async initialize(): Promise<void> {
 		const apiKey = currentApiKey();
@@ -194,8 +194,8 @@ class ChatStorageStore {
 		}
 	}
 
-	private choiceFor(scope: string): ChatStorageLocation | undefined {
-		return this.unsaved.get(scope) ?? readChoices()[scope];
+	private choiceFor(scope: string): ChatStorageLocation {
+		return this.unsaved.get(scope) ?? readChoices()[scope] ?? ChatStorageLocation.SERVER;
 	}
 
 	/**

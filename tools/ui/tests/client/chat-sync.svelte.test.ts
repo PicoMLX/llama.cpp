@@ -743,13 +743,20 @@ describe('the notices stream', () => {
 		expect(eventConnections()).toBe(1);
 	});
 
-	it('closes when the API key changes or Pico Server stops offering storage', async () => {
+	it('replaces the stream when the account changes and closes it when server storage becomes unavailable', async () => {
 		// another account has made no choice, so its chats are in this browser
+		const originalStream = [...server.eventStreams][0];
+
 		settingsStore.config.apiKey = KEY_B;
 		await chatStorageStore.sync();
 
-		expect(chatStorageStore.location).toBe(ChatStorageLocation.BROWSER);
-		expect(server.eventStreams.size).toBe(0);
+		expect(chatStorageStore.location).toBe(ChatStorageLocation.SERVER);
+		expect(server.eventStreams.has(originalStream)).toBe(false);
+		await vi.waitFor(() => expect(server.eventStreams.size).toBe(1));
+
+		const next = server.requests.filter((r) => r.path === API_CONVERSATIONS.EVENTS).at(-1)!;
+
+		expect(next.headers.get(HEADERS.AUTHORIZATION)).toBe(`${HEADERS.BEARER}${KEY_B}`);
 
 		settingsStore.config.apiKey = KEY_A;
 		await chatStorageStore.sync();
