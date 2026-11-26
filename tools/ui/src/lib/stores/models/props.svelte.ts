@@ -153,7 +153,11 @@ export class ModelPropsManager {
 
 		if (cached) return cached;
 
-		if (serverStore.isRouterMode && !this.host.isModelLoaded(modelId)) {
+		if (
+			serverStore.isRouterMode &&
+			!serverStore.isPicoServer &&
+			!this.host.isModelLoaded(modelId)
+		) {
 			return null;
 		}
 

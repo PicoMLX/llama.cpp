@@ -1109,7 +1109,8 @@ export class ChatService {
 			return OpenResponsesService.sendMessage(messages, options, conversationId, signal);
 		}
 
-		const streamModel = serverStore.isRouterMode ? options.model : undefined;
+		const streamModel =
+			serverStore.isRouterMode && !serverStore.isPicoServer ? options.model : undefined;
 		const {
 			backend_sampling,
 			continueFinalMessage,
@@ -1303,6 +1304,10 @@ export class ChatService {
 			} catch (error) {
 				console.warn('Failed to parse custom parameters:', error);
 			}
+		}
+
+		if (serverStore.isPicoServer && !serverStore.supportsModelSelection) {
+			requestBody.model = modelsStore.activeModelId ?? undefined;
 		}
 
 		try {

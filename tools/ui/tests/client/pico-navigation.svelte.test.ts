@@ -159,6 +159,84 @@ describe.runIf(IS_PICO_BUILD)('Pico collapsed sidebar actions', () => {
 		groupsStore.groups = previousGroups;
 	});
 
+	it.each([1280, 390].flatMap((width) => [false, true].map((expanded) => ({ expanded, width }))))(
+		'keeps Pico beside the toggle at width $width with expanded=$expanded',
+		async ({ expanded, width }) => {
+			await page.viewport(width, 900);
+			uiStore.isSidebarExpanded = expanded;
+			const screen = render(SidebarNavigationHarness);
+
+			await expect.element(screen.getByText('Pico', { exact: true })).toBeVisible();
+			const aside = screen.container.querySelector('aside')!;
+			const brand = aside.querySelector<HTMLElement>('[data-slot="pico-brand"]')!;
+			const toggle = aside.querySelector<HTMLButtonElement>(
+				`[aria-label="${expanded ? 'Collapse' : 'Expand'} navigation"]`
+			)!;
+			const brandBox = brand.getBoundingClientRect();
+			const toggleBox = toggle.getBoundingClientRect();
+			const logoBox = brand.querySelector('svg')!.getBoundingClientRect();
+
+			expect(brand.textContent?.trim()).toBe('Pico');
+			expect(brand.closest('button, a')).toBeNull();
+			expect(getComputedStyle(brand).pointerEvents).toBe('none');
+			expect(logoBox.width).toBe(24);
+			expect(logoBox.height).toBe(24);
+			expect(toggleBox.width).toBeGreaterThanOrEqual(44);
+			expect(toggleBox.height).toBeGreaterThanOrEqual(44);
+			expect(brandBox.left).toBeGreaterThanOrEqual(toggleBox.right);
+			expect(brandBox.left - toggleBox.right).toBeLessThanOrEqual(12);
+			expect(
+				Math.abs(brandBox.top + brandBox.height / 2 - toggleBox.top - toggleBox.height / 2)
+			).toBeLessThan(1);
+			expect(brandBox.right).toBeLessThan(width);
+
+			if (!expanded && width > 768) {
+				expect(brandBox.right).toBeGreaterThan(aside.getBoundingClientRect().right);
+				expect(
+					aside.contains(
+						document.elementFromPoint(
+							brandBox.left + brandBox.width / 2,
+							brandBox.top + brandBox.height / 2
+						)
+					)
+				).toBe(false);
+			}
+
+			let previousRight = brandBox.right;
+
+			for (const name of ['New chat', 'Search']) {
+				await expect
+					.element(screen.getByRole('button', { name: new RegExp(`^${name}`) }))
+					.toBeVisible();
+				const button =
+					aside.querySelector<HTMLButtonElement>(`button[aria-label="${name}"]`) ??
+					[...aside.querySelectorAll('button')].find((item) =>
+						item.textContent?.trim().startsWith(name)
+					)!;
+				const box = button.getBoundingClientRect();
+
+				expect(box.left).toBeGreaterThanOrEqual(0);
+				expect(box.right).toBeLessThanOrEqual(width);
+				expect(box.top >= brandBox.bottom || box.left >= brandBox.right).toBe(true);
+				expect(
+					document
+						.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+						?.closest('button')
+				).toBe(button);
+
+				if (width < 768) {
+					expect(box.width).toBeGreaterThanOrEqual(44);
+					expect(box.height).toBeGreaterThanOrEqual(44);
+					expect(box.left).toBeGreaterThanOrEqual(previousRight);
+					expect(
+						Math.abs(box.top + box.height / 2 - toggleBox.top - toggleBox.height / 2)
+					).toBeLessThan(1);
+					previousRight = box.right;
+				}
+			}
+		}
+	);
+
 	it('keeps both icon actions clickable while history and Settings remain inert', async () => {
 		const newChat = vi.spyOn(conversationsStore, 'openNewChat').mockResolvedValue();
 		const screen = render(SidebarNavigationHarness);

@@ -6,7 +6,7 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { getChatMessageActionsContext, getChatMessageEditContext } from '$lib/contexts';
 	import { MessageRole, ServerModelStatus } from '$lib/enums';
-	import { agenticStore, chatStore, modelsStore } from '$lib/stores';
+	import { agenticStore, chatStore, modelsStore, serverStore } from '$lib/stores';
 	import type { Snippet } from 'svelte';
 
 	interface Props {
@@ -154,7 +154,10 @@
 				onModelChange={async (modelId, modelName) => {
 					if (isLoading) return false;
 
-					if (modelsStore.getModelStatus(modelId) !== ServerModelStatus.LOADED) {
+					if (
+						!serverStore.isPicoServer &&
+						modelsStore.getModelStatus(modelId) !== ServerModelStatus.LOADED
+					) {
 						await modelsStore.status.load(modelId);
 					}
 

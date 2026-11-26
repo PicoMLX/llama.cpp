@@ -34,6 +34,8 @@ export function useChatFormModel(options: UseChatFormModelOptions = {}) {
 		if (options.synchronizeSelection?.() === false) return;
 
 		if (IS_PICO_BUILD) {
+			if (!supportsModelSelection) return;
+
 			const conversationId = conversationsStore.activeConversation?.id ?? null;
 
 			if (conversationId !== lastSyncedConversationId) {
@@ -129,13 +131,14 @@ export function useChatFormModel(options: UseChatFormModelOptions = {}) {
 		return activeModelId ? modelsStore.props.modelSupportsVision(activeModelId) : false;
 	});
 	const hasModelSelected = $derived(
-		!supportsModelSelection ||
-			(IS_PICO_BUILD ? !!activeModelId : !!conversationModel || !!modelsStore.selectedModelId)
+		IS_PICO_BUILD
+			? !!activeModelId
+			: !supportsModelSelection || !!conversationModel || !!modelsStore.selectedModelId
 	);
 	const isSelectedModelInCache = $derived.by(() => {
-		if (!supportsModelSelection) return true;
-
 		if (IS_PICO_BUILD) return activeModelId !== null;
+
+		if (!supportsModelSelection) return true;
 
 		if (conversationModel) {
 			return modelsStore.models.some((option) => option.model === conversationModel);

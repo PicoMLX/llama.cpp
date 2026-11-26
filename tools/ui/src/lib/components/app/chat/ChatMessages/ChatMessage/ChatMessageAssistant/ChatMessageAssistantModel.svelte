@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { ModelBadge, ModelsSelector } from '$lib/components/app';
 	import { ServerModelStatus } from '$lib/enums';
-	import { modelsStore } from '$lib/stores';
+	import { modelsStore, serverStore } from '$lib/stores';
 	import { copyToClipboard } from '$lib/utils';
 
 	interface Props {
@@ -27,7 +27,7 @@
 
 			// the picker's own selection applies before this resolves, so a model
 			// that is not loaded yet gets its load request in first
-			if (status !== ServerModelStatus.LOADED) {
+			if (!serverStore.isPicoServer && status !== ServerModelStatus.LOADED) {
 				await modelsStore.status.load(modelId);
 			}
 

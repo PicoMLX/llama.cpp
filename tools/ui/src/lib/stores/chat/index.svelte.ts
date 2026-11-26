@@ -473,8 +473,10 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 			value !== undefined && value !== null && value !== '';
 		const apiOptions: Record<string, unknown> = { stream: true, timings_per_token: true };
 
-		if (serverStore.supportsModelSelection) {
-			const modelName = modelsStore.selectedModelName;
+		if (serverStore.supportsModelSelection || serverStore.isPicoServer) {
+			const modelName = serverStore.isPicoServer
+				? modelsStore.activeModelId
+				: modelsStore.selectedModelName;
 
 			if (modelName) apiOptions.model = modelName;
 		}
@@ -488,7 +490,8 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		if (includeReasoning) {
 			this.applyReasoningOptions(
 				apiOptions,
-				modelsStore.selectedModelName ?? '',
+				(serverStore.isPicoServer ? modelsStore.activeModelId : modelsStore.selectedModelName) ??
+					'',
 				conversationsStore.preferences.getReasoningEffort()
 			);
 		}
@@ -1043,7 +1046,9 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		// and reattach all agree, regardless of fresh send vs regenerate passing a resolved model
 		let effectiveModel: string | null | undefined = undefined;
 
-		if (serverStore.supportsModelSelection) {
+		if (serverStore.isPicoServer && !serverStore.supportsModelSelection) {
+			effectiveModel = modelsStore.activeModelId;
+		} else if (serverStore.supportsModelSelection) {
 			const conversationModel = getConversationModel(allMessages);
 
 			effectiveModel =
@@ -1053,13 +1058,14 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 				conversationModel;
 		}
 
-		const streamModel = serverStore.isRouterMode ? effectiveModel : undefined;
+		const streamModel =
+			serverStore.isRouterMode && !serverStore.isPicoServer ? effectiveModel : undefined;
 		const preserveModelId = serverStore.isPicoServer;
 		// a router serves the props the request options read once the model is loaded, so the
 		// request waits for the load, and a stop during the wait aborts it
 		const abortController = this.getOrCreateAbortController(assistantMessage.convId);
 
-		if (serverStore.isRouterMode && effectiveModel) {
+		if (serverStore.isRouterMode && !serverStore.isPicoServer && effectiveModel) {
 			await modelsStore.status.ensureLoaded(effectiveModel);
 
 			if (abortController.signal.aborted) return;
@@ -1592,8 +1598,9 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		assistantContent: string,
 		convId: string
 	): Promise<void> {
-		const effectiveModel =
-			serverStore.supportsModelSelection && modelsStore.selectedModelName
+		const effectiveModel = serverStore.isPicoServer
+			? (modelsStore.activeModelId ?? undefined)
+			: serverStore.supportsModelSelection && modelsStore.selectedModelName
 				? modelsStore.selectedModelName
 				: undefined;
 		const configValue = settingsStore.config;
@@ -1788,10 +1795,14 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		// Model resolution mirrors the request funnel: the selected model
 		// first, then the model the branch was generated with, so router
 		// mode targets the child that owns this conversation's KV cache.
-		const effectiveModel = serverStore.supportsModelSelection
-			? modelsStore.selectedModelName || getConversationModel(source)
-			: undefined;
-		const streamModel = serverStore.isRouterMode ? effectiveModel : undefined;
+		const effectiveModel =
+			serverStore.isPicoServer && !serverStore.supportsModelSelection
+				? modelsStore.activeModelId
+				: serverStore.supportsModelSelection
+					? modelsStore.selectedModelName || getConversationModel(source)
+					: undefined;
+		const streamModel =
+			serverStore.isRouterMode && !serverStore.isPicoServer ? effectiveModel : undefined;
 
 		let summary = '';
 		// a summary the output limit cut is no summary

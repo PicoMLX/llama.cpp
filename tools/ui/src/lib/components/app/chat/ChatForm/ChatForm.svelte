@@ -216,13 +216,12 @@
 	let activeModelId = $derived(modelsStore.activeModelId);
 
 	let hasModelSelected = $derived(
-		!isRouter ||
-			(IS_PICO_BUILD
-				? !!activeModelId &&
+		IS_PICO_BUILD
+			? !!activeModelId &&
 					modelsStore.models.some(
 						(model) => model.id === activeModelId || model.model === activeModelId
 					)
-				: !!conversationModel || !!modelsStore.selectedModelId)
+			: !isRouter || !!conversationModel || !!modelsStore.selectedModelId
 	);
 	let hasLoadingAttachments = $derived(uploadedFiles.some((f) => f.isLoading));
 	let hasAttachments = $derived(
