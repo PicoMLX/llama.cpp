@@ -1,6 +1,9 @@
+import { AttachmentType } from '$lib/enums';
+import { OpenResponsesService } from '$lib/services/open-responses';
+import { settingsStore } from '$lib/stores/settings/index.svelte';
 import { capImageDataURLSize } from '$lib/utils/cap-img-size';
 import { getJpegOrientationFromDataURL } from '$lib/utils/jpeg-orientation';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // Real 64x32 jpegs generated with Pillow, quality 90. The upright picture is
 // four solid quadrants: top left red, top right green, bottom left blue,
@@ -120,5 +123,64 @@ describe('capImageDataURLSize orientation and capping', () => {
 		expect(img.naturalWidth).toBe(32);
 		expect(img.naturalHeight).toBe(16);
 		expectUpright(await quadrantColors(result));
+	});
+});
+
+// Pico always uses Responses, so its images take this path whatever API Compatibility says
+describe('Responses requests', () => {
+	const previousConfig = { ...settingsStore.config };
+
+	afterEach(() => {
+		settingsStore.config = { ...previousConfig };
+		vi.restoreAllMocks();
+	});
+
+	it('cap attached images at the maximum resolution, as Chat Completions does', async () => {
+		settingsStore.config = { ...settingsStore.config, maxImageMPixels: QUARTER_AREA_MEGAPIXELS };
+		const bodies: Array<{
+			input: Array<{ content?: Array<{ image_url?: string; type: string }> }>;
+		}> = [];
+
+		vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+			bodies.push(JSON.parse(init?.body as string));
+
+			return Response.json({
+				id: 'resp_1',
+				model: 'test',
+				object: 'response',
+				output: [
+					{
+						content: [{ text: 'Four colors.', type: 'output_text' }],
+						role: 'assistant',
+						type: 'message'
+					}
+				],
+				status: 'completed'
+			});
+		});
+
+		await OpenResponsesService.sendMessage(
+			[
+				{
+					content: 'What is in this picture?',
+					convId: 'conv_1',
+					extra: [{ base64Url: EXIF1, name: 'photo.jpg', type: AttachmentType.IMAGE }],
+					id: 'msg_1',
+					role: 'user',
+					timestamp: 0
+				} as unknown as DatabaseMessage
+			],
+			{ stream: false }
+		);
+
+		const parts = bodies[0].input.flatMap((item) => item.content ?? []);
+		const image = parts.find((part) => part.type === 'input_image')?.image_url;
+
+		expect(image).toBeDefined();
+		const img = await loadImage(image!);
+
+		expect(img.naturalWidth).toBe(32);
+		expect(img.naturalHeight).toBe(16);
+		expectUpright(await quadrantColors(image!));
 	});
 });
