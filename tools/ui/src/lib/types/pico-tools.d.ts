@@ -1,10 +1,6 @@
 import type { MCPResourceIcon } from './mcp';
 
-/**
- * One tool of Pico's `/mcp` `tools/list`, as the tools UI and the request
- * builder read it. `approvalRequired` is Pico's `_meta["pico/approval"]`
- * decision for this caller.
- */
+/** One tool of Pico's `/mcp` `tools/list`; `approvalRequired` is Pico's `_meta["pico/approval"]` decision for this caller. */
 export interface PicoToolInfo {
 	name: string;
 	title?: string;
@@ -71,9 +67,8 @@ export type ResponsesMcpWireItem =
 	  };
 
 /**
- * A stored MCP item. `content_offset` is the WebUI's own field: the length of
- * the message text streamed before the item, so history keeps the model's
- * order. It is never sent.
+ * A stored MCP item.
+ * `content_offset` is the WebUI's own field: the length of the text streamed before the item, so history keeps the model's order; it is never sent.
  */
 export type ResponsesMcpItem = ResponsesMcpWireItem & { content_offset?: number };
 

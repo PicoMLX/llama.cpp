@@ -405,9 +405,8 @@ class AgenticStore {
 	}
 
 	/**
-	 * Ask the user about each call Pico paused on, in order, with the shared
-	 * permission prompt. Returns the turn's items plus one approval response
-	 * per answered request; a new user message while asking answers "no".
+	 * Ask the user about each call Pico paused on, in order, with the shared permission prompt.
+	 * Returns the turn's items plus one approval response per answer; a new user message answers "no".
 	 * After a stop the rest stay unanswered, and the next request denies them.
 	 */
 	private async answerPicoApprovals(
@@ -1174,9 +1173,8 @@ class AgenticStore {
 	}
 
 	/**
-	 * Pico's `mcp` entry for a flow under this policy, listing Pico's tools
-	 * first if they were never listed; null when the server is not Pico or
-	 * agentic is off.
+	 * Pico's `mcp` entry for a flow under this policy; null when the server is not Pico or agentic is off.
+	 * Lists Pico's tools first when they need a listing.
 	 */
 	private async picoToolFor(toolPolicy?: AgenticToolPolicy): Promise<ResponsesMcpTool | null> {
 		if (toolsStore.needsPicoToolsListing) await toolsStore.fetchPicoTools();

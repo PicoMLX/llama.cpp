@@ -26,8 +26,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Streams mirror OpenAI's documented Responses MCP items and events
-// (openai npm SDK 7.65.0, resources/responses/responses.d.ts).
+// Streams mirror OpenAI's documented Responses MCP items and events (openai npm SDK 7.65.0, resources/responses/responses.d.ts).
 const fixturesDir = resolve(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'open-responses');
 const fixture = (name: string) => readFileSync(resolve(fixturesDir, name), 'utf8');
 const PICO_ORIGIN = 'http://pico.local:8080/';
@@ -307,6 +306,17 @@ describe('Pico mcp tool entry', () => {
 		settingsStore.config.apiKey = previousKey;
 	});
 
+	it('fails a listing whose tools/list failed instead of listing no tools', async () => {
+		usePicoServer();
+		vi.spyOn(MCPService, 'connect').mockResolvedValue({
+			client: { listTools: vi.fn().mockRejectedValue(new Error('tools/list failed')) },
+			tools: []
+		} as unknown as MCPConnection);
+		vi.spyOn(MCPService, 'disconnect').mockResolvedValue();
+
+		await expect(ToolsService.listPicoTools()).rejects.toThrow('tools/list failed');
+	});
+
 	it('lists Pico tools from /mcp with their title, icons and approval decision', async () => {
 		usePicoServer();
 		const icon = { mimeType: 'image/svg+xml', sizes: ['any'], src: 'data:image/svg+xml;base64,AA' };
@@ -385,11 +395,8 @@ describe('Pico mcp items in history', () => {
 			weatherCall,
 			{
 				...running,
-				error: {
-					content: 'The call was interrupted before Pico reported its result.',
-					type: 'mcp_tool_execution_error'
-				},
-				status: 'incomplete'
+				error: 'The call was interrupted before Pico reported its result.',
+				status: 'failed'
 			},
 			{
 				content: 'It is cloudy. Adding it.',
@@ -400,6 +407,72 @@ describe('Pico mcp items in history', () => {
 			reminderRequest,
 			{ approval_request_id: 'mcpr_1', approve: false, type: 'mcp_approval_response' }
 		]);
+	});
+
+	it('closes an earlier approval that no call carried out, and keeps the last turn pending', () => {
+		const approved: ResponsesMcpItem = {
+			approval_request_id: 'mcpr_1',
+			approve: true,
+			type: 'mcp_approval_response'
+		};
+		const declined: ResponsesMcpItem = { ...approved, approve: false };
+		const closingCall = (error: string) => ({
+			approval_request_id: 'mcpr_1',
+			arguments: '{"title":"Buy milk"}',
+			error,
+			id: 'mcp_mcpr_1',
+			name: 'reminders_create',
+			output: null,
+			server_label: 'pico',
+			status: 'failed',
+			type: 'mcp_call'
+		});
+		const paused = (response?: ResponsesMcpItem) => ({
+			content: '',
+			mcp_items: response ? [reminderRequest, response] : [reminderRequest],
+			role: 'assistant' as const
+		});
+		const user = { content: 'Next', role: 'user' as const };
+
+		// a denial the user gave, or the one sent for a request left unanswered
+		for (const turn of [paused(declined), paused()]) {
+			expect(OpenResponsesService.convertMessagesToInput([turn, user])).toEqual([
+				reminderRequest,
+				{ approval_request_id: 'mcpr_1', approve: false, type: 'mcp_approval_response' },
+				closingCall('The user declined this tool call.'),
+				user
+			]);
+		}
+
+		// an approved call that never reported back
+		expect(OpenResponsesService.convertMessagesToInput([paused(approved), user])).toEqual([
+			reminderRequest,
+			{ approval_request_id: 'mcpr_1', approve: true, type: 'mcp_approval_response' },
+			closingCall('The call was interrupted before Pico reported its result.'),
+			user
+		]);
+
+		// carried out by a later turn's call
+		const carriedOut = OpenResponsesService.convertMessagesToInput([
+			paused(approved),
+			{
+				content: 'Added.',
+				mcp_items: [{ ...weatherCall, approval_request_id: 'mcpr_1', name: 'reminders_create' }],
+				role: 'assistant'
+			},
+			user
+		]);
+
+		expect(carriedOut.filter((item) => (item as { id?: string }).id === 'mcp_mcpr_1')).toEqual([]);
+
+		// the last turn, with only its client tool results after it, stays pending
+		expect(
+			OpenResponsesService.convertMessagesToInput([
+				user,
+				paused(declined),
+				{ content: '2026-11-27', role: 'tool', tool_call_id: 'call_1' }
+			]).some((item) => (item as { type?: string }).type === 'mcp_call')
+		).toBe(false);
 	});
 
 	it('ends a paused turn on the approval request and its response', () => {
@@ -448,6 +521,71 @@ describe('Pico mcp items in history', () => {
 		});
 		expect(serializeStoredToolCalls(undefined, [])).toBe('');
 		expect(splitStoredToolCalls('not json')).toEqual({ mcpItems: [], toolCalls: [] });
+	});
+});
+
+// Pico Server's real output: PS-2's golden fixtures (ronaldmannak/PicoServer `claude/tools-phase2`, PicoServerTests/Fixtures/ResponsesSDK/responses-mcp-*-stream.txt)
+describe("Pico Server's MCP streams", () => {
+	async function parse(name: string) {
+		vi.stubGlobal('fetch', vi.fn().mockResolvedValue(streamResponse(fixture(name))));
+
+		let items: ResponsesMcpItem[] = [];
+
+		const onComplete = vi.fn();
+
+		await OpenResponsesService.sendMessage([{ content: 'Hi', role: 'user' }], {
+			onComplete,
+			onMcpItems: (next: ResponsesMcpItem[]) => (items = next),
+			stream: true
+		});
+
+		const [content, , , toolCalls] = onComplete.mock.calls[0];
+
+		return { content, items, toolCalls: toolCalls ? JSON.parse(toolCalls) : [] };
+	}
+
+	it('reads a call Pico ran without asking', async () => {
+		const { content, items, toolCalls } = await parse('pico-mcp-call.sse');
+
+		expect(items.map(({ type }) => type)).toEqual(['mcp_list_tools', 'mcp_call']);
+		expect(items[1]).toMatchObject({
+			arguments: '{"city":"Paris"}',
+			content_offset: 0,
+			name: 'weather_current',
+			output: '{"city":"Paris","temp_c":21,"conditions":"sunny"}',
+			status: 'completed'
+		});
+		expect(content).toBe("It's 21\u00b0C and sunny in Paris.");
+		expect(toolCalls).toEqual([]);
+	});
+
+	it('reads a pause on an approval next to a client function call', async () => {
+		const { items, toolCalls } = await parse('pico-mcp-approval.sse');
+
+		expect(unansweredApprovalRequests(items)).toEqual([
+			expect.objectContaining({ name: 'write_file', type: 'mcp_approval_request' })
+		]);
+		expect(toolCalls).toEqual([
+			expect.objectContaining({
+				function: { arguments: '{}', name: 'get_datetime' },
+				id: 'call_d1'
+			})
+		]);
+	});
+
+	it('reads the approved call on resume', async () => {
+		const { content, items } = await parse('pico-mcp-resume.sse');
+
+		expect(items).toEqual([
+			expect.objectContaining({
+				approval_request_id: 'mcpr_fixture1',
+				error: null,
+				name: 'write_file',
+				status: 'completed',
+				type: 'mcp_call'
+			})
+		]);
+		expect(content).toBe('Saved the weather to notes.txt.');
 	});
 });
 

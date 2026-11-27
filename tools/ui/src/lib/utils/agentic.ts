@@ -558,8 +558,7 @@ const toolCallsParseCache = new Map<
 >();
 
 /**
- * Safely parse the toolCalls JSON string from a DatabaseMessage into its
- * function calls and Pico's MCP items.
+ * Safely parse the toolCalls JSON string from a DatabaseMessage into its function calls and Pico's MCP items.
  * Memoized: the same JSON string is re-parsed on every render during
  * streaming, which is wasted CPU since tool calls don't change mid-stream.
  */
@@ -582,10 +581,6 @@ function parseStoredToolCalls(toolCallsJson?: string): {
 	toolCallsParseCache.set(toolCallsJson, result);
 
 	return result;
-}
-
-function parseToolCalls(toolCallsJson?: string): ApiChatCompletionToolCall[] {
-	return parseStoredToolCalls(toolCallsJson).toolCalls;
 }
 
 /** Calls and approval requests show in the message; tool lists and approval answers do not. */
@@ -664,9 +659,11 @@ export function classifyContinueIntent(messages: DatabaseMessage[], idx: number)
 		return { kind: ContinueIntentKind.APPEND_TEXT };
 	}
 
-	const hasToolCalls = parseToolCalls(target.toolCalls).length > 0;
+	const { mcpItems, toolCalls } = parseStoredToolCalls(target.toolCalls);
+	const hasToolCalls = toolCalls.length > 0;
+	const hasPicoTools = mcpItems.some(isShownMcpItem);
 
-	if (!hasToolCalls) {
+	if (!hasToolCalls && !hasPicoTools) {
 		return { kind: ContinueIntentKind.APPEND_TEXT };
 	}
 
@@ -685,6 +682,11 @@ export function classifyContinueIntent(messages: DatabaseMessage[], idx: number)
 
 	if (lastTrailingTool > idx) {
 		return { kind: ContinueIntentKind.NEXT_TURN, truncateAfter: lastTrailingTool };
+	}
+
+	// Pico reported its own calls in the turn, so a new turn picks up after them
+	if (!hasToolCalls) {
+		return { kind: ContinueIntentKind.NEXT_TURN, truncateAfter: idx };
 	}
 
 	return { kind: ContinueIntentKind.RERUN_TURN, truncateAfter: idx - 1 };

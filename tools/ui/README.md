@@ -122,7 +122,7 @@ PicoServer is identified by its `/props` `server_name` field. Its model load/unl
 
 Pico Server runs its own tools. The WebUI lists them from Pico's `/mcp` `tools/list` (title, icons and `_meta["pico/approval"]`) on load and when the tools panel or Settings opens, and shows them as the Pico group with per-chat switches. Every Responses request to Pico carries one `mcp` tool entry with `server_label: "pico"`: `allowed_tools` holds the switched-on tools, and `require_approval.never` the approval-free ones plus the user's "Always allow" picks. Side requests such as title generation send the entry with no tools. Pico's tools are never sent as function tools, including through a connection to Pico's own `/mcp`.
 
-Responses MCP items follow OpenAI's documented shapes. `mcp_call` items show a live status line, then a collapsed summary; they are stored with the assistant message's tool calls and sent back as input. An `mcp_approval_request` uses the tool permission prompt; the answer goes out as `mcp_approval_response` with the next request, and a request the user leaves unanswered is sent as a denial.
+Responses MCP items follow OpenAI's documented shapes. `mcp_call` items show a live status line, then a collapsed summary; they are stored with the assistant message's tool calls and sent back as input. An `mcp_approval_request` uses the tool permission prompt; the answer goes out as `mcp_approval_response` with the next request, and a request the user leaves unanswered is sent as a denial. Pico resumes only the last turn, so an earlier approval that no call carried out goes back with a failed `mcp_call` that closes it.
 
 ### Pico rich cards
 

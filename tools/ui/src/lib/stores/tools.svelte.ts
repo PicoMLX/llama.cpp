@@ -2,10 +2,10 @@
  * toolsStore - Tool registry and enablement
  *
  * Owns the server tool listing (with working-directory resolution), built-in
- * browser tools, MCP tools, Pico Server's own tools and per-tool enablement,
- * exposed as a unified tool set for the LLM and the tools UI. Consumed by the
- * agentic loop and the chat flows. Pico runs its own tools: they reach the
- * model through one Responses `mcp` entry, never as function tools.
+ * browser tools, MCP tools and per-tool enablement, exposed as a unified
+ * tool set for the LLM and the tools UI. Consumed by the agentic loop and
+ * the chat flows.
+ * Pico Server's own tools are listed too; they reach the model through one Responses `mcp` entry, never as function tools.
  */
 
 import { browser } from '$app/environment';
@@ -280,9 +280,8 @@ class ToolsStore {
 	}
 
 	/**
-	 * Refresh Pico Server's own tool list from `/mcp`, which answers for the
-	 * caller. Callers with the same API key share one request; a failed
-	 * refresh keeps the last list only when it is that caller's.
+	 * Refresh Pico Server's own tool list from `/mcp`, which answers for the caller.
+	 * Callers with the same API key share one request; a failed refresh keeps the last list only when it is that caller's.
 	 */
 	async fetchPicoTools(): Promise<void> {
 		if (!serverStore.isPicoServer) return;
@@ -400,9 +399,8 @@ class ToolsStore {
 	}
 
 	/**
-	 * Pico's Responses `mcp` entry under a tool policy, or null when the server
-	 * is not Pico. Pico offers its tools to any request that does not name
-	 * them, so the entry goes out even when the policy leaves none on.
+	 * Pico's Responses `mcp` entry under a tool policy, or null when the server is not Pico.
+	 * Pico offers its tools to any request that does not name them, so the entry goes out even when no tool is on.
 	 * Approval-free tools and the user's "Always allow" picks never ask.
 	 */
 	getPicoMcpTool(
@@ -675,10 +673,7 @@ class ToolsStore {
 		return undefined;
 	}
 
-	/**
-	 * A connection to Pico Server's own `/mcp`: Pico runs those tools itself,
-	 * so they reach the model through Pico's `mcp` entry, never as functions.
-	 */
+	/** A connection to Pico Server's own `/mcp`: Pico runs those tools, so they never become function tools. */
 	private isRunByPico(serverId: string): boolean {
 		if (!serverStore.isPicoServer) return false;
 

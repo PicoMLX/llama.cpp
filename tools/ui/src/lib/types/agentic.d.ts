@@ -93,11 +93,7 @@ export interface AgenticSession {
 	flowRootMessageId: string | null;
 }
 
-/**
- * A tool call waiting for the user's decision. `label` and `details` are what
- * the prompt shows instead of the raw name, e.g. a Pico tool's title and its
- * arguments.
- */
+/** A tool call waiting for the user's decision; `label` and `details` replace the raw name in the prompt, e.g. a Pico tool's title and arguments. */
 export interface AgenticPermissionRequest {
 	toolName: string;
 	serverLabel: string;

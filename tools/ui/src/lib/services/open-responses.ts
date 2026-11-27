@@ -81,6 +81,7 @@ type ResponsesInputItem =
 	| ResponsesMcpWireItem;
 
 const MCP_CALL_INTERRUPTED = 'The call was interrupted before Pico reported its result.';
+const MCP_CALL_DECLINED = 'The user declined this tool call.';
 
 type ReportedOpenResponsesError = Error & {
 	__openResponsesHandled?: boolean;
@@ -111,7 +112,20 @@ export class OpenResponsesService {
 	): ResponsesInputItem[] {
 		const input: ResponsesInputItem[] = [];
 
-		for (const msg of messages) {
+		// Pico resumes only the last turn: an assistant message with nothing but tool results after it
+		let lastTurn = messages.length - 1;
+
+		while (lastTurn >= 0 && messages[lastTurn].role === MessageRole.TOOL) lastTurn--;
+		const pendingTurn = messages[lastTurn]?.role === MessageRole.ASSISTANT ? lastTurn : -1;
+		const carriedOut = new Set(
+			messages.flatMap((msg) =>
+				OpenResponsesService.storedMcpItems(msg).flatMap((item) =>
+					item.type === 'mcp_call' && item.approval_request_id ? [item.approval_request_id] : []
+				)
+			)
+		);
+
+		for (const [index, msg] of messages.entries()) {
 			let role: string;
 			let content: string | ResponsesInputContentPart[];
 			let reasoningContent: string | undefined;
@@ -124,7 +138,8 @@ export class OpenResponsesService {
 
 				role = dbMsg.role === MessageRole.SYSTEM ? 'developer' : dbMsg.role;
 				reasoningContent = dbMsg.reasoningContent;
-				({ mcpItems, toolCalls } = splitStoredToolCalls(dbMsg.toolCalls));
+				toolCalls = splitStoredToolCalls(dbMsg.toolCalls).toolCalls;
+				mcpItems = OpenResponsesService.storedMcpItems(dbMsg);
 				toolCallId = dbMsg.toolCallId;
 
 				if (!dbMsg.extra || dbMsg.extra.length === 0) {
@@ -137,8 +152,8 @@ export class OpenResponsesService {
 
 				role = apiMsg.role === MessageRole.SYSTEM ? 'developer' : apiMsg.role;
 				reasoningContent = apiMsg.reasoning_content;
-				({ mcpItems, toolCalls } = splitStoredToolCalls(apiMsg.tool_calls ?? []));
-				mcpItems = [...(apiMsg.mcp_items ?? []), ...mcpItems];
+				toolCalls = splitStoredToolCalls(apiMsg.tool_calls ?? []).toolCalls;
+				mcpItems = OpenResponsesService.storedMcpItems(apiMsg);
 				toolCallId = apiMsg.tool_call_id;
 
 				if (typeof apiMsg.content === 'string' || apiMsg.content == null) {
@@ -175,7 +190,14 @@ export class OpenResponsesService {
 
 				// with Pico's items the turn ends on its calls, which a pending approval needs
 				if (mcpItems.length > 0) {
-					input.push(...reasoning, ...OpenResponsesService.convertMcpTurn(content, mcpItems));
+					input.push(
+						...reasoning,
+						...OpenResponsesService.convertMcpTurn(
+							content,
+							mcpItems,
+							index === pendingTurn ? null : carriedOut
+						)
+					);
 				} else {
 					input.push(
 						{
@@ -647,15 +669,17 @@ export class OpenResponsesService {
 	}
 
 	/**
-	 * An assistant message with Pico's MCP items, in the model's order: text
-	 * before each item, the items, then the trailing text. Each approval
-	 * request goes out with its response, or an explicit denial when the user
-	 * moved on without one. A call cut off before its result goes out as
-	 * incomplete, so an approval it carries out is never taken as pending.
+	 * An assistant message with Pico's MCP items, as input items in the model's order.
+	 * Each approval request goes out with its response, or with a denial when the user moved on without one.
+	 * A call cut off before its result goes out as failed.
+	 * Pico resumes only the last turn, so an earlier approval that no call carried out gets a failed call that closes it.
+	 *
+	 * @param closeApprovals - for an earlier turn, the approval ids some `mcp_call` carries out
 	 */
 	private static convertMcpTurn(
 		content: string | ResponsesInputContentPart[],
-		items: ResponsesMcpItem[]
+		items: ResponsesMcpItem[],
+		closeApprovals: ReadonlySet<string> | null
 	): ResponsesInputItem[] {
 		const input: ResponsesInputItem[] = [];
 		const text = OpenResponsesService.contentToText(content);
@@ -688,8 +712,8 @@ export class OpenResponsesService {
 				if (item.type === 'mcp_call' && item.output == null && item.error == null) {
 					input.push({
 						...(withoutOffset(item) as ResponsesMcpCallItem),
-						error: { content: MCP_CALL_INTERRUPTED, type: 'mcp_tool_execution_error' },
-						status: 'incomplete'
+						error: MCP_CALL_INTERRUPTED,
+						status: 'failed'
 					});
 
 					continue;
@@ -699,12 +723,27 @@ export class OpenResponsesService {
 
 				if (item.type === 'mcp_approval_request') {
 					const response = responses.get(item.id);
+					const approve = response?.approve ?? false;
 
 					input.push(
 						response
 							? withoutOffset(response)
-							: { approval_request_id: item.id, approve: false, type: 'mcp_approval_response' }
+							: { approval_request_id: item.id, approve, type: 'mcp_approval_response' }
 					);
+
+					if (closeApprovals && !closeApprovals.has(item.id)) {
+						input.push({
+							approval_request_id: item.id,
+							arguments: item.arguments,
+							error: approve ? MCP_CALL_INTERRUPTED : MCP_CALL_DECLINED,
+							id: `mcp_${item.id}`,
+							name: item.name,
+							output: null,
+							server_label: item.server_label,
+							status: 'failed',
+							type: 'mcp_call'
+						});
+					}
 				}
 			}
 		}
@@ -1514,6 +1553,19 @@ export class OpenResponsesService {
 			}));
 
 		return JSON.stringify(toolCalls);
+	}
+
+	/** Pico's MCP items of a stored or API message, next to its function calls */
+	private static storedMcpItems(
+		msg: ApiChatMessageData | (DatabaseMessage & { extra?: DatabaseMessageExtra[] })
+	): ResponsesMcpItem[] {
+		if ('id' in msg && 'convId' in msg && 'timestamp' in msg) {
+			return splitStoredToolCalls(msg.toolCalls).mcpItems;
+		}
+
+		const api = msg as ApiChatMessageData;
+
+		return [...(api.mcp_items ?? []), ...splitStoredToolCalls(api.tool_calls ?? []).mcpItems];
 	}
 
 	private static streamTerminalError(parsed: Record<string, unknown>): Error {

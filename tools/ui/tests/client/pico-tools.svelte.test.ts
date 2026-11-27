@@ -41,6 +41,29 @@ event: response.completed
 data: {"type":"response.completed","sequence_number":1,"response":{"id":"resp_9","object":"response","status":"completed","model":"${MODEL}","output":[]}}
 
 `;
+// Pico resumes only the last turn, so a denial a message follows is closed with a failed call
+const DENIED_THEN_NEVER_MIND = [
+	{
+		arguments: '{"title":"Buy milk"}',
+		id: 'mcpr_1',
+		name: 'reminders_create',
+		server_label: 'pico',
+		type: 'mcp_approval_request'
+	},
+	{ approval_request_id: 'mcpr_1', approve: false, type: 'mcp_approval_response' },
+	{
+		approval_request_id: 'mcpr_1',
+		arguments: '{"title":"Buy milk"}',
+		error: 'The user declined this tool call.',
+		id: 'mcp_mcpr_1',
+		name: 'reminders_create',
+		output: null,
+		server_label: 'pico',
+		status: 'failed',
+		type: 'mcp_call'
+	},
+	{ content: 'Never mind', role: 'user' }
+];
 const createdIds = new Set<string>();
 
 let previousConfig: SettingsConfigType;
@@ -249,17 +272,7 @@ describe('Pico tools in the chat', () => {
 
 		await send(screen, 'Never mind');
 		await vi.waitFor(() => expect(responseBodies).toHaveLength(2));
-		expect((responseBodies[1].input as unknown[]).slice(-3)).toEqual([
-			{
-				arguments: '{"title":"Buy milk"}',
-				id: 'mcpr_1',
-				name: 'reminders_create',
-				server_label: 'pico',
-				type: 'mcp_approval_request'
-			},
-			{ approval_request_id: 'mcpr_1', approve: false, type: 'mcp_approval_response' },
-			{ content: 'Never mind', role: 'user' }
-		]);
+		expect((responseBodies[1].input as unknown[]).slice(-4)).toEqual(DENIED_THEN_NEVER_MIND);
 		await vi.waitFor(isIdle);
 	});
 
@@ -273,17 +286,7 @@ describe('Pico tools in the chat', () => {
 		await chatStore.sendMessage('Never mind');
 
 		await vi.waitFor(() => expect(responseBodies).toHaveLength(2));
-		expect((responseBodies[1].input as unknown[]).slice(-3)).toEqual([
-			{
-				arguments: '{"title":"Buy milk"}',
-				id: 'mcpr_1',
-				name: 'reminders_create',
-				server_label: 'pico',
-				type: 'mcp_approval_request'
-			},
-			{ approval_request_id: 'mcpr_1', approve: false, type: 'mcp_approval_response' },
-			{ content: 'Never mind', role: 'user' }
-		]);
+		expect((responseBodies[1].input as unknown[]).slice(-4)).toEqual(DENIED_THEN_NEVER_MIND);
 		await expect.element(screen.getByText(/Allow use of/)).not.toBeInTheDocument();
 		await expect.element(screen.getByText('Declined Create Reminder')).toBeVisible();
 		await vi.waitFor(isIdle);

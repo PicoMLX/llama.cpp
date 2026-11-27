@@ -133,9 +133,7 @@ export class AgenticGates {
 	}
 
 	/**
-	 * @param prompt - What the prompt shows instead of the raw tool name, the
-	 * tool's permission key when its name alone may not find it, and
-	 * `denyOnSteering` to resolve as denied when the user sends a new message
+	 * @param prompt - label and details shown instead of the raw name, the permission key when the name may not find it, and `denyOnSteering` to deny on a new user message
 	 */
 	async requestPermission(
 		conversationId: string,

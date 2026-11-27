@@ -145,6 +145,40 @@ describe('classifyContinueIntent', () => {
 		expect(classifyContinueIntent(messages, 1)).toEqual({ kind: ContinueIntentKind.APPEND_TEXT });
 	});
 
+	it('returns next_turn after a turn Pico ran or paused its own tools in', () => {
+		const interrupted = JSON.stringify([
+			{
+				arguments: '{"city":"Paris"}',
+				id: 'mcp_1',
+				name: 'weather_current',
+				server_label: 'pico',
+				status: 'in_progress',
+				type: 'mcp_call'
+			}
+		]);
+		const messages = [
+			makeMsg(MessageRole.USER, { content: 'weather?' }),
+			makeMsg(MessageRole.ASSISTANT, { content: 'Let me check.', toolCalls: interrupted })
+		];
+
+		expect(classifyContinueIntent(messages, 1)).toEqual({
+			kind: ContinueIntentKind.NEXT_TURN,
+			truncateAfter: 1
+		});
+	});
+
+	it('keeps append_text for a turn whose only Pico item is its tool list', () => {
+		const listOnly = JSON.stringify([
+			{ id: 'mcpl_1', server_label: 'pico', tools: [], type: 'mcp_list_tools' }
+		]);
+		const messages = [
+			makeMsg(MessageRole.USER, { content: 'hi' }),
+			makeMsg(MessageRole.ASSISTANT, { content: 'Hello', toolCalls: listOnly })
+		];
+
+		expect(classifyContinueIntent(messages, 1)).toEqual({ kind: ContinueIntentKind.APPEND_TEXT });
+	});
+
 	it('returns append_text defensively when idx points at a non assistant message', () => {
 		const messages = [
 			makeMsg(MessageRole.USER, { content: 'q' }),

@@ -91,9 +91,8 @@ export class ToolsService {
 	}
 
 	/**
-	 * List Pico Server's own tools through its `/mcp` endpoint, which answers
-	 * as the caller: switched-off tools are absent and `_meta["pico/approval"]`
-	 * carries the approval decision. A tool without that decision needs approval.
+	 * List Pico Server's own tools through its `/mcp`, which answers as the caller.
+	 * `_meta["pico/approval"]` carries the approval decision; a tool without one needs approval.
 	 */
 	static async listPicoTools(): Promise<PicoToolInfo[]> {
 		const connection = await MCPService.connect(PICO_MCP.SERVER_LABEL, {
@@ -103,7 +102,13 @@ export class ToolsService {
 		});
 
 		try {
-			return connection.tools.map((tool) => ({
+			// connect reports a failed list as no tools; list again so a failure throws
+			const tools: typeof connection.tools =
+				connection.tools.length > 0
+					? connection.tools
+					: (await connection.client.listTools()).tools;
+
+			return tools.map((tool) => ({
 				approvalRequired: tool._meta?.[PICO_MCP.APPROVAL_META_KEY] !== PICO_MCP.APPROVAL_NONE,
 				description: tool.description,
 				icons: tool.icons,

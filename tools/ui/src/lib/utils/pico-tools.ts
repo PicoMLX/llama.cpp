@@ -39,9 +39,8 @@ export function isMcpItem(value: unknown): value is ResponsesMcpItem {
 }
 
 /**
- * An assistant message stores Pico's MCP items next to its function calls in
- * `toolCalls`, the one field every chat store keeps as given. Readers split
- * them here, so function calls never see MCP items.
+ * An assistant message stores Pico's MCP items next to its function calls in `toolCalls`, the one field every chat store keeps as given.
+ * Readers split them here, so function calls never see MCP items.
  */
 export function splitStoredToolCalls(value: unknown): {
 	toolCalls: ApiChatCompletionToolCall[];
@@ -118,9 +117,8 @@ export function mcpCallErrorText(error: ResponsesMcpCallError | null | undefined
 }
 
 /**
- * The message text cut where Pico's items appeared, so history and the UI keep
- * the model's order. Each run is the text before a group of items and the
- * items at that point; a last run with no items holds the trailing text.
+ * The message text cut where Pico's items appeared, so history and the UI keep the model's order.
+ * Each run is the text before a group of items and those items; a last run without items holds the trailing text.
  * Items without an offset belong after the text.
  */
 export function mcpItemRuns(
