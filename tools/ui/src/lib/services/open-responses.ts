@@ -1,4 +1,4 @@
-import { API_CHAT, LEGACY_AGENTIC_REGEX as AGENTIC_REGEX } from '$lib/constants';
+import { API_CHAT, LEGACY_AGENTIC_REGEX as AGENTIC_REGEX, PICO_MCP } from '$lib/constants';
 import { IS_PICO_BUILD } from '$lib/constants/app.constants';
 import { AttachmentType, MessageRole, StreamConnectionState } from '$lib/enums';
 import { modelsStore } from '$lib/stores/models/index.svelte';
@@ -7,10 +7,14 @@ import type {
 	ApiChatCompletionToolCall,
 	DatabaseMessageExtraMcpPrompt,
 	DatabaseMessageExtraMcpResource,
-	OpenAIToolDefinition
+	OpenAIToolDefinition,
+	ResponsesMcpItem,
+	ResponsesMcpTool,
+	ResponsesMcpWireItem
 } from '$lib/types';
 import { isAbortError } from '$lib/utils/abort';
 import { getJsonHeaders } from '$lib/utils/api-headers';
+import { isMcpItem, mcpItemRuns, picoMcpUrl, splitStoredToolCalls } from '$lib/utils/pico-tools';
 import { createReasoningTiming } from '$lib/utils/reasoning-timing';
 
 type OpenResponsesOutputItem = {
@@ -72,7 +76,8 @@ type ResponsesInputItem =
 			type: 'reasoning';
 			summary: [];
 			content: [{ type: 'reasoning_text'; text: string }];
-	  };
+	  }
+	| ResponsesMcpWireItem;
 
 type ReportedOpenResponsesError = Error & {
 	__openResponsesHandled?: boolean;
@@ -108,6 +113,7 @@ export class OpenResponsesService {
 			let content: string | ResponsesInputContentPart[];
 			let reasoningContent: string | undefined;
 			let toolCalls: ApiChatCompletionToolCall[] = [];
+			let mcpItems: ResponsesMcpItem[] = [];
 			let toolCallId: string | undefined;
 
 			if ('id' in msg && 'convId' in msg && 'timestamp' in msg) {
@@ -115,7 +121,7 @@ export class OpenResponsesService {
 
 				role = dbMsg.role === MessageRole.SYSTEM ? 'developer' : dbMsg.role;
 				reasoningContent = dbMsg.reasoningContent;
-				toolCalls = OpenResponsesService.parseToolCalls(dbMsg.toolCalls);
+				({ mcpItems, toolCalls } = splitStoredToolCalls(dbMsg.toolCalls));
 				toolCallId = dbMsg.toolCallId;
 
 				if (!dbMsg.extra || dbMsg.extra.length === 0) {
@@ -128,11 +134,13 @@ export class OpenResponsesService {
 
 				role = apiMsg.role === MessageRole.SYSTEM ? 'developer' : apiMsg.role;
 				reasoningContent = apiMsg.reasoning_content;
-				toolCalls = OpenResponsesService.parseToolCalls(apiMsg.tool_calls);
+				({ mcpItems, toolCalls } = splitStoredToolCalls(apiMsg.tool_calls ?? []));
+				mcpItems = [...(apiMsg.mcp_items ?? []), ...mcpItems];
 				toolCallId = apiMsg.tool_call_id;
 
-				if (typeof apiMsg.content === 'string') {
-					content = apiMsg.content;
+				if (typeof apiMsg.content === 'string' || apiMsg.content == null) {
+					// a tool-only agentic turn carries no content
+					content = apiMsg.content ?? '';
 				} else {
 					content = OpenResponsesService.convertApiContentParts(apiMsg.content);
 				}
@@ -151,21 +159,30 @@ export class OpenResponsesService {
 			}
 
 			if (role === MessageRole.ASSISTANT) {
-				const assistantContent = OpenResponsesService.convertAssistantContent(content);
+				const reasoning: ResponsesInputItem[] =
+					!excludeReasoningContent && reasoningContent?.trim()
+						? [
+								{
+									content: [{ text: reasoningContent, type: 'reasoning_text' }],
+									summary: [],
+									type: 'reasoning'
+								}
+							]
+						: [];
 
-				input.push({
-					content: assistantContent,
-					role: 'assistant',
-					status: 'completed',
-					type: 'message'
-				});
-
-				if (!excludeReasoningContent && reasoningContent?.trim()) {
-					input.push({
-						content: [{ text: reasoningContent, type: 'reasoning_text' }],
-						summary: [],
-						type: 'reasoning'
-					});
+				// with Pico's items the turn ends on its calls, which a pending approval needs
+				if (mcpItems.length > 0) {
+					input.push(...reasoning, ...OpenResponsesService.convertMcpTurn(content, mcpItems));
+				} else {
+					input.push(
+						{
+							content: OpenResponsesService.convertAssistantContent(content),
+							role: 'assistant',
+							status: 'completed',
+							type: 'message'
+						},
+						...reasoning
+					);
 				}
 
 				for (const [index, toolCall] of toolCalls.entries()) {
@@ -223,11 +240,13 @@ export class OpenResponsesService {
 			onCompletionId,
 			onConnectionState,
 			onError,
+			onMcpItems,
 			onModel,
 			onReasoningChunk,
 			onReasoningEnd,
 			onTimings,
 			onToolCallChunk,
+			picoMcpTool,
 			presence_penalty,
 			reasoningEffort,
 			repeat_last_n,
@@ -335,14 +354,29 @@ export class OpenResponsesService {
 			requestBody.reasoning = { effort };
 		}
 
-		if (tools?.length) {
-			requestBody.tools = tools.map((tool: OpenAIToolDefinition) => ({
+		const requestTools: Array<Record<string, unknown> | ResponsesMcpTool> = (tools ?? []).map(
+			(tool: OpenAIToolDefinition) => ({
 				description: tool.function.description,
 				name: tool.function.name,
 				parameters: tool.function.parameters,
 				type: tool.type
-			}));
-		}
+			})
+		);
+		// Pico offers its tools to a request that does not name them, so side requests name none
+		const picoTool =
+			picoMcpTool ??
+			(serverStore.isPicoServer
+				? ({
+						allowed_tools: [],
+						server_label: PICO_MCP.SERVER_LABEL,
+						server_url: picoMcpUrl(),
+						type: 'mcp'
+					} satisfies ResponsesMcpTool)
+				: undefined);
+
+		if (picoTool) requestTools.push(picoTool);
+
+		if (requestTools.length > 0) requestBody.tools = requestTools;
 
 		if (custom) {
 			try {
@@ -385,7 +419,8 @@ export class OpenResponsesService {
 					onCompletionId,
 					onTimings,
 					signal,
-					onReasoningEnd
+					onReasoningEnd,
+					onMcpItems
 				);
 
 				return;
@@ -396,7 +431,8 @@ export class OpenResponsesService {
 					onToolCallChunk,
 					onModel,
 					onCompletionId,
-					onTimings
+					onTimings,
+					onMcpItems
 				);
 
 				return result;
@@ -608,6 +644,63 @@ export class OpenResponsesService {
 	}
 
 	/**
+	 * An assistant message with Pico's MCP items, in the model's order: text
+	 * before each item, the items, then the trailing text. Each approval
+	 * request goes out with its response, or an explicit denial when the user
+	 * moved on without one; a call with no result yet is left out.
+	 */
+	private static convertMcpTurn(
+		content: string | ResponsesInputContentPart[],
+		items: ResponsesMcpItem[]
+	): ResponsesInputItem[] {
+		const input: ResponsesInputItem[] = [];
+		const text = OpenResponsesService.contentToText(content);
+		const requestIds = new Set(
+			items.flatMap((item) => (item.type === 'mcp_approval_request' ? [item.id] : []))
+		);
+		const responses = new Map(
+			items.flatMap((item) =>
+				item.type === 'mcp_approval_response' ? [[item.approval_request_id, item] as const] : []
+			)
+		);
+		const withoutOffset = ({ content_offset: _offset, ...item }: ResponsesMcpItem) =>
+			item as ResponsesMcpWireItem;
+
+		for (const run of mcpItemRuns(text, items)) {
+			if (run.text.trim()) {
+				input.push({
+					content: OpenResponsesService.convertAssistantContent(run.text),
+					role: 'assistant',
+					status: 'completed',
+					type: 'message'
+				});
+			}
+
+			for (const item of run.items) {
+				if (item.type === 'mcp_approval_response' && requestIds.has(item.approval_request_id)) {
+					continue;
+				}
+
+				if (item.type === 'mcp_call' && item.output == null && item.error == null) continue;
+
+				input.push(withoutOffset(item));
+
+				if (item.type === 'mcp_approval_request') {
+					const response = responses.get(item.id);
+
+					input.push(
+						response
+							? withoutOffset(response)
+							: { approval_request_id: item.id, approve: false, type: 'mcp_approval_response' }
+					);
+				}
+			}
+		}
+
+		return input;
+	}
+
+	/**
 	 * Converts Responses API usage to ChatMessageTimings format.
 	 */
 	private static convertUsageToTimings(usage: {
@@ -647,7 +740,8 @@ export class OpenResponsesService {
 		onToolCallChunk?: (chunk: string) => void,
 		onModel?: (model: string) => void,
 		onCompletionId?: (id: string) => void,
-		onTimings?: (timings?: ChatMessageTimings, promptProgress?: ChatMessagePromptProgress) => void
+		onTimings?: (timings?: ChatMessageTimings, promptProgress?: ChatMessagePromptProgress) => void,
+		onMcpItems?: (items: ResponsesMcpItem[]) => void
 	): Promise<string> {
 		try {
 			const responseText = await response.text();
@@ -673,9 +767,14 @@ export class OpenResponsesService {
 
 			const toolCalls: ApiChatCompletionToolCall[] = [];
 			const completedToolCallIds = new Set<string>();
+			const mcpItems: ResponsesMcpItem[] = [];
 
 			if (data.output && Array.isArray(data.output)) {
 				for (const item of data.output) {
+					if (isMcpItem(item)) {
+						mcpItems.push({ ...item, content_offset: content.length });
+					}
+
 					if (item.type === 'function_call') {
 						toolCalls.push({
 							function: {
@@ -731,11 +830,18 @@ export class OpenResponsesService {
 				}
 			}
 
-			if (!content.trim() && toolCalls.length === 0 && !reasoningContent.trim()) {
+			if (
+				!content.trim() &&
+				toolCalls.length === 0 &&
+				mcpItems.length === 0 &&
+				!reasoningContent.trim()
+			) {
 				const noResponseError = new Error('No response received from server. Please try again.');
 
 				throw noResponseError;
 			}
+
+			if (mcpItems.length > 0) onMcpItems?.(mcpItems);
 
 			const timings = data.timings
 				? (data.timings as ChatMessageTimings)
@@ -794,7 +900,8 @@ export class OpenResponsesService {
 		onCompletionId?: (id: string) => void,
 		onTimings?: (timings?: ChatMessageTimings, promptProgress?: ChatMessagePromptProgress) => void,
 		abortSignal?: AbortSignal,
-		onReasoningEnd?: () => void
+		onReasoningEnd?: () => void,
+		onMcpItems?: (items: ResponsesMcpItem[]) => void
 	): Promise<void> {
 		const reader = response.body?.getReader();
 
@@ -827,9 +934,27 @@ export class OpenResponsesService {
 
 		const functionCalls = new Map<string, StreamingFunctionCallState>();
 		const functionCallIdsByItemId = new Map<string, string>();
+		// Pico's MCP items by item id, in output order; calls whose arguments streamed in deltas
+		const mcpItems = new Map<string, ResponsesMcpItem>();
+		const mcpArgumentsStreamed = new Set<string>();
 
 		let currentFunctionCallId: string | null = null;
 
+		const setMcpItem = (id: string, item: ResponsesMcpItem): void => {
+			mcpItems.set(id, item);
+
+			if (!abortSignal?.aborted) onMcpItems?.([...mcpItems.values()]);
+		};
+		const updateMcpCall = (
+			id: unknown,
+			update: (item: Extract<ResponsesMcpItem, { type: 'mcp_call' }>) => Partial<ResponsesMcpItem>
+		): void => {
+			const item = typeof id === 'string' ? mcpItems.get(id) : undefined;
+
+			if (item?.type === 'mcp_call') {
+				setMcpItem(item.id, { ...item, ...update(item) } as ResponsesMcpItem);
+			}
+		};
 		const emitContentChunk = (chunk: string): void => {
 			if (!chunk) return;
 
@@ -955,7 +1080,8 @@ export class OpenResponsesService {
 							const reasoningEnded =
 								(eventType === 'response.output_text.delta' && Boolean(parsed.delta)) ||
 								(eventType === 'response.output_item.added' &&
-									OpenResponsesService.isFunctionCallItem(parsed.item)) ||
+									(OpenResponsesService.isFunctionCallItem(parsed.item) ||
+										isMcpItem(parsed.item))) ||
 								[
 									'response.reasoning_text.done',
 									'response.reasoning_summary_text.done',
@@ -1053,6 +1179,10 @@ export class OpenResponsesService {
 							if (eventType === 'response.output_item.added') {
 								const item = parsed.item;
 
+								if (isMcpItem(item) && typeof item.id === 'string' && item.id) {
+									setMcpItem(item.id, { ...item, content_offset: aggregatedContent.length });
+								}
+
 								if (OpenResponsesService.isFunctionCallItem(item)) {
 									const callId =
 										OpenResponsesService.outputItemCallId(item) ||
@@ -1095,6 +1225,35 @@ export class OpenResponsesService {
 										}
 									}
 								}
+							}
+
+							if (eventType === 'response.mcp_call_arguments.delta' && parsed.delta) {
+								updateMcpCall(parsed.item_id, (item) => {
+									const streamed = mcpArgumentsStreamed.has(item.id);
+
+									mcpArgumentsStreamed.add(item.id);
+
+									return { arguments: (streamed ? item.arguments : '') + parsed.delta };
+								});
+							}
+
+							if (
+								eventType === 'response.mcp_call_arguments.done' &&
+								typeof parsed.arguments === 'string'
+							) {
+								updateMcpCall(parsed.item_id, () => ({ arguments: parsed.arguments }));
+							}
+
+							if (eventType === 'response.mcp_call.in_progress') {
+								updateMcpCall(parsed.item_id, () => ({ status: 'in_progress' }));
+							}
+
+							if (eventType === 'response.mcp_call.completed') {
+								updateMcpCall(parsed.item_id, () => ({ status: 'completed' }));
+							}
+
+							if (eventType === 'response.mcp_call.failed') {
+								updateMcpCall(parsed.item_id, () => ({ status: 'failed' }));
 							}
 
 							if (eventType === 'response.function_call_arguments.delta') {
@@ -1140,6 +1299,14 @@ export class OpenResponsesService {
 
 							if (eventType === 'response.output_item.done') {
 								const item = parsed.item;
+
+								if (isMcpItem(item) && typeof item.id === 'string' && item.id) {
+									setMcpItem(item.id, {
+										...item,
+										content_offset:
+											mcpItems.get(item.id)?.content_offset ?? aggregatedContent.length
+									});
+								}
 
 								if (OpenResponsesService.isFunctionCallItem(item)) {
 									const callId =
@@ -1313,24 +1480,6 @@ export class OpenResponsesService {
 			fallback.name = 'HttpError';
 
 			return fallback;
-		}
-	}
-
-	private static parseToolCalls(value: unknown): ApiChatCompletionToolCall[] {
-		if (Array.isArray(value)) {
-			return value as ApiChatCompletionToolCall[];
-		}
-
-		if (typeof value !== 'string' || !value.trim()) {
-			return [];
-		}
-
-		try {
-			const parsed = JSON.parse(value);
-
-			return Array.isArray(parsed) ? (parsed as ApiChatCompletionToolCall[]) : [];
-		} catch {
-			return [];
 		}
 	}
 

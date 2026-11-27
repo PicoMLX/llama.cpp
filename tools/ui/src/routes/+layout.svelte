@@ -31,6 +31,7 @@
 		serverStore,
 		settingsStore,
 		tabsStore,
+		toolsStore,
 		uiStore,
 		versionStore
 	} from '$lib/stores';
@@ -210,6 +211,17 @@
 				serverStore.fetch();
 			});
 		}
+	});
+
+	// List Pico Server's own tools once its props say it is Pico, and again for a new API key
+	$effect(() => {
+		if (!storesInitialized || !serverStore.isPicoServer) return;
+
+		void settingsStore.config.apiKey;
+
+		untrack(() => {
+			void toolsStore.fetchPicoTools();
+		});
 	});
 
 	// Keep chats in the store the saved choice, the server props and the API key call for

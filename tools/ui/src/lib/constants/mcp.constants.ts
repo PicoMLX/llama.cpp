@@ -79,3 +79,12 @@ export const MCP_TRANSPORT_ICONS: Record<MCPTransportType, Component> = {
 	[MCPTransportType.STREAMABLE_HTTP]: Globe,
 	[MCPTransportType.WEBSOCKET]: Zap
 };
+
+/** Pico Server's own MCP endpoint, and the `server_label` its Responses MCP items carry */
+export const PICO_MCP = {
+	/** `_meta` key of each listed tool with Pico's approval decision for the caller */
+	APPROVAL_META_KEY: 'pico/approval',
+	APPROVAL_NONE: 'none',
+	PATH: './mcp',
+	SERVER_LABEL: 'pico'
+} as const;

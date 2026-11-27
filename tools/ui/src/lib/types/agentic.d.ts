@@ -15,6 +15,7 @@ import type {
 	DatabaseMessageExtraAudioFile,
 	DatabaseMessageExtraImageFile
 } from './database';
+import type { ResponsesMcpItem } from './pico-tools';
 import type { MessageRole, ToolSource } from '$lib/enums';
 import { AgenticSectionType, ContinueIntentKind, ToolCallType } from '$lib/enums';
 
@@ -51,6 +52,7 @@ export type AgenticMessage =
 			content?: string | ApiChatMessageContentPart[];
 			reasoning_content?: string;
 			tool_calls?: AgenticToolCallPayload[];
+			mcp_items?: ResponsesMcpItem[];
 	  }
 	| {
 			role: MessageRole.TOOL;
@@ -77,7 +79,7 @@ export interface AgenticSession {
 	totalToolCalls: number;
 	lastError: Error | null;
 	streamingToolCall: { name: string; arguments: string } | null;
-	pendingPermissionRequest: { toolName: string; serverLabel: string } | null;
+	pendingPermissionRequest: AgenticPermissionRequest | null;
 	/** ID of the tool call whose output is currently being streamed back
 	 *  (e.g. exec_shell_command outputting to /tools?stream=true). Lets the
 	 *  matching tool renderer flip into live-update mode while chunks
@@ -89,6 +91,18 @@ export interface AgenticSession {
 	/** ID of the flow's first assistant message (the one the UI groups the
 	 *  whole run under); null when idle. */
 	flowRootMessageId: string | null;
+}
+
+/**
+ * A tool call waiting for the user's decision. `label` and `details` are what
+ * the prompt shows instead of the raw name, e.g. a Pico tool's title and its
+ * arguments.
+ */
+export interface AgenticPermissionRequest {
+	toolName: string;
+	serverLabel: string;
+	label?: string;
+	details?: string;
 }
 
 /**
@@ -107,8 +121,11 @@ export interface AgenticFlowCallbacks {
 	/** Reasoning content chunk for the current assistant message */
 	onReasoningChunk?: (chunk: string) => void;
 	onReasoningEnd?: () => void;
-	/** Tool calls being streamed (partial, accumulating) for the current turn */
-	onToolCallsStreaming?: (toolCalls: ApiChatCompletionToolCall[]) => void;
+	/** Tool calls being streamed (partial, accumulating) for the current turn, with Pico's MCP items */
+	onToolCallsStreaming?: (
+		toolCalls: ApiChatCompletionToolCall[],
+		mcpItems?: ResponsesMcpItem[]
+	) => void;
 	/** Attachments extracted from tool results */
 	onAttachments?: (messageId: string, extras: DatabaseMessageExtra[]) => void;
 	/** Model name detected from response */
@@ -119,7 +136,13 @@ export interface AgenticFlowCallbacks {
 		content: string,
 		reasoningContent: string | undefined,
 		timings: ChatMessageTimings | undefined,
-		toolCalls: ApiChatCompletionToolCall[] | undefined
+		toolCalls: ApiChatCompletionToolCall[] | undefined,
+		mcpItems?: ResponsesMcpItem[]
+	) => Promise<void>;
+	/** Rewrite the current assistant turn's stored tool calls, e.g. after an approval decision */
+	updateTurnToolCalls?: (
+		toolCalls: ApiChatCompletionToolCall[] | undefined,
+		mcpItems: ResponsesMcpItem[]
 	) => Promise<void>;
 	/** Create a tool result message in the DB tree */
 	createToolResultMessage?: (
@@ -216,6 +239,8 @@ export interface AgenticSection {
 	toolCallId?: string;
 	reasoningMs?: number;
 	wasInterrupted?: boolean;
+	/** For PICO_TOOLS sections, the run of Pico MCP items shown together */
+	mcpItems?: ResponsesMcpItem[];
 }
 
 /**

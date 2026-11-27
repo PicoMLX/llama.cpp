@@ -2,9 +2,10 @@
  * toolsStore - Tool registry and enablement
  *
  * Owns the server tool listing (with working-directory resolution), built-in
- * browser tools, MCP tools and per-tool enablement, exposed as a unified
- * tool set for the LLM and the tools UI. Consumed by the agentic loop and
- * the chat flows.
+ * browser tools, MCP tools, Pico Server's own tools and per-tool enablement,
+ * exposed as a unified tool set for the LLM and the tools UI. Consumed by the
+ * agentic loop and the chat flows. Pico runs its own tools: they reach the
+ * model through one Responses `mcp` entry, never as function tools.
  */
 
 import { browser } from '$app/environment';
@@ -15,6 +16,7 @@ import {
 	DISABLED_TOOL_CATEGORIES_LOCALSTORAGE_KEY,
 	DISABLED_TOOL_KEYS_LOCALSTORAGE_KEY,
 	HOME_TILDE,
+	PICO_MCP,
 	TOOL_GROUP_LABELS,
 	TOOL_SERVER_LABELS
 } from '$lib/constants';
@@ -30,9 +32,17 @@ import { ToolsService } from '$lib/services/tools.service';
 // direct imports between stores, not via the barrel, to avoid circular deps
 import { mcpStore } from '$lib/stores/mcp/index.svelte';
 import { modelsStore } from '$lib/stores/models/index.svelte';
+import { permissionsStore } from '$lib/stores/permissions.svelte';
+import { serverStore } from '$lib/stores/server.svelte';
 import { settingsStore } from '$lib/stores/settings/index.svelte';
-import type { OpenAIToolDefinition, ToolEntry, ToolGroup } from '$lib/types';
-import { ApiError, buildSandboxToolDefinition } from '$lib/utils';
+import type {
+	OpenAIToolDefinition,
+	PicoToolInfo,
+	ResponsesMcpTool,
+	ToolEntry,
+	ToolGroup
+} from '$lib/types';
+import { ApiError, buildSandboxToolDefinition, isPicoMcpUrl, picoMcpUrl } from '$lib/utils';
 import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
 /** Stable selection identity for a tool, shared by the disabled set and the permission store */
@@ -44,6 +54,9 @@ class ToolsStore {
 	private _disabledTools = $state(new SvelteSet<string>());
 	private _error = $state<string | null>(null);
 	private _loading = $state(false);
+	private _picoTools = $state<PicoToolInfo[]>([]);
+	private _picoToolsListed = false;
+	private _picoToolsRequest: Promise<void> | null = null;
 	private _serverHome = $state<string | null | undefined>(undefined);
 	private _serverTools = $state<OpenAIToolDefinition[]>([]);
 	private _toolsEndpointUnreachable = $state(false);
@@ -108,6 +121,16 @@ class ToolsStore {
 			});
 		}
 
+		// last, so a lookup by name finds the WebUI's own tool when Pico has one of that name
+		for (const tool of this._picoTools) {
+			push({
+				definition: this.mcpDefinition(tool.name, tool.description, tool.inputSchema),
+				key: this.toolKey(ToolSource.PICO, tool.name),
+				pico: tool,
+				source: ToolSource.PICO
+			});
+		}
+
 		return entries;
 	}
 
@@ -166,6 +189,11 @@ class ToolsStore {
 		return this._error;
 	}
 
+	/** True once a `/mcp` listing succeeded */
+	get hasListedPicoTools(): boolean {
+		return this._picoToolsListed;
+	}
+
 	get isToolsEndpointUnreachable(): boolean {
 		return this._toolsEndpointUnreachable;
 	}
@@ -176,6 +204,11 @@ class ToolsStore {
 
 	get mcpTools(): OpenAIToolDefinition[] {
 		return this.mcpEntries().map((e) => e.definition);
+	}
+
+	/** Pico Server's own tools from its last `/mcp` listing */
+	get picoTools(): PicoToolInfo[] {
+		return this._picoTools;
 	}
 
 	get serverHome(): string | null {
@@ -212,7 +245,10 @@ class ToolsStore {
 			group.tools.push(entry);
 		}
 
-		return groups;
+		// Pico's own tools lead the list
+		return groups.sort(
+			(a, b) => Number(b.source === ToolSource.PICO) - Number(a.source === ToolSource.PICO)
+		);
 	}
 
 	/** Enable all tools belonging to a specific MCP server */
@@ -229,6 +265,28 @@ class ToolsStore {
 		}
 
 		this.persistDisabledTools();
+	}
+
+	/**
+	 * Refresh Pico Server's own tool list from `/mcp`. A failed refresh keeps
+	 * the last list; concurrent callers share one request.
+	 */
+	async fetchPicoTools(): Promise<void> {
+		if (!serverStore.isPicoServer) return;
+
+		this._picoToolsRequest ??= ToolsService.listPicoTools()
+			.then((tools) => {
+				this._picoTools = tools;
+				this._picoToolsListed = true;
+			})
+			.catch((err: unknown) => {
+				console.warn('[ToolsStore] Failed to list Pico tools:', err);
+			})
+			.finally(() => {
+				this._picoToolsRequest = null;
+			});
+
+		return this._picoToolsRequest;
 	}
 
 	async fetchServerTools(): Promise<void> {
@@ -275,6 +333,8 @@ class ToolsStore {
 		const enabledNames = new SvelteSet<string>();
 
 		for (const entry of this.allTools) {
+			if (entry.source === ToolSource.PICO) continue;
+
 			if (this.isEntryEnabled(entry, disabledTools, disabledCategories)) {
 				enabledNames.add(entry.definition.function.name);
 			}
@@ -310,6 +370,48 @@ class ToolsStore {
 		return this.findEntryByName(toolName)?.key ?? null;
 	}
 
+	/**
+	 * Pico's Responses `mcp` entry under a tool policy, or null when the server
+	 * is not Pico. Pico offers its tools to any request that does not name
+	 * them, so the entry goes out even when the policy leaves none on.
+	 * Approval-free tools and the user's "Always allow" picks never ask.
+	 */
+	getPicoMcpTool(
+		disabledTools: ReadonlySet<string> = this._disabledTools,
+		disabledCategories: ReadonlySet<ToolSource> = this._disabledToolCategories
+	): ResponsesMcpTool | null {
+		if (!serverStore.isPicoServer) return null;
+
+		const allowed = this.allTools.filter(
+			(entry) =>
+				entry.source === ToolSource.PICO &&
+				this.isEntryEnabled(entry, disabledTools, disabledCategories)
+		);
+		const never = allowed
+			.filter((entry) => !entry.pico?.approvalRequired || permissionsStore.hasTool(entry.key))
+			.map((entry) => entry.definition.function.name);
+		const tool: ResponsesMcpTool = {
+			allowed_tools: allowed.map((entry) => entry.definition.function.name),
+			server_label: PICO_MCP.SERVER_LABEL,
+			server_url: picoMcpUrl(),
+			type: 'mcp'
+		};
+
+		if (never.length > 0) tool.require_approval = { never: { tool_names: never } };
+
+		return tool;
+	}
+
+	/** Pico's listing entry for a tool name, null for any other tool */
+	getPicoTool(toolName: string): PicoToolInfo | null {
+		return this._picoTools.find((tool) => tool.name === toolName) ?? null;
+	}
+
+	/** Selection and permission key of a Pico tool */
+	getPicoToolKey(toolName: string): string {
+		return this.toolKey(ToolSource.PICO, toolName);
+	}
+
 	/** Get the display label for the server that owns a given tool */
 	getToolServerLabel(toolName: string): string {
 		const entry = this.findEntryByName(toolName);
@@ -317,6 +419,8 @@ class ToolsStore {
 		if (!entry) return '';
 
 		if (entry.serverName) return mcpStore.getServerDisplayName(entry.serverName);
+
+		if (entry.source === ToolSource.PICO) return TOOL_SERVER_LABELS[ToolSource.PICO];
 
 		if (entry.source === ToolSource.SERVER) return TOOL_SERVER_LABELS[ToolSource.SERVER];
 
@@ -493,7 +597,7 @@ class ToolsStore {
 		const result: ReturnType<ToolsStore['getMcpToolsFromHealthChecks']> = [];
 
 		for (const server of mcpStore.getServers()) {
-			if (!server.enabled) continue;
+			if (!server.enabled || this.isRunByPico(server.id)) continue;
 
 			const health = mcpStore.getHealthCheckState(server.id);
 
@@ -517,6 +621,8 @@ class ToolsStore {
 				return TOOL_GROUP_LABELS[ToolSource.CUSTOM];
 			case ToolSource.BROWSER:
 				return TOOL_GROUP_LABELS[ToolSource.BROWSER];
+			case ToolSource.PICO:
+				return TOOL_GROUP_LABELS[ToolSource.PICO];
 			default:
 				return TOOL_GROUP_LABELS[ToolSource.SERVER];
 		}
@@ -538,6 +644,18 @@ class ToolsStore {
 		if (value !== null && typeof value === 'object') return 'object';
 
 		return undefined;
+	}
+
+	/**
+	 * A connection to Pico Server's own `/mcp`: Pico runs those tools itself,
+	 * so they reach the model through Pico's `mcp` entry, never as functions.
+	 */
+	private isRunByPico(serverId: string): boolean {
+		if (!serverStore.isPicoServer) return false;
+
+		const server = mcpStore.getServers().find((s) => s.id === serverId);
+
+		return server ? isPicoMcpUrl(server.url) : false;
 	}
 
 	private mcpDefinition(
@@ -566,6 +684,8 @@ class ToolsStore {
 
 		if (connections.size > 0) {
 			for (const [serverId, connection] of connections) {
+				if (this.isRunByPico(serverId)) continue;
+
 				const serverName = mcpStore.getServerDisplayName(serverId);
 
 				for (const tool of connection.tools) {
@@ -707,6 +827,8 @@ class ToolsStore {
 				return `custom:${name}`;
 			case ToolSource.BROWSER:
 				return `browser:${name}`;
+			case ToolSource.PICO:
+				return `pico:${name}`;
 			default:
 				return `server:${name}`;
 		}

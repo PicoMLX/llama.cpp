@@ -159,9 +159,13 @@
 							{/if}
 						</span>
 
-						<span class="min-w-0 flex-1 truncate font-mono text-[12px]">
-							{entry.definition.function.name}
-						</span>
+						{#if entry.pico?.title}
+							<span class="min-w-0 flex-1 truncate">{entry.pico.title}</span>
+						{:else}
+							<span class="min-w-0 flex-1 truncate font-mono text-[12px]">
+								{entry.definition.function.name}
+							</span>
+						{/if}
 					</button>
 				{/each}
 			</div>

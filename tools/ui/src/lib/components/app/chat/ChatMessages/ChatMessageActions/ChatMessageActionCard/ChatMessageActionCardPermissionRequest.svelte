@@ -12,16 +12,35 @@
 	interface Props {
 		toolName: string;
 		serverLabel: string;
+		/** Shown instead of the tool name, e.g. a Pico tool's title */
+		label?: string;
+		/** What the call will do, e.g. its arguments */
+		details?: string;
 		onDecision: (decision: ToolPermissionDecision) => void;
 	}
 
-	let { onDecision, serverLabel, toolName }: Props = $props();
+	let { details, label, onDecision, serverLabel, toolName }: Props = $props();
+
+	const displayName = $derived(label ?? toolName);
+	const formattedDetails = $derived.by(() => {
+		if (!details || details === '{}') return '';
+
+		try {
+			return JSON.stringify(JSON.parse(details), null, 2);
+		} catch {
+			return details;
+		}
+	});
 </script>
 
 <ChatMessageActionCard icon={ShieldQuestion}>
 	{#snippet message()}
-		Allow use of <span class="font-semibold">{toolName}</span>{#if serverLabel}
+		Allow use of <span class="font-semibold">{displayName}</span>{#if serverLabel}
 			&nbsp;from <span class="font-semibold">{serverLabel}</span>{/if}?
+		{#if formattedDetails}
+			<pre
+				class="mt-1 max-h-40 overflow-auto text-xs whitespace-pre-wrap text-muted-foreground">{formattedDetails}</pre>
+		{/if}
 	{/snippet}
 
 	{#snippet actions()}
@@ -51,7 +70,7 @@
 
 			<DropdownMenu.Content align="start" class="min-w-[8rem]">
 				<DropdownMenu.Item onclick={() => onDecision(ToolPermissionDecision.ALWAYS)}>
-					Always allow <pre>{toolName}</pre>
+					Always allow <pre>{displayName}</pre>
 					tool
 				</DropdownMenu.Item>
 

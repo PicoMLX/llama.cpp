@@ -68,12 +68,14 @@ export const UI_DATA_ATTRS = {
 export const TOOL_GROUP_LABELS = {
 	[ToolSource.BROWSER]: 'Browser',
 	[ToolSource.CUSTOM]: 'JSON Schema',
+	[ToolSource.PICO]: 'Pico',
 	[ToolSource.SERVER]: 'Server'
 } as const;
 
 export const TOOL_SERVER_LABELS = {
 	[ToolSource.BROWSER]: 'Browser Tools',
 	[ToolSource.CUSTOM]: 'Custom Tools',
+	[ToolSource.PICO]: 'Pico',
 	[ToolSource.SERVER]: 'Server Tools'
 } as const;
 

@@ -1,0 +1,57 @@
+event: response.created
+data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_mcp_1","object":"response","created_at":1795766400,"status":"in_progress","model":"Qwen3-8B","output":[],"tools":[{"type":"mcp","server_label":"pico","server_url":"http://pico.local:8080/mcp","allowed_tools":["weather_current"],"require_approval":{"never":{"tool_names":["weather_current"]}}}]}}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","sequence_number":1,"output_index":0,"item":{"id":"mcpl_1","type":"mcp_list_tools","server_label":"pico","tools":[]}}
+
+event: response.mcp_list_tools.in_progress
+data: {"type":"response.mcp_list_tools.in_progress","sequence_number":2,"output_index":0,"item_id":"mcpl_1"}
+
+event: response.mcp_list_tools.completed
+data: {"type":"response.mcp_list_tools.completed","sequence_number":3,"output_index":0,"item_id":"mcpl_1"}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","sequence_number":4,"output_index":0,"item":{"id":"mcpl_1","type":"mcp_list_tools","server_label":"pico","tools":[{"name":"weather_current","description":"Current weather for a place","input_schema":{"type":"object","properties":{"location":{"type":"string"}},"required":["location"]},"annotations":{"readOnlyHint":true,"openWorldHint":true}}]}}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","sequence_number":5,"output_index":1,"item":{"id":"msg_1","type":"message","role":"assistant","status":"in_progress","content":[]}}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","sequence_number":6,"output_index":1,"item_id":"msg_1","content_index":0,"delta":"Let me check."}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","sequence_number":7,"output_index":1,"item":{"id":"msg_1","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"Let me check.","annotations":[]}]}}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","sequence_number":8,"output_index":2,"item":{"id":"mcp_1","type":"mcp_call","server_label":"pico","name":"weather_current","arguments":"","approval_request_id":null,"error":null,"output":null,"status":"in_progress"}}
+
+event: response.mcp_call.in_progress
+data: {"type":"response.mcp_call.in_progress","sequence_number":9,"output_index":2,"item_id":"mcp_1"}
+
+event: response.mcp_call_arguments.delta
+data: {"type":"response.mcp_call_arguments.delta","sequence_number":10,"output_index":2,"item_id":"mcp_1","delta":"{\"location\":"}
+
+event: response.mcp_call_arguments.delta
+data: {"type":"response.mcp_call_arguments.delta","sequence_number":11,"output_index":2,"item_id":"mcp_1","delta":"\"Amsterdam\"}"}
+
+event: response.mcp_call_arguments.done
+data: {"type":"response.mcp_call_arguments.done","sequence_number":12,"output_index":2,"item_id":"mcp_1","arguments":"{\"location\":\"Amsterdam\"}"}
+
+event: response.mcp_call.completed
+data: {"type":"response.mcp_call.completed","sequence_number":13,"output_index":2,"item_id":"mcp_1"}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","sequence_number":14,"output_index":2,"item":{"id":"mcp_1","type":"mcp_call","server_label":"pico","name":"weather_current","arguments":"{\"location\":\"Amsterdam\"}","approval_request_id":null,"error":null,"output":"{\"temperature_c\":12,\"condition\":\"Cloudy\"}","status":"completed"}}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","sequence_number":15,"output_index":3,"item":{"id":"msg_2","type":"message","role":"assistant","status":"in_progress","content":[]}}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","sequence_number":16,"output_index":3,"item_id":"msg_2","content_index":0,"delta":"It is 12 C and cloudy."}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","sequence_number":17,"output_index":3,"item":{"id":"msg_2","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"It is 12 C and cloudy.","annotations":[]}]}}
+
+event: response.completed
+data: {"type":"response.completed","sequence_number":18,"response":{"id":"resp_mcp_1","object":"response","created_at":1795766400,"status":"completed","model":"Qwen3-8B","output":[],"usage":{"input_tokens":220,"output_tokens":31,"total_tokens":251,"input_tokens_details":{"cached_tokens":0},"output_tokens_details":{"reasoning_tokens":0}}}}
+

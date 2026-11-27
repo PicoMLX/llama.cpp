@@ -10,7 +10,7 @@
  * the permission/continue/steering gates owned by {@link AgenticGates}.
  */
 
-import { DEFAULT_AGENTIC_CONFIG, NEWLINE } from '$lib/constants';
+import { DEFAULT_AGENTIC_CONFIG, NEWLINE, TOOL_SERVER_LABELS } from '$lib/constants';
 import {
 	AUDIO_MIME_TO_EXTENSION,
 	DATA_URI_BASE64_REGEX,
@@ -43,12 +43,16 @@ import type {
 	AgenticConfig,
 	AgenticFlowParams,
 	AgenticFlowResult,
+	AgenticPermissionRequest,
 	AgenticSession,
 	MCPToolCall,
+	ResponsesMcpItem,
+	ResponsesMcpTool,
 	SettingsConfigType,
 	ToolExecutionResult
 } from '$lib/types';
 import type {
+	AgenticAssistantMessage,
 	AgenticFlowCallbacks,
 	AgenticFlowOptions,
 	AgenticMessage,
@@ -79,7 +83,8 @@ import {
 	executeBrowserInfoTool,
 	executeGetDatetimeTool,
 	getAudioInputFormat,
-	isAbortError
+	isAbortError,
+	unansweredApprovalRequests
 } from '$lib/utils';
 import { SvelteMap } from 'svelte/reactivity';
 
@@ -106,6 +111,7 @@ function toAgenticMessages(messages: ApiChatMessageData[]): AgenticMessage[] {
 		) {
 			return {
 				content: message.content,
+				mcp_items: message.mcp_items,
 				reasoning_content: message.reasoning_content,
 				role: MessageRole.ASSISTANT,
 				tool_calls: message.tool_calls.map((call, index) => ({
@@ -122,6 +128,7 @@ function toAgenticMessages(messages: ApiChatMessageData[]): AgenticMessage[] {
 		if (message.role === MessageRole.ASSISTANT) {
 			return {
 				content: message.content,
+				mcp_items: message.mcp_items,
 				reasoning_content: message.reasoning_content,
 				role: MessageRole.ASSISTANT
 			} satisfies AgenticMessage;
@@ -206,6 +213,7 @@ class AgenticStore {
 		const maxTurns = Number(settings.agenticMaxTurns) || DEFAULT_AGENTIC_CONFIG.maxTurns;
 		const hasTools =
 			mcpStore.hasEnabledServers() ||
+			toolsStore.picoTools.length > 0 ||
 			toolsStore.serverTools.length > 0 ||
 			toolsStore.browserTools.length > 0 ||
 			toolsStore.customTools.length > 0;
@@ -242,9 +250,7 @@ class AgenticStore {
 		return this.gates.getPendingContinueRequest(conversationId);
 	}
 
-	getPendingPermissionRequest(
-		conversationId: string
-	): { toolName: string; serverLabel: string } | null {
+	getPendingPermissionRequest(conversationId: string): AgenticPermissionRequest | null {
 		return this.gates.getPendingPermissionRequest(conversationId);
 	}
 
@@ -337,8 +343,9 @@ class AgenticStore {
 
 		const agenticConfig = this.getConfig(settingsStore.config);
 		const tools = await this.toolsFor(toolPolicy);
+		const picoMcpTool = await this.picoToolFor(toolPolicy);
 
-		if (tools.length === 0) {
+		if (tools.length === 0 && !picoMcpTool?.allowed_tools.length) {
 			return { handled: false };
 		}
 
@@ -367,6 +374,7 @@ class AgenticStore {
 				conversationId,
 				messages: normalizedMessages,
 				options,
+				picoMcpTool,
 				signal,
 				tools
 			});
@@ -394,6 +402,52 @@ class AgenticStore {
 					);
 			}
 		}
+	}
+
+	/**
+	 * Ask the user about each call Pico paused on, in order, with the shared
+	 * permission prompt. Returns the turn's items plus one approval response
+	 * per answered request; a new user message while asking answers "no".
+	 * After a stop the rest stay unanswered, and the next request denies them.
+	 */
+	private async answerPicoApprovals(
+		conversationId: string,
+		requests: ReturnType<typeof unansweredApprovalRequests>,
+		items: ResponsesMcpItem[],
+		signal?: AbortSignal
+	): Promise<ResponsesMcpItem[]> {
+		const answered = [...items];
+
+		for (const request of requests) {
+			if (signal?.aborted) break;
+
+			const decision = await this.gates.requestPermission(
+				conversationId,
+				request.name,
+				TOOL_SERVER_LABELS[ToolSource.PICO],
+				signal,
+				{
+					denyOnSteering: true,
+					details: request.arguments,
+					label: toolsStore.getPicoTool(request.name)?.title ?? request.name,
+					permissionKey: toolsStore.getPicoToolKey(request.name)
+				}
+			);
+
+			// Yield to allow Svelte to flush the UI update (hide permission dialog)
+			await new Promise((r) => setTimeout(r, 0));
+
+			if (signal?.aborted) break;
+
+			answered.push({
+				approval_request_id: request.id,
+				approve: decision !== ToolPermissionDecision.DENY,
+				content_offset: request.content_offset,
+				type: 'mcp_approval_response'
+			});
+		}
+
+		return answered;
 	}
 
 	private buildAttachmentName(mimeType: string, index: number): string {
@@ -426,11 +480,21 @@ class AgenticStore {
 		messages: ApiChatMessageData[];
 		options: AgenticFlowOptions;
 		tools: ReturnType<typeof toolsStore.getEnabledToolsForLLM>;
+		picoMcpTool: ResponsesMcpTool | null;
 		agenticConfig: AgenticConfig;
 		callbacks: AgenticFlowCallbacks;
 		signal?: AbortSignal;
 	}): Promise<void> {
-		const { agenticConfig, callbacks, conversationId, messages, options, signal, tools } = params;
+		const {
+			agenticConfig,
+			callbacks,
+			conversationId,
+			messages,
+			options,
+			picoMcpTool,
+			signal,
+			tools
+		} = params;
 		const {
 			createAssistantMessage,
 			createToolResultMessage,
@@ -445,7 +509,8 @@ class AgenticStore {
 			onTimings,
 			onToolCallsStreaming,
 			onTurnComplete,
-			updateToolResultMessage
+			updateToolResultMessage,
+			updateTurnToolCalls
 		} = callbacks;
 		const sessionMessages: AgenticMessage[] = toAgenticMessages(messages);
 
@@ -500,6 +565,7 @@ class AgenticStore {
 			let turnContent = '';
 			let turnReasoningContent = '';
 			let turnToolCalls: ApiChatCompletionToolCall[] = [];
+			let turnMcpItems: ResponsesMcpItem[] = [];
 			let lastStreamingToolCallName = '';
 			let lastStreamingToolCallArgsLength = 0;
 			let turnTimings: ChatMessageTimings | undefined;
@@ -526,6 +592,10 @@ class AgenticStore {
 						onCompletionId,
 						onError: (error: Error) => {
 							throw error;
+						},
+						onMcpItems: (items: ResponsesMcpItem[]) => {
+							turnMcpItems = items;
+							onToolCallsStreaming?.(turnToolCalls, turnMcpItems);
 						},
 						onModel,
 						onReasoningChunk: (chunk: string) => {
@@ -555,7 +625,7 @@ class AgenticStore {
 							try {
 								turnToolCalls = JSON.parse(serialized) as ApiChatCompletionToolCall[];
 
-								onToolCallsStreaming?.(turnToolCalls);
+								onToolCallsStreaming?.(turnToolCalls, turnMcpItems);
 
 								if (turnToolCalls.length > 0 && turnToolCalls[0]?.function) {
 									const name = turnToolCalls[0].function.name || '';
@@ -577,6 +647,7 @@ class AgenticStore {
 								/* Ignore parse errors during streaming */
 							}
 						},
+						picoMcpTool: picoMcpTool ?? undefined,
 						stream: true,
 						tools: tools.length > 0 ? tools : undefined
 					},
@@ -603,7 +674,8 @@ class AgenticStore {
 						turnContent,
 						turnReasoningContent || undefined,
 						this.buildFinalTimings(capturedTimings, agenticTimings),
-						undefined
+						undefined,
+						turnMcpItems
 					);
 					onFlowComplete?.(this.buildFinalTimings(capturedTimings, agenticTimings));
 
@@ -617,7 +689,8 @@ class AgenticStore {
 					turnContent,
 					turnReasoningContent || undefined,
 					this.buildFinalTimings(capturedTimings, agenticTimings),
-					undefined
+					undefined,
+					turnMcpItems
 				);
 				onFlowComplete?.(this.buildFinalTimings(capturedTimings, agenticTimings));
 
@@ -633,7 +706,8 @@ class AgenticStore {
 					turnContent,
 					turnReasoningContent || undefined,
 					this.buildFinalTimings(capturedTimings, agenticTimings),
-					undefined
+					undefined,
+					turnMcpItems
 				);
 				onFlowComplete?.(this.buildFinalTimings(capturedTimings, agenticTimings));
 
@@ -648,15 +722,19 @@ class AgenticStore {
 					turnContent,
 					turnReasoningContent || undefined,
 					this.buildFinalTimings(capturedTimings, agenticTimings),
-					turnToolCalls.length > 0 ? this.normalizeToolCalls(turnToolCalls) : undefined
+					turnToolCalls.length > 0 ? this.normalizeToolCalls(turnToolCalls) : undefined,
+					turnMcpItems
 				);
 				onFlowComplete?.(this.buildFinalTimings(capturedTimings, agenticTimings));
 
 				return;
 			}
 
+			// Pico paused for the user's approval of these calls
+			const approvalRequests = unansweredApprovalRequests(turnMcpItems);
+
 			// No tool calls = final turn, save and complete
-			if (turnToolCalls.length === 0) {
+			if (turnToolCalls.length === 0 && approvalRequests.length === 0) {
 				agenticTimings.perTurn!.push(turnStats);
 
 				const finalTimings = this.buildFinalTimings(capturedTimings, agenticTimings);
@@ -665,7 +743,8 @@ class AgenticStore {
 					turnContent,
 					turnReasoningContent || undefined,
 					finalTimings,
-					undefined
+					undefined,
+					turnMcpItems
 				);
 
 				if (finalTimings) onTurnComplete?.(finalTimings);
@@ -678,12 +757,13 @@ class AgenticStore {
 			// Normalize and save assistant turn with tool calls
 			const normalizedCalls = this.normalizeToolCalls(turnToolCalls);
 
-			if (normalizedCalls.length === 0) {
+			if (normalizedCalls.length === 0 && approvalRequests.length === 0) {
 				await onAssistantTurnComplete?.(
 					turnContent,
 					turnReasoningContent || undefined,
 					this.buildFinalTimings(capturedTimings, agenticTimings),
-					undefined
+					undefined,
+					turnMcpItems
 				);
 				onFlowComplete?.(this.buildFinalTimings(capturedTimings, agenticTimings));
 
@@ -698,16 +778,20 @@ class AgenticStore {
 				turnContent,
 				turnReasoningContent || undefined,
 				turnTimings,
-				normalizedCalls
+				normalizedCalls.length > 0 ? normalizedCalls : undefined,
+				turnMcpItems
 			);
 
 			// Add assistant message to session history
-			sessionMessages.push({
+			const assistantTurn: AgenticAssistantMessage = {
 				content: turnContent || undefined,
+				mcp_items: turnMcpItems.length > 0 ? turnMcpItems : undefined,
 				reasoning_content: turnReasoningContent || undefined,
 				role: MessageRole.ASSISTANT,
-				tool_calls: normalizedCalls
-			});
+				tool_calls: normalizedCalls.length > 0 ? normalizedCalls : undefined
+			};
+
+			sessionMessages.push(assistantTurn);
 
 			// Execute each tool call and create result messages
 			for (let i = 0; i < normalizedCalls.length; i++) {
@@ -965,6 +1049,30 @@ class AgenticStore {
 				});
 			}
 
+			if (approvalRequests.length > 0) {
+				const answered = await this.answerPicoApprovals(
+					conversationId,
+					approvalRequests,
+					turnMcpItems,
+					signal
+				);
+
+				if (answered.length > turnMcpItems.length) {
+					turnMcpItems = answered;
+					assistantTurn.mcp_items = answered;
+					await updateTurnToolCalls?.(
+						normalizedCalls.length > 0 ? normalizedCalls : undefined,
+						answered
+					);
+				}
+
+				if (signal?.aborted) {
+					onFlowComplete?.(this.buildFinalTimings(capturedTimings, agenticTimings));
+
+					return;
+				}
+			}
+
 			if (turnStats.toolCalls.length > 0) {
 				agenticTimings.perTurn!.push(turnStats);
 
@@ -1063,6 +1171,22 @@ class AgenticStore {
 		if (trimmed === '') return {};
 
 		return JSON.parse(trimmed) as Record<string, unknown>;
+	}
+
+	/**
+	 * Pico's `mcp` entry for a flow under this policy, listing Pico's tools
+	 * first if they were never listed; null when the server is not Pico or
+	 * agentic is off.
+	 */
+	private async picoToolFor(toolPolicy?: AgenticToolPolicy): Promise<ResponsesMcpTool | null> {
+		if (!toolsStore.hasListedPicoTools) await toolsStore.fetchPicoTools();
+
+		if (!this.getConfig(settingsStore.config).enabled) return null;
+
+		return toolsStore.getPicoMcpTool(
+			new Set(toolPolicy?.disabledTools ?? toolsStore.disabledTools),
+			new Set(toolPolicy?.disabledToolCategories ?? toolsStore.disabledToolCategories)
+		);
 	}
 
 	/**

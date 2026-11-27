@@ -11,20 +11,19 @@ import { ToolPermissionDecision } from '$lib/enums';
 // direct imports between stores, not via the barrel, to avoid circular deps
 import { permissionsStore } from '$lib/stores/permissions.svelte';
 import { toolsStore } from '$lib/stores/tools.svelte';
-import type { DatabaseMessageExtra, SteeringMessage } from '$lib/types';
-import { SvelteMap } from 'svelte/reactivity';
+import type { AgenticPermissionRequest, DatabaseMessageExtra, SteeringMessage } from '$lib/types';
+import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
 export class AgenticGates {
 	/** Resolve functions for pending continue Promises; nothing derives from this map */
 	private continueResolvers = new SvelteMap<string, (shouldContinue: boolean) => void>();
+	/** Conversations whose pending permission a steering message denies */
+	private denyOnSteering = new SvelteSet<string>();
+
 	/** Dedicated reactive state for pending continue requests (turn limit reached) */
 	private pendingContinueRequests = new SvelteMap<string, boolean>();
-
 	/** Dedicated reactive state for pending permission requests (ensures immediate UI updates) */
-	private pendingPermissions = new SvelteMap<
-		string,
-		{ toolName: string; serverLabel: string } | null
-	>();
+	private pendingPermissions = new SvelteMap<string, AgenticPermissionRequest | null>();
 	/** Resolve functions for pending permission Promises; nothing derives from this map */
 	private permissionResolvers = new SvelteMap<string, (decision: ToolPermissionDecision) => void>();
 
@@ -36,6 +35,7 @@ export class AgenticGates {
 	 */
 	clear(conversationId: string): void {
 		this.pendingPermissions.set(conversationId, null);
+		this.denyOnSteering.delete(conversationId);
 		this.permissionResolvers.delete(conversationId);
 		this.pendingContinueRequests.set(conversationId, false);
 		this.continueResolvers.delete(conversationId);
@@ -67,9 +67,7 @@ export class AgenticGates {
 		return this.pendingContinueRequests.get(conversationId) ?? false;
 	}
 
-	getPendingPermissionRequest(
-		conversationId: string
-	): { toolName: string; serverLabel: string } | null {
+	getPendingPermissionRequest(conversationId: string): AgenticPermissionRequest | null {
 		return this.pendingPermissions.get(conversationId) ?? null;
 	}
 
@@ -95,6 +93,11 @@ export class AgenticGates {
 		extras?: DatabaseMessageExtra[]
 	): void {
 		this.steeringMessages.set(conversationId, { content, extras });
+
+		// moving on without answering is a denial, e.g. for a Pico approval
+		if (this.denyOnSteering.has(conversationId)) {
+			this.resolvePermission(conversationId, ToolPermissionDecision.DENY);
+		}
 	}
 
 	async requestContinue(conversationId: string, signal?: AbortSignal): Promise<boolean> {
@@ -129,23 +132,46 @@ export class AgenticGates {
 		});
 	}
 
+	/**
+	 * @param prompt - What the prompt shows instead of the raw tool name, the
+	 * tool's permission key when its name alone may not find it, and
+	 * `denyOnSteering` to resolve as denied when the user sends a new message
+	 */
 	async requestPermission(
 		conversationId: string,
 		toolName: string,
 		serverLabel: string,
-		signal?: AbortSignal
+		signal?: AbortSignal,
+		prompt: {
+			label?: string;
+			details?: string;
+			permissionKey?: string;
+			denyOnSteering?: boolean;
+		} = {}
 	): Promise<ToolPermissionDecision> {
-		const permissionKey = toolsStore.getPermissionKey(toolName);
+		const permissionKey = prompt.permissionKey ?? toolsStore.getPermissionKey(toolName);
 
 		if (permissionKey && permissionsStore.hasTool(permissionKey)) {
 			return ToolPermissionDecision.ONCE;
 		}
 
-		this.pendingPermissions.set(conversationId, { serverLabel, toolName });
+		if (prompt.denyOnSteering && this.steeringMessages.has(conversationId)) {
+			return ToolPermissionDecision.DENY;
+		}
+
+		this.pendingPermissions.set(conversationId, {
+			details: prompt.details,
+			label: prompt.label,
+			serverLabel,
+			toolName
+		});
+
+		if (prompt.denyOnSteering) this.denyOnSteering.add(conversationId);
 
 		return new Promise<ToolPermissionDecision>((resolve) => {
 			if (signal?.aborted) {
 				this.pendingPermissions.set(conversationId, null);
+				this.denyOnSteering.delete(conversationId);
 				resolve(ToolPermissionDecision.DENY);
 
 				return;
@@ -153,6 +179,7 @@ export class AgenticGates {
 
 			this.permissionResolvers.set(conversationId, (decision) => {
 				this.pendingPermissions.set(conversationId, null);
+				this.denyOnSteering.delete(conversationId);
 
 				if (decision === ToolPermissionDecision.ALWAYS && permissionKey) {
 					permissionsStore.allowTool(permissionKey);
@@ -180,6 +207,7 @@ export class AgenticGates {
 					if (resolver) {
 						this.permissionResolvers.delete(conversationId);
 						this.pendingPermissions.set(conversationId, null);
+						this.denyOnSteering.delete(conversationId);
 						resolve(ToolPermissionDecision.DENY);
 					}
 				},

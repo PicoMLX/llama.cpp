@@ -161,6 +161,41 @@ const server = http.createServer(async (request, response) => {
 		return response.end(fixture);
 	}
 
+	// Pico's own MCP endpoint, Streamable HTTP: enough for the WebUI's tool list
+	if (url.pathname === '/mcp') {
+		assert.equal(record.auth, `Bearer ${token}`);
+
+		if (request.method === 'GET') return json({ error: 'No event stream' }, 405);
+
+		if (request.method === 'DELETE' || record.body?.id === undefined) {
+			response.writeHead(request.method === 'DELETE' ? 200 : 202);
+
+			return response.end();
+		}
+
+		const result =
+			record.body.method === 'initialize'
+				? {
+						capabilities: { tools: {} },
+						protocolVersion: record.body.params.protocolVersion,
+						serverInfo: { name: 'Pico packaging smoke', version: '1.0.0' }
+					}
+				: {
+						tools: [
+							{
+								_meta: { 'pico/approval': 'none' },
+								inputSchema: { type: 'object' },
+								name: 'weather_current',
+								title: 'Current Weather'
+							}
+						]
+					};
+
+		response.writeHead(200, { 'Content-Type': 'application/json', 'Mcp-Session-Id': 'smoke' });
+
+		return response.end(JSON.stringify({ id: record.body.id, jsonrpc: '2.0', result }));
+	}
+
 	if (url.pathname.startsWith('/v1/') || url.pathname === '/tools') {
 		return json({ error: 'Unsupported mock endpoint' }, 404);
 	}
@@ -436,6 +471,18 @@ try {
 			assert.equal(
 				requests.find(({ path }) => path === '/v1/responses')?.body.model,
 				'smoke/test-4bit'
+			);
+			assert.deepEqual(
+				requests
+					.find(({ path }) => path === '/v1/responses')
+					?.body.tools.find(({ type }) => type === 'mcp'),
+				{
+					allowed_tools: ['weather_current'],
+					require_approval: { never: { tool_names: ['weather_current'] } },
+					server_label: 'pico',
+					server_url: `${origin}/mcp`,
+					type: 'mcp'
+				}
 			);
 			await expect(page.locator('.chat-message-user .pico-response-metrics')).toHaveCount(0);
 			const metrics = page.locator('.chat-message-assistant .pico-response-metrics').first();

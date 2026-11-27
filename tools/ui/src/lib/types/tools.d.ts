@@ -1,4 +1,5 @@
 import type { OpenAIToolDefinition } from './mcp';
+import type { PicoToolInfo } from './pico-tools';
 import type { ToolSource } from '$lib/enums';
 import type { Component } from 'svelte';
 
@@ -17,9 +18,11 @@ export interface ToolEntry {
 	serverName?: string;
 	/** For MCP tools, the server ID (used for permission keys) */
 	serverId?: string;
-	/** Stable selection identity: server:name, mcp-<serverId>:name, mcp:name, custom:name */
+	/** Stable selection identity: server:name, mcp-<serverId>:name, mcp:name, custom:name, pico:name */
 	key: string;
 	definition: OpenAIToolDefinition;
+	/** For Pico tools, the `/mcp` listing entry (title, icons, approval) */
+	pico?: PicoToolInfo;
 }
 
 export interface ToolGroup {

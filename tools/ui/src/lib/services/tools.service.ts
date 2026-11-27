@@ -6,11 +6,18 @@
  */
 
 import { base } from '$app/paths';
-import { API_TOOLS, HEADERS, HOME_TILDE, SEARCH } from '$lib/constants';
-import { BuiltInTool, GlobSearchType, ToolResponseField } from '$lib/enums';
-import type { GlobEntry, ServerToolInfo, ToolExecutionResult } from '$lib/types';
-import { apiFetch, buildCaseInsensitiveGlob, joinPath, lastPathSegment } from '$lib/utils';
-import { getJsonHeaders } from '$lib/utils/api-headers';
+import { API_TOOLS, HEADERS, HOME_TILDE, PICO_MCP, SEARCH } from '$lib/constants';
+import { BuiltInTool, GlobSearchType, MCPTransportType, ToolResponseField } from '$lib/enums';
+import { MCPService } from '$lib/services/mcp.service';
+import type { GlobEntry, PicoToolInfo, ServerToolInfo, ToolExecutionResult } from '$lib/types';
+import {
+	apiFetch,
+	buildCaseInsensitiveGlob,
+	joinPath,
+	lastPathSegment,
+	picoMcpUrl
+} from '$lib/utils';
+import { getAuthHeaders, getJsonHeaders } from '$lib/utils/api-headers';
 import { parseSseJsonStream, type SseJsonEvent } from '$lib/utils/sse';
 
 export class ToolsService {
@@ -81,6 +88,33 @@ export class ToolsService {
 	 */
 	static async list(): Promise<ServerToolInfo[]> {
 		return apiFetch<ServerToolInfo[]>(API_TOOLS.LIST);
+	}
+
+	/**
+	 * List Pico Server's own tools through its `/mcp` endpoint, which answers
+	 * as the caller: switched-off tools are absent and `_meta["pico/approval"]`
+	 * carries the approval decision. A tool without that decision needs approval.
+	 */
+	static async listPicoTools(): Promise<PicoToolInfo[]> {
+		const connection = await MCPService.connect(PICO_MCP.SERVER_LABEL, {
+			headers: getAuthHeaders(),
+			transport: MCPTransportType.STREAMABLE_HTTP,
+			url: picoMcpUrl()
+		});
+
+		try {
+			return connection.tools.map((tool) => ({
+				approvalRequired: tool._meta?.[PICO_MCP.APPROVAL_META_KEY] !== PICO_MCP.APPROVAL_NONE,
+				description: tool.description,
+				icons: tool.icons,
+				inputSchema: tool.inputSchema,
+				name: tool.name,
+				readOnly: tool.annotations?.readOnlyHint,
+				title: tool.title ?? tool.annotations?.title
+			}));
+		} finally {
+			await MCPService.disconnect(connection);
+		}
 	}
 
 	/**

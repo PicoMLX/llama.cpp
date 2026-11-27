@@ -63,6 +63,7 @@ import {
 	getConversationModel,
 	isAbortError,
 	normalizeModelName,
+	serializeStoredToolCalls,
 	sliceAtLastCompaction
 } from '$lib/utils';
 import { SvelteMap } from 'svelte/reactivity';
@@ -1254,13 +1255,15 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 				content: string,
 				reasoningContent: string | undefined,
 				timings: ChatMessageTimings | undefined,
-				toolCalls: import('$lib/types/api').ApiChatCompletionToolCall[] | undefined
+				toolCalls: import('$lib/types/api').ApiChatCompletionToolCall[] | undefined,
+				mcpItems?: import('$lib/types').ResponsesMcpItem[]
 			) => {
+				const storedToolCalls = serializeStoredToolCalls(toolCalls, mcpItems);
 				const updateData: Record<string, unknown> = {
 					content,
 					reasoningContent: reasoningContent || undefined,
 					timings,
-					toolCalls: toolCalls ? JSON.stringify(toolCalls) : ''
+					toolCalls: storedToolCalls
 				};
 
 				if (resolvedModel && !modelPersisted) updateData.model = resolvedModel;
@@ -1269,7 +1272,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 				const uiUpdate: Partial<DatabaseMessage> = {
 					content,
 					reasoningContent: reasoningContent || undefined,
-					toolCalls: toolCalls ? JSON.stringify(toolCalls) : ''
+					toolCalls: storedToolCalls
 				};
 
 				if (timings) uiUpdate.timings = timings;
@@ -1380,9 +1383,11 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 					DatabaseService.updateMessage(currentMessageId, { timings }).catch(console.error);
 				}
 			},
-			onToolCallsStreaming: (toolCalls) => {
+			onToolCallsStreaming: (toolCalls, mcpItems) => {
 				updateActiveFlowMessage(currentMessageId, {
-					toolCalls: JSON.stringify(toolCalls)
+					toolCalls: mcpItems?.length
+						? serializeStoredToolCalls(toolCalls, mcpItems)
+						: JSON.stringify(toolCalls)
 				});
 			},
 			onTurnComplete: (intermediateTimings: ChatMessageTimings) => {
@@ -1417,6 +1422,12 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 				}
 
 				await DatabaseService.updateMessage(messageId, updates);
+			},
+			updateTurnToolCalls: async (toolCalls, mcpItems) => {
+				const storedToolCalls = serializeStoredToolCalls(toolCalls, mcpItems);
+
+				updateActiveFlowMessage(currentMessageId, { toolCalls: storedToolCalls });
+				await DatabaseService.updateMessage(currentMessageId, { toolCalls: storedToolCalls });
 			}
 		};
 		const toolPolicy = requestSnapshot.toolPolicy;

@@ -47,6 +47,7 @@ import { isAbortError } from '$lib/utils/abort';
 import { ApiError } from '$lib/utils/api-fetch';
 import { getAuthHeaders, getJsonHeaders } from '$lib/utils/api-headers';
 import { formatAttachmentText } from '$lib/utils/formatters';
+import { splitStoredToolCalls } from '$lib/utils/pico-tools';
 import { createReasoningTiming } from '$lib/utils/reasoning-timing';
 import { streamIdentity } from '$lib/utils/stream-identity';
 
@@ -150,16 +151,8 @@ export class ChatService {
 			};
 		}
 
-		// Parse tool calls for assistant messages
-		let toolCalls: ApiChatCompletionToolCall[] | undefined;
-
-		if (message.toolCalls) {
-			try {
-				toolCalls = JSON.parse(message.toolCalls);
-			} catch {
-				// Ignore parse errors for malformed tool calls
-			}
-		}
+		// Parse tool calls for assistant messages; Pico's MCP items are stored next to them
+		const { mcpItems, toolCalls } = splitStoredToolCalls(message.toolCalls);
 
 		if (!message.extra || message.extra.length === 0) {
 			const result: ApiChatMessageData = {
@@ -171,8 +164,12 @@ export class ChatService {
 				result.reasoning_content = message.reasoningContent;
 			}
 
-			if (toolCalls && toolCalls.length > 0) {
+			if (toolCalls.length > 0) {
 				result.tool_calls = toolCalls;
+			}
+
+			if (mcpItems.length > 0) {
+				result.mcp_items = mcpItems;
 			}
 
 			return result;
@@ -330,8 +327,12 @@ export class ChatService {
 			result.reasoning_content = message.reasoningContent;
 		}
 
-		if (toolCalls && toolCalls.length > 0) {
+		if (toolCalls.length > 0) {
 			result.tool_calls = toolCalls;
+		}
+
+		if (mcpItems.length > 0) {
+			result.mcp_items = mcpItems;
 		}
 
 		return result;

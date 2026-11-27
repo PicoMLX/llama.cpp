@@ -130,6 +130,7 @@ export function useToolsPanel(): UseToolsPanelReturn {
 			toolsStore.fetchServerTools();
 		}
 
+		void toolsStore.fetchPicoTools();
 		mcpStore.runHealthChecksForServers(mcpStore.getServers().filter((s) => s.enabled));
 	}
 

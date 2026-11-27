@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ChatMessageToolCallBlock from './ChatMessage/ChatMessageToolCall/ChatMessageToolCallBlock.svelte';
+	import ChatMessagePicoTools from './ChatMessagePicoTools.svelte';
 	import ChatMessageReasoningBlock from './ChatMessageReasoningBlock.svelte';
 	import {
 		ChatMessageActionCardContinueRequest,
@@ -242,6 +243,13 @@
 			open={isExpanded(index, section)}
 			{section}
 		/>
+	{:else if section.type === AgenticSectionType.PICO_TOOLS}
+		<ChatMessagePicoTools
+			{isStreaming}
+			items={section.mcpItems ?? []}
+			onToggle={() => toggleExpanded(index, section)}
+			open={isExpanded(index, section)}
+		/>
 	{:else if section.type === AgenticSectionType.TOOL_CALL || section.type === AgenticSectionType.TOOL_CALL_PENDING || section.type === AgenticSectionType.TOOL_CALL_STREAMING}
 		<ChatMessageToolCallBlock
 			attachments={section.toolResultExtras}
@@ -291,6 +299,8 @@
 
 	{#if visiblePermission}
 		<ChatMessageActionCardPermissionRequest
+			details={visiblePermission.details}
+			label={visiblePermission.label}
 			onDecision={handlePermission}
 			serverLabel={visiblePermission.serverLabel}
 			toolName={visiblePermission.toolName}

@@ -1,0 +1,21 @@
+event: response.created
+data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_mcp_2","object":"response","created_at":1795766460,"status":"in_progress","model":"Qwen3-8B","output":[]}}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","sequence_number":1,"output_index":0,"item":{"id":"msg_3","type":"message","role":"assistant","status":"in_progress","content":[]}}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","sequence_number":2,"output_index":0,"item_id":"msg_3","content_index":0,"delta":"I will add that reminder."}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","sequence_number":3,"output_index":0,"item":{"id":"msg_3","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"I will add that reminder.","annotations":[]}]}}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","sequence_number":4,"output_index":1,"item":{"id":"mcpr_1","type":"mcp_approval_request","server_label":"pico","name":"reminders_create","arguments":"{\"title\":\"Buy milk\"}"}}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","sequence_number":5,"output_index":1,"item":{"id":"mcpr_1","type":"mcp_approval_request","server_label":"pico","name":"reminders_create","arguments":"{\"title\":\"Buy milk\"}"}}
+
+event: response.completed
+data: {"type":"response.completed","sequence_number":6,"response":{"id":"resp_mcp_2","object":"response","created_at":1795766460,"status":"completed","model":"Qwen3-8B","output":[],"usage":{"input_tokens":240,"output_tokens":24,"total_tokens":264,"input_tokens_details":{"cached_tokens":0},"output_tokens_details":{"reasoning_tokens":0}}}}
+

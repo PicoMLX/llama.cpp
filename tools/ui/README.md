@@ -118,6 +118,12 @@ The script validates local HTML and stylesheet asset references before publishin
 
 PicoServer is identified by its `/props` `server_name` field. Its model load/unload requests complete synchronously, without llama-server's `/models/sse` feed. The Models Manager keeps selection and load/unload available; GGUF downloads, discovery, and deletion are hidden because PicoServer manages MLX models separately.
 
+### Pico tools
+
+Pico Server runs its own tools. The WebUI lists them from Pico's `/mcp` `tools/list` (title, icons and `_meta["pico/approval"]`) on load and when the tools panel or Settings opens, and shows them as the Pico group with per-chat switches. Every Responses request to Pico carries one `mcp` tool entry with `server_label: "pico"`: `allowed_tools` holds the switched-on tools, and `require_approval.never` the approval-free ones plus the user's "Always allow" picks. Side requests such as title generation send the entry with no tools. Pico's tools are never sent as function tools, including through a connection to Pico's own `/mcp`.
+
+Responses MCP items follow OpenAI's documented shapes. `mcp_call` items show a live status line, then a collapsed summary; they are stored with the assistant message's tool calls and sent back as input. An `mcp_approval_request` uses the tool permission prompt; the answer goes out as `mcp_approval_response` with the next request, and a request the user leaves unanswered is sent as a denial.
+
 ### Pico rich cards
 
 Completed `vega-lite` fences render static charts using a bounded local worker, with inline data and interpreted expressions. Unsupported or invalid specs retain their original source. Charts support theme and width changes, source copying, and expanded viewing. The existing Mermaid renderer also accepts `mmd` and `mermaidjs` fences.
