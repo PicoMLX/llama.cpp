@@ -1179,7 +1179,7 @@ class AgenticStore {
 	 * agentic is off.
 	 */
 	private async picoToolFor(toolPolicy?: AgenticToolPolicy): Promise<ResponsesMcpTool | null> {
-		if (!toolsStore.hasListedPicoTools) await toolsStore.fetchPicoTools();
+		if (toolsStore.needsPicoToolsListing) await toolsStore.fetchPicoTools();
 
 		if (!this.getConfig(settingsStore.config).enabled) return null;
 

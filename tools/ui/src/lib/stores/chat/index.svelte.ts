@@ -64,7 +64,8 @@ import {
 	isAbortError,
 	normalizeModelName,
 	serializeStoredToolCalls,
-	sliceAtLastCompaction
+	sliceAtLastCompaction,
+	splitStoredToolCalls
 } from '$lib/utils';
 import { SvelteMap } from 'svelte/reactivity';
 
@@ -1717,6 +1718,11 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		// snapshot the streamed tool calls before clearing so we still know whether
 		// anything was captured when deciding to skip the DB write below
 		const hadPartialToolCalls = !!streamedMessage.toolCalls?.trim();
+		// Pico's MCP items are complete records of what Pico ran or asked, keep them
+		const keptToolCalls = serializeStoredToolCalls(
+			undefined,
+			splitStoredToolCalls(streamedMessage.toolCalls).mcpItems
+		);
 		const mirrorPartial = (updates: Partial<DatabaseMessage>) => {
 			if (conversationsStore.activeConversation?.id !== conversationId) return;
 
@@ -1740,7 +1746,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 				toolCalls?: string;
 				timings?: ChatMessageTimings;
 			} = {
-				toolCalls: ''
+				toolCalls: keptToolCalls
 			};
 
 			if (partialContent.trim()) updateData.content = partialContent;
@@ -1766,7 +1772,11 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 			await DatabaseService.updateMessage(streamedMessage.id, updateData);
 			mirrorPartial(updateData);
 		} catch (error) {
-			mirrorPartial({ content: partialContent, reasoningContent: partialReasoning, toolCalls: '' });
+			mirrorPartial({
+				content: partialContent,
+				reasoningContent: partialReasoning,
+				toolCalls: keptToolCalls
+			});
 			console.error('Failed to save partial response:', error);
 		}
 	}

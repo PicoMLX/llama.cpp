@@ -235,6 +235,34 @@ describe('Pico tools in the chat', () => {
 		await vi.waitFor(isIdle);
 	});
 
+	it('keeps the paused call after a stop and denies it with the next request', async () => {
+		streams.push(approvalStream, TEXT_STREAM);
+		const screen = render(PicoChatScreenHarness);
+
+		await send(screen, 'Remind me to buy milk');
+		await expect.element(screen.getByText(/Allow use of/)).toBeVisible();
+
+		await screen.getByRole('button', { name: /^Stop/ }).click();
+		await vi.waitFor(isIdle);
+		await expect.element(screen.getByText(/Allow use of/)).not.toBeInTheDocument();
+		await expect.element(screen.getByText('Declined Create Reminder')).toBeVisible();
+
+		await send(screen, 'Never mind');
+		await vi.waitFor(() => expect(responseBodies).toHaveLength(2));
+		expect((responseBodies[1].input as unknown[]).slice(-3)).toEqual([
+			{
+				arguments: '{"title":"Buy milk"}',
+				id: 'mcpr_1',
+				name: 'reminders_create',
+				server_label: 'pico',
+				type: 'mcp_approval_request'
+			},
+			{ approval_request_id: 'mcpr_1', approve: false, type: 'mcp_approval_response' },
+			{ content: 'Never mind', role: 'user' }
+		]);
+		await vi.waitFor(isIdle);
+	});
+
 	it('denies the pending call explicitly when the user sends a new message instead', async () => {
 		streams.push(approvalStream, TEXT_STREAM);
 		const screen = render(PicoChatScreenHarness);

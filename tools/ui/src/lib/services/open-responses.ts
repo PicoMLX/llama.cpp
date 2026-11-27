@@ -8,6 +8,7 @@ import type {
 	DatabaseMessageExtraMcpPrompt,
 	DatabaseMessageExtraMcpResource,
 	OpenAIToolDefinition,
+	ResponsesMcpCallItem,
 	ResponsesMcpItem,
 	ResponsesMcpTool,
 	ResponsesMcpWireItem
@@ -78,6 +79,8 @@ type ResponsesInputItem =
 			content: [{ type: 'reasoning_text'; text: string }];
 	  }
 	| ResponsesMcpWireItem;
+
+const MCP_CALL_INTERRUPTED = 'The call was interrupted before Pico reported its result.';
 
 type ReportedOpenResponsesError = Error & {
 	__openResponsesHandled?: boolean;
@@ -647,7 +650,8 @@ export class OpenResponsesService {
 	 * An assistant message with Pico's MCP items, in the model's order: text
 	 * before each item, the items, then the trailing text. Each approval
 	 * request goes out with its response, or an explicit denial when the user
-	 * moved on without one; a call with no result yet is left out.
+	 * moved on without one. A call cut off before its result goes out as
+	 * incomplete, so an approval it carries out is never taken as pending.
 	 */
 	private static convertMcpTurn(
 		content: string | ResponsesInputContentPart[],
@@ -681,7 +685,15 @@ export class OpenResponsesService {
 					continue;
 				}
 
-				if (item.type === 'mcp_call' && item.output == null && item.error == null) continue;
+				if (item.type === 'mcp_call' && item.output == null && item.error == null) {
+					input.push({
+						...(withoutOffset(item) as ResponsesMcpCallItem),
+						error: { content: MCP_CALL_INTERRUPTED, type: 'mcp_tool_execution_error' },
+						status: 'incomplete'
+					});
+
+					continue;
+				}
 
 				input.push(withoutOffset(item));
 

@@ -4,6 +4,7 @@ import { OpenResponsesService } from '$lib/services/open-responses';
 import { ToolsService } from '$lib/services/tools.service';
 import { permissionsStore } from '$lib/stores/permissions.svelte';
 import { serverStore } from '$lib/stores/server.svelte';
+import { settingsStore } from '$lib/stores/settings/index.svelte';
 import { toolsStore } from '$lib/stores/tools.svelte';
 import type {
 	ApiLlamaCppServerProps,
@@ -286,6 +287,26 @@ describe('Pico mcp tool entry', () => {
 		).toEqual([]);
 	});
 
+	it("drops another caller's Pico tool list when listing for a new API key fails", async () => {
+		usePicoServer();
+		const previousKey = settingsStore.config.apiKey;
+		const list = vi.spyOn(ToolsService, 'listPicoTools').mockResolvedValue(picoTools);
+
+		settingsStore.config.apiKey = 'key-a';
+		await toolsStore.fetchPicoTools();
+		expect(toolsStore.hasListedPicoTools).toBe(true);
+
+		settingsStore.config.apiKey = 'key-b';
+		expect(toolsStore.hasListedPicoTools).toBe(false);
+		list.mockRejectedValue(new Error('401'));
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		await toolsStore.fetchPicoTools();
+
+		expect(toolsStore.picoTools).toEqual([]);
+		expect(toolsStore.needsPicoToolsListing).toBe(false);
+		settingsStore.config.apiKey = previousKey;
+	});
+
 	it('lists Pico tools from /mcp with their title, icons and approval decision', async () => {
 		usePicoServer();
 		const icon = { mimeType: 'image/svg+xml', sizes: ['any'], src: 'data:image/svg+xml;base64,AA' };
@@ -337,7 +358,7 @@ describe('Pico mcp tool entry', () => {
 });
 
 describe('Pico mcp items in history', () => {
-	it('sends stored items in model order and denies an unanswered approval', () => {
+	it('sends stored items in model order, marks a cut-off call and denies an unanswered approval', () => {
 		const running: ResponsesMcpItem = {
 			arguments: '{}',
 			id: 'mcp_9',
@@ -362,6 +383,14 @@ describe('Pico mcp items in history', () => {
 				type: 'message'
 			},
 			weatherCall,
+			{
+				...running,
+				error: {
+					content: 'The call was interrupted before Pico reported its result.',
+					type: 'mcp_tool_execution_error'
+				},
+				status: 'incomplete'
+			},
 			{
 				content: 'It is cloudy. Adding it.',
 				role: 'assistant',

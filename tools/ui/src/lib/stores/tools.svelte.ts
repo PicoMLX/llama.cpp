@@ -45,6 +45,9 @@ import type {
 import { ApiError, buildSandboxToolDefinition, isPicoMcpUrl, picoMcpUrl } from '$lib/utils';
 import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
+/** How long a failed Pico tool listing holds off the next try before a send */
+const PICO_TOOLS_RETRY_DELAY_MS = 30_000;
+
 /** Stable selection identity for a tool, shared by the disabled set and the permission store */
 
 class ToolsStore {
@@ -55,8 +58,10 @@ class ToolsStore {
 	private _error = $state<string | null>(null);
 	private _loading = $state(false);
 	private _picoTools = $state<PicoToolInfo[]>([]);
-	private _picoToolsListed = false;
-	private _picoToolsRequest: Promise<void> | null = null;
+	private _picoToolsFailedAt = 0;
+	// API key of the listed tools, null until a listing succeeds; Pico answers as that caller
+	private _picoToolsKey: string | null = null;
+	private _picoToolsRequest: { key: string; promise: Promise<void> } | null = null;
 	private _serverHome = $state<string | null | undefined>(undefined);
 	private _serverTools = $state<OpenAIToolDefinition[]>([]);
 	private _toolsEndpointUnreachable = $state(false);
@@ -189,9 +194,9 @@ class ToolsStore {
 		return this._error;
 	}
 
-	/** True once a `/mcp` listing succeeded */
+	/** True when the Pico tool list is a `/mcp` listing for the current caller */
 	get hasListedPicoTools(): boolean {
-		return this._picoToolsListed;
+		return this._picoToolsKey !== null && this._picoToolsKey === this.picoToolsCaller();
 	}
 
 	get isToolsEndpointUnreachable(): boolean {
@@ -204,6 +209,13 @@ class ToolsStore {
 
 	get mcpTools(): OpenAIToolDefinition[] {
 		return this.mcpEntries().map((e) => e.definition);
+	}
+
+	/** True when a send should list Pico's tools first: never listed, and not just failed */
+	get needsPicoToolsListing(): boolean {
+		return (
+			!this.hasListedPicoTools && Date.now() - this._picoToolsFailedAt > PICO_TOOLS_RETRY_DELAY_MS
+		);
 	}
 
 	/** Pico Server's own tools from its last `/mcp` listing */
@@ -268,25 +280,42 @@ class ToolsStore {
 	}
 
 	/**
-	 * Refresh Pico Server's own tool list from `/mcp`. A failed refresh keeps
-	 * the last list; concurrent callers share one request.
+	 * Refresh Pico Server's own tool list from `/mcp`, which answers for the
+	 * caller. Callers with the same API key share one request; a failed
+	 * refresh keeps the last list only when it is that caller's.
 	 */
 	async fetchPicoTools(): Promise<void> {
 		if (!serverStore.isPicoServer) return;
 
-		this._picoToolsRequest ??= ToolsService.listPicoTools()
+		const key = this.picoToolsCaller();
+
+		if (this._picoToolsRequest?.key === key) return this._picoToolsRequest.promise;
+
+		const promise = ToolsService.listPicoTools()
 			.then((tools) => {
+				if (this._picoToolsRequest?.promise !== promise) return;
+
 				this._picoTools = tools;
-				this._picoToolsListed = true;
+				this._picoToolsKey = key;
 			})
 			.catch((err: unknown) => {
+				if (this._picoToolsRequest?.promise !== promise) return;
+
 				console.warn('[ToolsStore] Failed to list Pico tools:', err);
+				this._picoToolsFailedAt = Date.now();
+
+				if (this._picoToolsKey !== key) {
+					this._picoTools = [];
+					this._picoToolsKey = null;
+				}
 			})
 			.finally(() => {
-				this._picoToolsRequest = null;
+				if (this._picoToolsRequest?.promise === promise) this._picoToolsRequest = null;
 			});
 
-		return this._picoToolsRequest;
+		this._picoToolsRequest = { key, promise };
+
+		return promise;
 	}
 
 	async fetchServerTools(): Promise<void> {
@@ -794,6 +823,11 @@ class ToolsStore {
 		} catch {
 			// ignore storage errors
 		}
+	}
+
+	/** The caller Pico answers `/mcp` for: the API key sent with each request */
+	private picoToolsCaller(): string {
+		return String(settingsStore.config.apiKey ?? '').trim();
 	}
 
 	/**
