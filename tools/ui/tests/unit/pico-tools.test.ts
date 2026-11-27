@@ -1,7 +1,8 @@
-import { MessageRole, MessageType, ToolSource } from '$lib/enums';
+import { MessageRole, MessageType, ToolPermissionDecision, ToolSource } from '$lib/enums';
 import { MCPService } from '$lib/services/mcp.service';
 import { OpenResponsesService } from '$lib/services/open-responses';
 import { ToolsService } from '$lib/services/tools.service';
+import { AgenticGates } from '$lib/stores/agentic/gates.svelte';
 import { permissionsStore } from '$lib/stores/permissions.svelte';
 import { serverStore } from '$lib/stores/server.svelte';
 import { settingsStore } from '$lib/stores/settings/index.svelte';
@@ -284,6 +285,31 @@ describe('Pico mcp tool entry', () => {
 				.map((tool) => tool.function.name)
 				.filter((name) => picoTools.some((tool) => tool.name === name))
 		).toEqual([]);
+	});
+
+	it('"Always allow all tools from Pico" keeps the key of a Pico tool named like a WebUI tool', async () => {
+		usePicoServer();
+		vi.spyOn(ToolsService, 'listPicoTools').mockResolvedValue([
+			...picoTools,
+			{ approvalRequired: true, name: 'get_datetime', title: 'Pico Time' }
+		]);
+		await toolsStore.fetchPicoTools();
+
+		const gates = new AgenticGates();
+		const decision = gates.requestPermission('conv-1', 'reminders_create', 'Pico', undefined, {
+			permissionKey: 'pico:reminders_create'
+		});
+
+		gates.resolvePermission('conv-1', ToolPermissionDecision.ALWAYS_SERVER);
+		await decision;
+
+		expect(
+			['pico:get_datetime', 'pico:reminders_create', 'browser:get_datetime'].map((key) =>
+				permissionsStore.hasTool(key)
+			)
+		).toEqual([true, true, false]);
+
+		for (const key of permissionsStore.tools) permissionsStore.revokeTool(key);
 	});
 
 	it("drops another caller's Pico tool list when listing for a new API key fails", async () => {

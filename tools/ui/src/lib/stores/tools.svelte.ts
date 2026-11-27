@@ -388,6 +388,21 @@ class ToolsStore {
 		return result;
 	}
 
+	/** Get the display label for the server that owns a tool entry */
+	getEntryServerLabel(entry: ToolEntry): string {
+		if (entry.serverName) return mcpStore.getServerDisplayName(entry.serverName);
+
+		if (entry.source === ToolSource.PICO) return TOOL_SERVER_LABELS[ToolSource.PICO];
+
+		if (entry.source === ToolSource.SERVER) return TOOL_SERVER_LABELS[ToolSource.SERVER];
+
+		if (entry.source === ToolSource.CUSTOM) return TOOL_SERVER_LABELS[ToolSource.CUSTOM];
+
+		if (entry.source === ToolSource.BROWSER) return TOOL_SERVER_LABELS[ToolSource.BROWSER];
+
+		return '';
+	}
+
 	/** Server-scoped tool key: disabling it disables all of that server's tools. */
 	getMcpServerToolsKey(serverId: string): string {
 		return `mcp:${serverId}`;
@@ -443,19 +458,7 @@ class ToolsStore {
 	getToolServerLabel(toolName: string): string {
 		const entry = this.findEntryByName(toolName);
 
-		if (!entry) return '';
-
-		if (entry.serverName) return mcpStore.getServerDisplayName(entry.serverName);
-
-		if (entry.source === ToolSource.PICO) return TOOL_SERVER_LABELS[ToolSource.PICO];
-
-		if (entry.source === ToolSource.SERVER) return TOOL_SERVER_LABELS[ToolSource.SERVER];
-
-		if (entry.source === ToolSource.CUSTOM) return TOOL_SERVER_LABELS[ToolSource.CUSTOM];
-
-		if (entry.source === ToolSource.BROWSER) return TOOL_SERVER_LABELS[ToolSource.BROWSER];
-
-		return '';
+		return entry ? this.getEntryServerLabel(entry) : '';
 	}
 
 	/** Determine the source of a tool by its name */

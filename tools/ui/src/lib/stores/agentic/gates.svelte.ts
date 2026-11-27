@@ -182,14 +182,14 @@ export class AgenticGates {
 				if (decision === ToolPermissionDecision.ALWAYS && permissionKey) {
 					permissionsStore.allowTool(permissionKey);
 				} else if (decision === ToolPermissionDecision.ALWAYS_SERVER) {
+					// by entry, not name, so a tool that shares a name with another source keeps its own key
 					const serverToolKeys = toolsStore.allTools
 						.filter((t) =>
 							t.serverName
 								? t.serverName === serverLabel
-								: toolsStore.getToolServerLabel(t.definition.function.name) === serverLabel
+								: toolsStore.getEntryServerLabel(t) === serverLabel
 						)
-						.map((t) => toolsStore.getPermissionKey(t.definition.function.name)!)
-						.filter((k): k is string => k !== null);
+						.map((t) => t.key);
 
 					permissionsStore.allowTools(serverToolKeys);
 				}
