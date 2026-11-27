@@ -751,7 +751,7 @@ if (IS_PICO_BUILD) {
 
 	endpoint.label = 'API Compatibility';
 	endpoint.help =
-		'Use Open Responses for Pico. Choose Chat Completions only for servers that require it.';
+		'Pico always uses Open Responses. Choose Chat Completions only for other servers that require it.';
 	endpoint.options = [
 		{ label: 'Open Responses', value: 'responses' },
 		{ label: 'Chat Completions', value: 'chat_completions' }

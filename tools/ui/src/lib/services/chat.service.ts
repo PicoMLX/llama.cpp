@@ -1104,7 +1104,11 @@ export class ChatService {
 		conversationId?: string,
 		signal?: AbortSignal
 	): Promise<string | void> {
-		if (settingsStore.getConfig(SETTINGS_KEYS.API_ENDPOINT) === 'responses') {
+		// Pico's tool picker and approvals only exist in Responses, so Pico always uses it
+		if (
+			serverStore.isPicoServer ||
+			settingsStore.getConfig(SETTINGS_KEYS.API_ENDPOINT) === 'responses'
+		) {
 			const { OpenResponsesService } = await import('./open-responses');
 
 			return OpenResponsesService.sendMessage(messages, options, conversationId, signal);

@@ -66,6 +66,7 @@ const DENIED_THEN_NEVER_MIND = [
 ];
 const createdIds = new Set<string>();
 
+let completionRequests: number;
 let previousConfig: SettingsConfigType;
 let responseBodies: Array<Record<string, unknown>>;
 let streams: Array<string | ReadableStream<Uint8Array>>;
@@ -141,6 +142,7 @@ beforeEach(async () => {
 	vi.spyOn(modelsStore.status, 'ensureLoaded').mockResolvedValue();
 	vi.spyOn(modelsStore.status, 'load').mockResolvedValue();
 	vi.spyOn(ToolsService, 'listPicoTools').mockResolvedValue(PICO_TOOLS);
+	completionRequests = 0;
 	responseBodies = [];
 	streams = [];
 	vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
@@ -151,6 +153,12 @@ beforeEach(async () => {
 			responseBodies.push(JSON.parse(init?.body as string));
 
 			return sse(streams.shift() ?? TEXT_STREAM);
+		}
+
+		if (url.pathname.endsWith('/v1/chat/completions')) {
+			completionRequests++;
+
+			return new Response('Not found', { status: 404 });
 		}
 
 		if (url.pathname.endsWith('/props')) return Response.json(serverStore.props);
@@ -220,6 +228,24 @@ describe('Pico tools in the chat', () => {
 
 		await summary.click();
 		await expect.element(screen.getByText(/"temperature_c":12/)).toBeVisible();
+		await vi.waitFor(isIdle);
+	});
+
+	it('sends to Responses with the pico entry when Chat Completions is the stored endpoint', async () => {
+		settingsStore.config.apiEndpoint = 'chat_completions';
+		const screen = render(PicoChatScreenHarness);
+
+		await send(screen, 'Weather in Amsterdam?');
+
+		await vi.waitFor(() => expect(responseBodies).toHaveLength(1));
+		expect(completionRequests).toBe(0);
+		expect(responseBodies[0].tools).toContainEqual(
+			expect.objectContaining({
+				allowed_tools: ['weather_current', 'reminders_create'],
+				type: 'mcp'
+			})
+		);
+		await expect.element(screen.getByText('OK, I will not add it.')).toBeVisible();
 		await vi.waitFor(isIdle);
 	});
 

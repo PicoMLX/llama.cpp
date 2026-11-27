@@ -10,6 +10,7 @@ import {
 import { ServerRole } from '$lib/enums';
 import { serverStore } from '$lib/stores/server.svelte';
 import { settingsStore } from '$lib/stores/settings/index.svelte';
+import type { ApiLlamaCppServerProps } from '$lib/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { page } from 'vitest/browser';
 import { render } from 'vitest-browser-svelte';
@@ -112,6 +113,19 @@ describe.runIf(IS_PICO_BUILD)('Pico preferences', () => {
 		expect(settingsStore.config.customJson).toBe('{"seed":1}');
 		await json.fill('{"seed":2}');
 		expect(settingsStore.config.customJson).toBe('{"seed":2}');
+	});
+
+	it('offers API Compatibility only for servers other than Pico, which always uses Open Responses', async () => {
+		const screen = render(SettingsChat, { initialSection: SETTINGS_SECTION_SLUGS.ADVANCED });
+
+		await screen.getByText('Developer', { exact: true }).click();
+		await expect.element(screen.getByText('API Compatibility', { exact: true })).toBeVisible();
+
+		serverStore.props = { server_name: 'Pico AI Server' } as ApiLlamaCppServerProps;
+		await expect
+			.element(screen.getByText('API Compatibility', { exact: true }))
+			.not.toBeInTheDocument();
+		await expect.element(screen.getByLabelText('Custom JSON', { exact: true })).toBeVisible();
 	});
 
 	it('resets General without clearing instructions, connections or access', async () => {
