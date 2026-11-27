@@ -358,6 +358,19 @@ export { tryParseToolResultObject } from './tool-call-meta';
 // label without depending on $lib/constants directly.
 export { getToolUi } from './tool-ui';
 
+// Pico Server tools: stored MCP items and their order in a message
+export {
+	isMcpCallRunning,
+	isMcpItem,
+	isPicoMcpUrl,
+	mcpCallErrorText,
+	mcpItemRuns,
+	picoMcpUrl,
+	serializeStoredToolCalls,
+	splitStoredToolCalls,
+	unansweredApprovalRequests
+} from './pico-tools';
+
 // Chat command picker
 
 export { getChatCommands } from './chat-commands';

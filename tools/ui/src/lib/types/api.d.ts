@@ -1,4 +1,5 @@
 import type { ChatMessagePromptProgress, ChatMessageType, ChatRole } from './chat';
+import type { ResponsesMcpItem } from './pico-tools';
 import type { ModelSidecar } from '$lib/constants';
 import type {
 	ContentPartType,
@@ -62,6 +63,8 @@ export interface ApiChatMessageData {
 	content: string | ApiChatMessageContentPart[];
 	reasoning_content?: string;
 	tool_calls?: ApiChatCompletionToolCall[];
+	/** Pico's Responses MCP items of an assistant message, sent back as input items */
+	mcp_items?: ResponsesMcpItem[];
 	tool_call_id?: string;
 	timestamp?: number;
 }

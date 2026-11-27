@@ -1,0 +1,59 @@
+event: response.created
+data: {"response":{"top_p":1,"completed_at":null,"tool_choice":"auto","id":"resp_0b48b6d204f94d1f94da9a98a20c5410","created_at":1795766889,"error":null,"instructions":null,"store":false,"reasoning":null,"prompt_cache_key":null,"output":[],"usage":null,"background":false,"incomplete_details":null,"tools":[{"allowed_tools":["weather_current","write_file"],"server_url":"http:\/\/pico.local\/mcp","type":"mcp","server_label":"pico","require_approval":{"never":{"tool_names":["weather_current"]}}}],"temperature":1,"truncation":"disabled","status":"in_progress","metadata":{"server_stage":"queued"},"object":"response","frequency_penalty":0,"safety_identifier":null,"service_tier":"auto","model":"mcp-resume","parallel_tool_calls":false,"top_logprobs":0,"previous_response_id":null,"presence_penalty":0,"max_output_tokens":null,"max_tool_calls":null,"text":{"format":{"type":"text"},"verbosity":"medium"}},"type":"response.created","sequence_number":0}
+
+event: response.in_progress
+data: {"response":{"top_p":1,"completed_at":null,"tool_choice":"auto","id":"resp_0b48b6d204f94d1f94da9a98a20c5410","created_at":1795766889,"error":null,"instructions":null,"store":false,"reasoning":null,"prompt_cache_key":null,"output":[],"usage":null,"background":false,"incomplete_details":null,"tools":[{"server_label":"pico","type":"mcp","allowed_tools":["weather_current","write_file"],"server_url":"http:\/\/pico.local\/mcp","require_approval":{"never":{"tool_names":["weather_current"]}}}],"temperature":1,"truncation":"disabled","status":"in_progress","metadata":{"server_stage":"prompt_processing"},"object":"response","frequency_penalty":0,"safety_identifier":null,"service_tier":"auto","model":"mcp-resume","parallel_tool_calls":false,"top_logprobs":0,"previous_response_id":null,"presence_penalty":0,"max_output_tokens":null,"max_tool_calls":null,"text":{"format":{"type":"text"},"verbosity":"medium"}},"type":"response.in_progress","sequence_number":1}
+
+event: response.in_progress
+data: {"response":{"top_p":1,"completed_at":null,"tool_choice":"auto","id":"resp_0b48b6d204f94d1f94da9a98a20c5410","created_at":1795766889,"error":null,"instructions":null,"store":false,"reasoning":null,"prompt_cache_key":null,"output":[],"usage":null,"background":false,"incomplete_details":null,"tools":[{"allowed_tools":["weather_current","write_file"],"server_url":"http:\/\/pico.local\/mcp","type":"mcp","server_label":"pico","require_approval":{"never":{"tool_names":["weather_current"]}}}],"temperature":1,"truncation":"disabled","status":"in_progress","metadata":{"server_stage":"loading_model"},"object":"response","frequency_penalty":0,"safety_identifier":null,"service_tier":"auto","model":"mcp-resume","parallel_tool_calls":false,"top_logprobs":0,"previous_response_id":null,"presence_penalty":0,"max_output_tokens":null,"max_tool_calls":null,"text":{"format":{"type":"text"},"verbosity":"medium"}},"type":"response.in_progress","sequence_number":2}
+
+event: response.in_progress
+data: {"response":{"top_p":1,"completed_at":null,"tool_choice":"auto","id":"resp_0b48b6d204f94d1f94da9a98a20c5410","created_at":1795766889,"error":null,"instructions":null,"store":false,"reasoning":null,"prompt_cache_key":null,"output":[],"usage":null,"background":false,"incomplete_details":null,"tools":[{"server_label":"pico","type":"mcp","allowed_tools":["weather_current","write_file"],"server_url":"http:\/\/pico.local\/mcp","require_approval":{"never":{"tool_names":["weather_current"]}}}],"temperature":1,"truncation":"disabled","status":"in_progress","metadata":{"server_stage":"generating"},"object":"response","frequency_penalty":0,"safety_identifier":null,"service_tier":"auto","model":"mcp-resume","parallel_tool_calls":false,"top_logprobs":0,"previous_response_id":null,"presence_penalty":0,"max_output_tokens":null,"max_tool_calls":null,"text":{"format":{"type":"text"},"verbosity":"medium"}},"type":"response.in_progress","sequence_number":3}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","output_index":0,"sequence_number":4,"item":{"approval_request_id":"mcpr_fixture1","type":"mcp_call","status":"in_progress","id":"mcp_075a39431bf648e7bed486b357521dd5","arguments":"{\"path\":\"notes.txt\",\"text\":\"Paris: 21°C, sunny\"}","name":"write_file","error":null,"server_label":"pico","output":null}}
+
+event: response.mcp_call_arguments.delta
+data: {"item_id":"mcp_075a39431bf648e7bed486b357521dd5","delta":"{\"path\":\"notes.txt\",\"text\":\"Paris: 21°C, sunny\"}","type":"response.mcp_call_arguments.delta","output_index":0,"sequence_number":5}
+
+event: response.mcp_call_arguments.done
+data: {"item_id":"mcp_075a39431bf648e7bed486b357521dd5","type":"response.mcp_call_arguments.done","output_index":0,"sequence_number":6,"arguments":"{\"path\":\"notes.txt\",\"text\":\"Paris: 21°C, sunny\"}"}
+
+event: response.mcp_call.in_progress
+data: {"item_id":"mcp_075a39431bf648e7bed486b357521dd5","type":"response.mcp_call.in_progress","output_index":0,"sequence_number":7}
+
+event: response.mcp_call.completed
+data: {"item_id":"mcp_075a39431bf648e7bed486b357521dd5","type":"response.mcp_call.completed","output_index":0,"sequence_number":8}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","output_index":0,"sequence_number":9,"item":{"approval_request_id":"mcpr_fixture1","type":"mcp_call","status":"completed","id":"mcp_075a39431bf648e7bed486b357521dd5","arguments":"{\"path\":\"notes.txt\",\"text\":\"Paris: 21°C, sunny\"}","name":"write_file","error":null,"server_label":"pico","output":"{\"written\":true}"}}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","sequence_number":10,"output_index":1,"item":{"status":"in_progress","type":"message","id":"msg_d137303a14c04b2abc8947b0d62abaa8","content":[],"role":"assistant"}}
+
+event: response.content_part.added
+data: {"content_index":0,"part":{"type":"output_text","annotations":[],"text":"","logprobs":[]},"type":"response.content_part.added","sequence_number":11,"output_index":1,"item_id":"msg_d137303a14c04b2abc8947b0d62abaa8"}
+
+event: response.in_progress
+data: {"response":{"top_p":1,"completed_at":null,"tool_choice":"auto","id":"resp_0b48b6d204f94d1f94da9a98a20c5410","created_at":1795766889,"error":null,"instructions":null,"store":false,"reasoning":null,"prompt_cache_key":null,"output":[{"arguments":"{\"path\":\"notes.txt\",\"text\":\"Paris: 21°C, sunny\"}","error":null,"output":"{\"written\":true}","approval_request_id":"mcpr_fixture1","id":"mcp_075a39431bf648e7bed486b357521dd5","status":"completed","name":"write_file","type":"mcp_call","server_label":"pico"},{"role":"assistant","status":"in_progress","id":"msg_d137303a14c04b2abc8947b0d62abaa8","type":"message","content":[{"logprobs":[],"annotations":[],"text":"","type":"output_text"}]}],"usage":null,"background":false,"incomplete_details":null,"tools":[{"require_approval":{"never":{"tool_names":["weather_current"]}},"type":"mcp","allowed_tools":["weather_current","write_file"],"server_label":"pico","server_url":"http:\/\/pico.local\/mcp"}],"temperature":1,"truncation":"disabled","status":"in_progress","metadata":{"server_stage":"generating"},"object":"response","frequency_penalty":0,"safety_identifier":null,"service_tier":"auto","model":"mcp-resume","parallel_tool_calls":false,"top_logprobs":0,"previous_response_id":null,"presence_penalty":0,"max_output_tokens":null,"max_tool_calls":null,"text":{"verbosity":"medium","format":{"type":"text"}}},"type":"response.in_progress","sequence_number":12}
+
+event: response.output_text.delta
+data: {"obfuscation":"","content_index":0,"logprobs":[],"type":"response.output_text.delta","item_id":"msg_d137303a14c04b2abc8947b0d62abaa8","output_index":1,"sequence_number":13,"delta":"Saved the weather to notes.txt."}
+
+event: response.in_progress
+data: {"sequence_number":14,"type":"response.in_progress","response":{"top_p":1,"completed_at":null,"tool_choice":"auto","id":"resp_0b48b6d204f94d1f94da9a98a20c5410","created_at":1795766889,"error":null,"instructions":null,"store":false,"reasoning":null,"prompt_cache_key":null,"output":[{"arguments":"{\"path\":\"notes.txt\",\"text\":\"Paris: 21°C, sunny\"}","error":null,"output":"{\"written\":true}","approval_request_id":"mcpr_fixture1","id":"mcp_075a39431bf648e7bed486b357521dd5","status":"completed","name":"write_file","type":"mcp_call","server_label":"pico"},{"role":"assistant","status":"in_progress","id":"msg_d137303a14c04b2abc8947b0d62abaa8","type":"message","content":[{"logprobs":[],"annotations":[],"text":"","type":"output_text"}]}],"usage":null,"background":false,"incomplete_details":null,"tools":[{"type":"mcp","require_approval":{"never":{"tool_names":["weather_current"]}},"allowed_tools":["weather_current","write_file"],"server_label":"pico","server_url":"http:\/\/pico.local\/mcp"}],"temperature":1,"truncation":"disabled","status":"in_progress","metadata":{"server_stage":"finalizing"},"object":"response","frequency_penalty":0,"safety_identifier":null,"service_tier":"auto","model":"mcp-resume","parallel_tool_calls":false,"top_logprobs":0,"previous_response_id":null,"presence_penalty":0,"max_output_tokens":null,"max_tool_calls":null,"text":{"verbosity":"medium","format":{"type":"text"}}}}
+
+event: response.output_text.done
+data: {"content_index":0,"logprobs":[],"type":"response.output_text.done","text":"Saved the weather to notes.txt.","item_id":"msg_d137303a14c04b2abc8947b0d62abaa8","output_index":1,"sequence_number":15}
+
+event: response.content_part.done
+data: {"type":"response.content_part.done","output_index":1,"content_index":0,"item_id":"msg_d137303a14c04b2abc8947b0d62abaa8","part":{"annotations":[],"logprobs":[],"type":"output_text","text":"Saved the weather to notes.txt."},"sequence_number":16}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","sequence_number":17,"output_index":1,"item":{"status":"completed","type":"message","role":"assistant","content":[{"logprobs":[],"annotations":[],"type":"output_text","text":"Saved the weather to notes.txt."}],"id":"msg_d137303a14c04b2abc8947b0d62abaa8"}}
+
+event: response.completed
+data: {"sequence_number":18,"type":"response.completed","response":{"top_p":1,"completed_at":1795766889,"tool_choice":"auto","id":"resp_0b48b6d204f94d1f94da9a98a20c5410","created_at":1795766889,"error":null,"instructions":null,"store":false,"reasoning":null,"prompt_cache_key":null,"output":[{"arguments":"{\"path\":\"notes.txt\",\"text\":\"Paris: 21°C, sunny\"}","error":null,"output":"{\"written\":true}","approval_request_id":"mcpr_fixture1","id":"mcp_075a39431bf648e7bed486b357521dd5","status":"completed","name":"write_file","type":"mcp_call","server_label":"pico"},{"type":"message","status":"completed","role":"assistant","content":[{"logprobs":[],"annotations":[],"type":"output_text","text":"Saved the weather to notes.txt."}],"id":"msg_d137303a14c04b2abc8947b0d62abaa8"}],"usage":{"prompt_time_ms":500,"output_tokens_details":{"reasoning_tokens":0},"generation_time_ms":250,"input_tokens":40,"output_tokens":12,"input_tokens_details":{"cached_tokens":0},"total_tokens":52},"background":false,"incomplete_details":null,"tools":[{"type":"mcp","require_approval":{"never":{"tool_names":["weather_current"]}},"allowed_tools":["weather_current","write_file"],"server_label":"pico","server_url":"http:\/\/pico.local\/mcp"}],"temperature":1,"truncation":"disabled","status":"completed","metadata":{"server_stage":"completed"},"object":"response","frequency_penalty":0,"safety_identifier":null,"service_tier":"auto","model":"mcp-resume","parallel_tool_calls":false,"top_logprobs":0,"previous_response_id":null,"presence_penalty":0,"max_output_tokens":null,"max_tool_calls":null,"text":{"verbosity":"medium","format":{"type":"text"}}}}
+
+data: [DONE]
+

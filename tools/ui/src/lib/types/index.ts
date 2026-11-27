@@ -239,6 +239,7 @@ export type {
 	AgenticFlowOptions,
 	AgenticFlowParams,
 	AgenticFlowResult,
+	AgenticPermissionRequest,
 	SteeringMessage,
 	AgenticSection,
 	ToolResultLine,
@@ -259,6 +260,17 @@ export type {
 	WriteFileMeta,
 	WriteFileTitleMeta
 } from './tools';
+
+// Pico tools types
+export type {
+	PicoToolInfo,
+	ResponsesMcpApprovalRequestItem,
+	ResponsesMcpCallError,
+	ResponsesMcpCallItem,
+	ResponsesMcpItem,
+	ResponsesMcpTool,
+	ResponsesMcpWireItem
+} from './pico-tools';
 
 // Reasoning
 export type { ReasoningEffortLevel } from './reasoning';

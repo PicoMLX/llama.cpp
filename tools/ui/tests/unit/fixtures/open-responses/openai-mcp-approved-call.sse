@@ -1,0 +1,27 @@
+event: response.created
+data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_mcp_3","object":"response","created_at":1795766470,"status":"in_progress","model":"Qwen3-8B","output":[]}}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","sequence_number":1,"output_index":0,"item":{"id":"mcp_2","type":"mcp_call","server_label":"pico","name":"reminders_create","arguments":"{\"title\":\"Buy milk\"}","approval_request_id":"mcpr_1","error":null,"output":null,"status":"in_progress"}}
+
+event: response.mcp_call.in_progress
+data: {"type":"response.mcp_call.in_progress","sequence_number":2,"output_index":0,"item_id":"mcp_2"}
+
+event: response.mcp_call.completed
+data: {"type":"response.mcp_call.completed","sequence_number":3,"output_index":0,"item_id":"mcp_2"}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","sequence_number":4,"output_index":0,"item":{"id":"mcp_2","type":"mcp_call","server_label":"pico","name":"reminders_create","arguments":"{\"title\":\"Buy milk\"}","approval_request_id":"mcpr_1","error":null,"output":"{\"id\":\"rem_9\",\"title\":\"Buy milk\"}","status":"completed"}}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","sequence_number":5,"output_index":1,"item":{"id":"msg_4","type":"message","role":"assistant","status":"in_progress","content":[]}}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","sequence_number":6,"output_index":1,"item_id":"msg_4","content_index":0,"delta":"Added: Buy milk."}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","sequence_number":7,"output_index":1,"item":{"id":"msg_4","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"Added: Buy milk.","annotations":[]}]}}
+
+event: response.completed
+data: {"type":"response.completed","sequence_number":8,"response":{"id":"resp_mcp_3","object":"response","created_at":1795766470,"status":"completed","model":"Qwen3-8B","output":[],"usage":{"input_tokens":280,"output_tokens":9,"total_tokens":289,"input_tokens_details":{"cached_tokens":0},"output_tokens_details":{"reasoning_tokens":0}}}}
+

@@ -4,13 +4,19 @@
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import * as Collapsible from '$lib/components/ui/collapsible';
 	import { ICON_CLASS_DEFAULT } from '$lib/constants';
+	import { ColorMode } from '$lib/enums';
 	import { ToolSource } from '$lib/enums/tools.enums';
 	import { conversationsStore, mcpStore, permissionsStore, toolsStore } from '$lib/stores';
-	import { getToolUi } from '$lib/utils';
+	import { getMcpIconUrl, getToolUi } from '$lib/utils';
+	import { mode } from 'mode-watcher';
+	import { onMount } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 
 	let expandedGroups = new SvelteSet<string>();
 	let groups = $derived(toolsStore.toolGroups);
+
+	// Pico's list answers for the signed-in user and the admin's current switches
+	onMount(() => void toolsStore.fetchPicoTools());
 
 	function toggleExpanded(key: string) {
 		if (expandedGroups.has(key)) {
@@ -89,16 +95,22 @@
 								entry.source === ToolSource.SERVER || entry.source === ToolSource.BROWSER
 									? getToolUi(toolName)
 									: null}
-							{@const displayLabel = toolUi?.label ?? toolName}
+							{@const displayLabel = toolUi?.label ?? entry.pico?.title ?? toolName}
 							{@const IconComponent = toolUi?.icon ?? null}
+							{@const iconUrl = entry.pico
+								? getMcpIconUrl(entry.pico.icons, mode.current === ColorMode.DARK)
+								: null}
 							{@const isEnabled = conversationsStore.preferences.isToolEnabled(entry.key)}
 							{@const permissionKey = entry.key}
-							{@const isAlwaysAllowed = permissionsStore.hasTool(permissionKey)}
+							{@const neverAsks = entry.pico ? !entry.pico.approvalRequired : false}
+							{@const isAlwaysAllowed = neverAsks || permissionsStore.hasTool(permissionKey)}
 
 							<div class="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted/50">
 								<span class="flex min-w-0 flex-1 items-center gap-1.5">
 									{#if IconComponent}
 										<IconComponent class={ICON_CLASS_DEFAULT} />
+									{:else if iconUrl}
+										<img alt="" class="{ICON_CLASS_DEFAULT} shrink-0 rounded-sm" src={iconUrl} />
 									{/if}
 
 									<TruncatedText class="min-w-0" showTooltip={true} text={displayLabel} />
@@ -115,8 +127,10 @@
 
 								<div class="flex w-20 shrink-0 justify-center">
 									<Checkbox
+										aria-label={neverAsks ? 'Never asks' : undefined}
 										checked={isAlwaysAllowed}
 										class={ICON_CLASS_DEFAULT}
+										disabled={neverAsks}
 										onCheckedChange={() => {
 											if (isAlwaysAllowed) {
 												permissionsStore.revokeTool(permissionKey);

@@ -195,6 +195,13 @@
 		localConfig[key] = settingsStore.config[key];
 	}
 
+	// Pico always uses Open Responses, so the endpoint setting would do nothing there
+	function shownFields(fields: SettingsFieldConfig[]): SettingsFieldConfig[] {
+		return serverStore.isPicoServer
+			? fields.filter((field) => field.key !== SETTINGS_KEYS.API_ENDPOINT)
+			: fields;
+	}
+
 	function getPreferenceKeys(fields: SettingsFieldConfig[]): string[] {
 		return [
 			...new Set(
@@ -311,11 +318,12 @@
 </script>
 
 {#snippet preferenceFields(fields: SettingsFieldConfig[], title: string)}
-	{@const keys = getPreferenceKeys(fields)}
+	{@const shown = shownFields(fields)}
+	{@const keys = getPreferenceKeys(shown)}
 
 	<SettingsChatFields
 		errors={fieldErrors}
-		{fields}
+		fields={shown}
 		{localConfig}
 		onConfigChange={handleConfigChange}
 		onParameterReset={handleParameterReset}
@@ -451,7 +459,7 @@
 					{:else if currentSection.fields}
 						<div class="space-y-6">
 							<SettingsChatFields
-								fields={currentSection.fields}
+								fields={shownFields(currentSection.fields)}
 								{localConfig}
 								onConfigChange={handleConfigChange}
 								onThemeChange={handleThemeChange}

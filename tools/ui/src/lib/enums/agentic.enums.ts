@@ -9,6 +9,7 @@ export enum ToolCallType {
  * Types of sections in agentic content display.
  */
 export enum AgenticSectionType {
+	PICO_TOOLS = 'pico_tools',
 	REASONING = 'reasoning',
 	REASONING_PENDING = 'reasoning_pending',
 	TEXT = 'text',

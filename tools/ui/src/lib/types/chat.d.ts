@@ -1,5 +1,6 @@
 import type { ApiChatCompletionToolCall } from './api';
 import type { DatabaseMessage, DatabaseMessageExtra } from './database';
+import type { ResponsesMcpItem } from './pico-tools';
 import type {
 	AttachmentAction,
 	AttachmentItemEnabledWhen,
@@ -143,7 +144,10 @@ export interface ChatStreamCallbacks {
 	onChunk?: (chunk: string) => void;
 	onReasoningChunk?: (chunk: string) => void;
 	onReasoningEnd?: () => void;
-	onToolCallsStreaming?: (toolCalls: ApiChatCompletionToolCall[]) => void;
+	onToolCallsStreaming?: (
+		toolCalls: ApiChatCompletionToolCall[],
+		mcpItems?: ResponsesMcpItem[]
+	) => void;
 	onAttachments?: (messageId: string, extras: DatabaseMessageExtra[]) => void;
 	onModel?: (model: string) => void;
 	onCompletionId?: (id: string) => void;
@@ -152,7 +156,12 @@ export interface ChatStreamCallbacks {
 		content: string,
 		reasoningContent: string | undefined,
 		timings: ChatMessageTimings | undefined,
-		toolCalls: ApiChatCompletionToolCall[] | undefined
+		toolCalls: ApiChatCompletionToolCall[] | undefined,
+		mcpItems?: ResponsesMcpItem[]
+	) => Promise<void>;
+	updateTurnToolCalls?: (
+		toolCalls: ApiChatCompletionToolCall[] | undefined,
+		mcpItems: ResponsesMcpItem[]
 	) => Promise<void>;
 	createToolResultMessage?: (
 		toolCallId: string,

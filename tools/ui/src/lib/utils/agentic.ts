@@ -20,6 +20,8 @@ import type {
 	DatabaseMessageExtra,
 	DatabaseMessageExtraImageFile
 } from '$lib/types/database';
+import type { ResponsesMcpItem } from '$lib/types/pico-tools';
+import { mcpItemRuns, splitStoredToolCalls } from '$lib/utils/pico-tools';
 
 interface StreamingReasoningState {
 	messageId: string;
@@ -41,12 +43,15 @@ function deriveSingleTurnSections(
 	reasoningState?: StreamingReasoningState
 ): AgenticSection[] {
 	const sections: AgenticSection[] = [];
+	const { mcpItems, toolCalls } = parseStoredToolCalls(message.toolCalls);
 
 	// 1. Reasoning content (from dedicated field)
 	if (message.reasoningContent) {
-		const toolCalls = parseToolCalls(message.toolCalls);
 		const hasContentAfterReasoning =
-			!!message.content?.trim() || toolCalls.length > 0 || streamingToolCalls.length > 0;
+			!!message.content?.trim() ||
+			toolCalls.length > 0 ||
+			mcpItems.length > 0 ||
+			streamingToolCalls.length > 0;
 		const isPending =
 			isStreaming &&
 			(reasoningState?.messageId === message.id
@@ -61,16 +66,21 @@ function deriveSingleTurnSections(
 		});
 	}
 
-	// 2. Text content
-	if (message.content?.trim()) {
-		sections.push({
-			content: message.content,
-			type: AgenticSectionType.TEXT
-		});
+	// 2. Text content, cut where Pico's tool items appeared
+	for (const run of mcpItemRuns(message.content ?? '', mcpItems)) {
+		if (run.text.trim()) {
+			sections.push({
+				content: run.text,
+				type: AgenticSectionType.TEXT
+			});
+		}
+
+		if (run.items.some(isShownMcpItem)) {
+			sections.push({ content: '', mcpItems: run.items, type: AgenticSectionType.PICO_TOOLS });
+		}
 	}
 
 	// 3. Persisted tool calls (from message.toolCalls field)
-	const toolCalls = parseToolCalls(message.toolCalls);
 	// Index tool messages by toolCallId for O(1) lookup instead of O(n) find()
 	const toolMsgById = new Map<string, DatabaseMessage>();
 
@@ -331,6 +341,17 @@ export function buildAssistantRawOutput(sections: AgenticSection[]): string {
 
 				break;
 			}
+
+			case AgenticSectionType.PICO_TOOLS:
+				for (const item of section.mcpItems ?? []) {
+					if (item.type !== 'mcp_call') continue;
+
+					parts.push(JSON.stringify({ arguments: item.arguments, name: item.name }, null, 2));
+
+					if (item.output) parts.push(`${NEWLINE}${item.output}`);
+				}
+
+				break;
 		}
 	}
 
@@ -530,29 +551,28 @@ function looksLikeMarkdown(content: string): boolean {
 
 /** Bounded cache for parsed tool-call JSON blobs. */
 const TOOL_CALLS_CACHE_MAX_SIZE = 64;
-const toolCallsParseCache = new Map<string, ApiChatCompletionToolCall[]>();
+const EMPTY_STORED_TOOL_CALLS = { mcpItems: [], toolCalls: [] };
+const toolCallsParseCache = new Map<
+	string,
+	{ toolCalls: ApiChatCompletionToolCall[]; mcpItems: ResponsesMcpItem[] }
+>();
 
 /**
- * Safely parse the toolCalls JSON string from a DatabaseMessage.
+ * Safely parse the toolCalls JSON string from a DatabaseMessage into its function calls and Pico's MCP items.
  * Memoized: the same JSON string is re-parsed on every render during
  * streaming, which is wasted CPU since tool calls don't change mid-stream.
  */
-function parseToolCalls(toolCallsJson?: string): ApiChatCompletionToolCall[] {
-	if (!toolCallsJson) return [];
+function parseStoredToolCalls(toolCallsJson?: string): {
+	toolCalls: ApiChatCompletionToolCall[];
+	mcpItems: ResponsesMcpItem[];
+} {
+	if (!toolCallsJson) return EMPTY_STORED_TOOL_CALLS;
 
 	const cached = toolCallsParseCache.get(toolCallsJson);
 
 	if (cached) return cached;
 
-	let result: ApiChatCompletionToolCall[];
-
-	try {
-		const parsed = JSON.parse(toolCallsJson);
-
-		result = Array.isArray(parsed) ? parsed : [];
-	} catch {
-		result = [];
-	}
+	const result = splitStoredToolCalls(toolCallsJson);
 
 	if (toolCallsParseCache.size >= TOOL_CALLS_CACHE_MAX_SIZE) {
 		toolCallsParseCache.delete(toolCallsParseCache.keys().next().value!);
@@ -563,17 +583,22 @@ function parseToolCalls(toolCallsJson?: string): ApiChatCompletionToolCall[] {
 	return result;
 }
 
+/** Calls and approval requests show in the message; tool lists and approval answers do not. */
+function isShownMcpItem(item: ResponsesMcpItem): boolean {
+	return item.type === 'mcp_call' || item.type === 'mcp_approval_request';
+}
+
 /**
- * Check if a message has agentic content (tool calls or is part of an agentic flow).
+ * Check if a message has agentic content (tool calls, Pico tool use, or is part of an agentic flow).
  */
 export function hasAgenticContent(
 	message: DatabaseMessage,
 	toolMessages: DatabaseMessage[] = []
 ): boolean {
 	if (message.toolCalls) {
-		const tc = parseToolCalls(message.toolCalls);
+		const { mcpItems, toolCalls } = parseStoredToolCalls(message.toolCalls);
 
-		if (tc.length > 0) return true;
+		if (toolCalls.length > 0 || mcpItems.some(isShownMcpItem)) return true;
 	}
 
 	return toolMessages.length > 0;
@@ -634,9 +659,11 @@ export function classifyContinueIntent(messages: DatabaseMessage[], idx: number)
 		return { kind: ContinueIntentKind.APPEND_TEXT };
 	}
 
-	const hasToolCalls = parseToolCalls(target.toolCalls).length > 0;
+	const { mcpItems, toolCalls } = parseStoredToolCalls(target.toolCalls);
+	const hasToolCalls = toolCalls.length > 0;
+	const hasPicoTools = mcpItems.some(isShownMcpItem);
 
-	if (!hasToolCalls) {
+	if (!hasToolCalls && !hasPicoTools) {
 		return { kind: ContinueIntentKind.APPEND_TEXT };
 	}
 
@@ -655,6 +682,11 @@ export function classifyContinueIntent(messages: DatabaseMessage[], idx: number)
 
 	if (lastTrailingTool > idx) {
 		return { kind: ContinueIntentKind.NEXT_TURN, truncateAfter: lastTrailingTool };
+	}
+
+	// Pico reported its own calls in the turn, so a new turn picks up after them
+	if (!hasToolCalls) {
+		return { kind: ContinueIntentKind.NEXT_TURN, truncateAfter: idx };
 	}
 
 	return { kind: ContinueIntentKind.RERUN_TURN, truncateAfter: idx - 1 };

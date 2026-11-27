@@ -461,7 +461,7 @@ describe.runIf(IS_PICO_BUILD)('Pico model selection in ROUTER mode', () => {
 	});
 
 	it.each(['responses', 'chat_completions'] as const)(
-		'sends the real composer choice to %s and records its raw response model',
+		'sends the real composer choice with %s stored and records its raw response model',
 		async (endpoint) => {
 			settingsStore.config.apiEndpoint = endpoint;
 			const screen = render(PicoChatScreenHarness);
@@ -485,14 +485,8 @@ describe.runIf(IS_PICO_BUILD)('Pico model selection in ROUTER mode', () => {
 			const request = generationRequests()[0];
 
 			expect(request.body.model).toBe(INKLING);
-			expect(request.url.pathname).toBe(
-				endpoint === 'responses' ? '/v1/responses' : '/v1/chat/completions'
-			);
-
-			if (endpoint === 'chat_completions') {
-				expect(request.headers.get(HEADERS.X_CONVERSATION_ID_HEADER)).toBe(conversationId);
-				expect(request.resumeModel).toBeNull();
-			}
+			// Pico always uses Open Responses, whatever endpoint is stored
+			expect(request.url.pathname).toBe('/v1/responses');
 
 			await expect
 				.poll(

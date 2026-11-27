@@ -1,6 +1,7 @@
 import type { ChatMessagePromptProgress, ChatMessageTimings } from './chat';
 import type { DatabaseMessageExtra } from './database';
 import type { OpenAIToolDefinition } from './mcp';
+import type { ResponsesMcpItem, ResponsesMcpTool } from './pico-tools';
 import type { Icon } from '@lucide/svelte';
 import type { SETTING_CONFIG_DEFAULT, SETTINGS_SECTION_TITLES } from '$lib/constants';
 import type {
@@ -94,6 +95,8 @@ export interface SettingsChatServiceOptions {
 	// Token budget for thinking, sent as thinking_budget_tokens
 	thinkingBudgetTokens?: number;
 	tools?: OpenAIToolDefinition[];
+	// Pico's `mcp` tool entry, Responses only; without one a Pico request offers no Pico tools
+	picoMcpTool?: ResponsesMcpTool;
 	// Generation parameters
 	temperature?: number;
 	max_tokens?: number;
@@ -129,6 +132,8 @@ export interface SettingsChatServiceOptions {
 	onReasoningChunk?: (chunk: string) => void;
 	onReasoningEnd?: () => void;
 	onToolCallChunk?: (chunk: string) => void;
+	// Pico's MCP items of the response so far, in output order
+	onMcpItems?: (items: ResponsesMcpItem[]) => void;
 	onAttachments?: (extras: DatabaseMessageExtra[]) => void;
 	onModel?: (model: string) => void;
 	onCompletionId?: (id: string) => void;

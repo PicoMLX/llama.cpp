@@ -63,7 +63,9 @@ import {
 	getConversationModel,
 	isAbortError,
 	normalizeModelName,
-	sliceAtLastCompaction
+	serializeStoredToolCalls,
+	sliceAtLastCompaction,
+	splitStoredToolCalls
 } from '$lib/utils';
 import { SvelteMap } from 'svelte/reactivity';
 
@@ -1254,13 +1256,15 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 				content: string,
 				reasoningContent: string | undefined,
 				timings: ChatMessageTimings | undefined,
-				toolCalls: import('$lib/types/api').ApiChatCompletionToolCall[] | undefined
+				toolCalls: import('$lib/types/api').ApiChatCompletionToolCall[] | undefined,
+				mcpItems?: import('$lib/types').ResponsesMcpItem[]
 			) => {
+				const storedToolCalls = serializeStoredToolCalls(toolCalls, mcpItems);
 				const updateData: Record<string, unknown> = {
 					content,
 					reasoningContent: reasoningContent || undefined,
 					timings,
-					toolCalls: toolCalls ? JSON.stringify(toolCalls) : ''
+					toolCalls: storedToolCalls
 				};
 
 				if (resolvedModel && !modelPersisted) updateData.model = resolvedModel;
@@ -1269,7 +1273,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 				const uiUpdate: Partial<DatabaseMessage> = {
 					content,
 					reasoningContent: reasoningContent || undefined,
-					toolCalls: toolCalls ? JSON.stringify(toolCalls) : ''
+					toolCalls: storedToolCalls
 				};
 
 				if (timings) uiUpdate.timings = timings;
@@ -1380,9 +1384,11 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 					DatabaseService.updateMessage(currentMessageId, { timings }).catch(console.error);
 				}
 			},
-			onToolCallsStreaming: (toolCalls) => {
+			onToolCallsStreaming: (toolCalls, mcpItems) => {
 				updateActiveFlowMessage(currentMessageId, {
-					toolCalls: JSON.stringify(toolCalls)
+					toolCalls: mcpItems?.length
+						? serializeStoredToolCalls(toolCalls, mcpItems)
+						: JSON.stringify(toolCalls)
 				});
 			},
 			onTurnComplete: (intermediateTimings: ChatMessageTimings) => {
@@ -1417,6 +1423,12 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 				}
 
 				await DatabaseService.updateMessage(messageId, updates);
+			},
+			updateTurnToolCalls: async (toolCalls, mcpItems) => {
+				const storedToolCalls = serializeStoredToolCalls(toolCalls, mcpItems);
+
+				updateActiveFlowMessage(currentMessageId, { toolCalls: storedToolCalls });
+				await DatabaseService.updateMessage(currentMessageId, { toolCalls: storedToolCalls });
 			}
 		};
 		const toolPolicy = requestSnapshot.toolPolicy;
@@ -1706,6 +1718,11 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 		// snapshot the streamed tool calls before clearing so we still know whether
 		// anything was captured when deciding to skip the DB write below
 		const hadPartialToolCalls = !!streamedMessage.toolCalls?.trim();
+		// Pico's MCP items are complete records of what Pico ran or asked, keep them
+		const keptToolCalls = serializeStoredToolCalls(
+			undefined,
+			splitStoredToolCalls(streamedMessage.toolCalls).mcpItems
+		);
 		const mirrorPartial = (updates: Partial<DatabaseMessage>) => {
 			if (conversationsStore.activeConversation?.id !== conversationId) return;
 
@@ -1729,7 +1746,7 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 				toolCalls?: string;
 				timings?: ChatMessageTimings;
 			} = {
-				toolCalls: ''
+				toolCalls: keptToolCalls
 			};
 
 			if (partialContent.trim()) updateData.content = partialContent;
@@ -1755,7 +1772,11 @@ class ChatStore implements ChatStreamHost, ChatFlowsHost {
 			await DatabaseService.updateMessage(streamedMessage.id, updateData);
 			mirrorPartial(updateData);
 		} catch (error) {
-			mirrorPartial({ content: partialContent, reasoningContent: partialReasoning, toolCalls: '' });
+			mirrorPartial({
+				content: partialContent,
+				reasoningContent: partialReasoning,
+				toolCalls: keptToolCalls
+			});
 			console.error('Failed to save partial response:', error);
 		}
 	}

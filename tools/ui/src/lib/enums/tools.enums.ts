@@ -2,6 +2,7 @@ export enum ToolSource {
 	BROWSER = 'browser',
 	CUSTOM = 'custom',
 	MCP = 'mcp',
+	PICO = 'pico',
 	SERVER = 'server'
 }
 
