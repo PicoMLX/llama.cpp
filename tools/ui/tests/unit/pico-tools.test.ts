@@ -106,6 +106,7 @@ afterEach(() => {
 	serverStore.props = null;
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
+	vi.useRealTimers();
 });
 
 describe('Pico MCP stream items', () => {
@@ -330,6 +331,30 @@ describe('Pico mcp tool entry', () => {
 		expect(toolsStore.picoTools).toEqual([]);
 		expect(toolsStore.needsPicoToolsListing).toBe(false);
 		settingsStore.config.apiKey = previousKey;
+	});
+
+	it('lists Pico tools again once a listing is a minute old, and holds off after a failed refresh', async () => {
+		usePicoServer();
+		// later than any real failure an earlier test recorded
+		const start = Date.now() + 3_600_000;
+		const list = vi.spyOn(ToolsService, 'listPicoTools').mockResolvedValue(picoTools);
+
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(start);
+		await toolsStore.fetchPicoTools();
+		vi.setSystemTime(start + 60_000);
+		expect(toolsStore.needsPicoToolsListing).toBe(false);
+		vi.setSystemTime(start + 60_001);
+		expect(toolsStore.needsPicoToolsListing).toBe(true);
+
+		list.mockRejectedValue(new Error('offline'));
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		await toolsStore.fetchPicoTools();
+		expect(toolsStore.picoTools).toEqual(picoTools);
+		vi.setSystemTime(start + 90_001);
+		expect(toolsStore.needsPicoToolsListing).toBe(false);
+		vi.setSystemTime(start + 90_002);
+		expect(toolsStore.needsPicoToolsListing).toBe(true);
 	});
 
 	it('fails a listing whose tools/list failed instead of listing no tools', async () => {

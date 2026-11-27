@@ -223,6 +223,42 @@ describe('Pico tools in the chat', () => {
 		await vi.waitFor(isIdle);
 	});
 
+	it('lists Pico tools again before a send once the listing is a minute old', async () => {
+		const realNow = Date.now.bind(Date);
+		const list = vi.mocked(ToolsService.listPicoTools);
+
+		let offset = 0;
+
+		vi.spyOn(Date, 'now').mockImplementation(() => realNow() + offset);
+		const screen = render(PicoChatScreenHarness);
+
+		await send(screen, 'First');
+		await vi.waitFor(() => expect(responseBodies).toHaveLength(1));
+		await vi.waitFor(isIdle);
+		const listings = list.mock.calls.length;
+
+		await send(screen, 'Second');
+		await vi.waitFor(() => expect(responseBodies).toHaveLength(2));
+		await vi.waitFor(isIdle);
+		expect(list).toHaveBeenCalledTimes(listings);
+
+		list.mockResolvedValue([
+			...PICO_TOOLS,
+			{ approvalRequired: true, name: 'notes_create', title: 'Create Note' }
+		]);
+		offset = 60_001;
+		await send(screen, 'Third');
+		await vi.waitFor(() => expect(responseBodies).toHaveLength(3));
+		expect(list).toHaveBeenCalledTimes(listings + 1);
+		expect(responseBodies[2].tools).toContainEqual(
+			expect.objectContaining({
+				allowed_tools: ['weather_current', 'reminders_create', 'notes_create'],
+				type: 'mcp'
+			})
+		);
+		await vi.waitFor(isIdle);
+	});
+
 	it('asks before a call that needs approval, then sends the approval with the next request', async () => {
 		streams.push(approvalStream, approvedCallStream);
 		const screen = render(PicoChatScreenHarness);

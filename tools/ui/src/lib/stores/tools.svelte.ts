@@ -45,6 +45,8 @@ import type {
 import { ApiError, buildSandboxToolDefinition, isPicoMcpUrl, picoMcpUrl } from '$lib/utils';
 import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
+/** How long a Pico tool listing stays current before a send lists again, so tools enabled in Pico since then reach the request */
+const PICO_TOOLS_MAX_AGE_MS = 60_000;
 /** How long a failed Pico tool listing holds off the next try before a send */
 const PICO_TOOLS_RETRY_DELAY_MS = 30_000;
 
@@ -61,6 +63,7 @@ class ToolsStore {
 	private _picoToolsFailedAt = 0;
 	// API key of the listed tools, null until a listing succeeds; Pico answers as that caller
 	private _picoToolsKey: string | null = null;
+	private _picoToolsListedAt = 0;
 	private _picoToolsRequest: { key: string; promise: Promise<void> } | null = null;
 	private _serverHome = $state<string | null | undefined>(undefined);
 	private _serverTools = $state<OpenAIToolDefinition[]>([]);
@@ -211,11 +214,13 @@ class ToolsStore {
 		return this.mcpEntries().map((e) => e.definition);
 	}
 
-	/** True when a send should list Pico's tools first: never listed, and not just failed */
+	/** True when a send should list Pico's tools first: not listed for this caller or listed too long ago, and not just failed */
 	get needsPicoToolsListing(): boolean {
-		return (
-			!this.hasListedPicoTools && Date.now() - this._picoToolsFailedAt > PICO_TOOLS_RETRY_DELAY_MS
-		);
+		const now = Date.now();
+		const current =
+			this.hasListedPicoTools && now - this._picoToolsListedAt <= PICO_TOOLS_MAX_AGE_MS;
+
+		return !current && now - this._picoToolsFailedAt > PICO_TOOLS_RETRY_DELAY_MS;
 	}
 
 	/** Pico Server's own tools from its last `/mcp` listing */
@@ -296,6 +301,7 @@ class ToolsStore {
 
 				this._picoTools = tools;
 				this._picoToolsKey = key;
+				this._picoToolsListedAt = Date.now();
 			})
 			.catch((err: unknown) => {
 				if (this._picoToolsRequest?.promise !== promise) return;
