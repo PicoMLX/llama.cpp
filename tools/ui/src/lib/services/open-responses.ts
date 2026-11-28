@@ -1,8 +1,14 @@
-import { API_CHAT, LEGACY_AGENTIC_REGEX as AGENTIC_REGEX, PICO_MCP } from '$lib/constants';
+import {
+	API_CHAT,
+	LEGACY_AGENTIC_REGEX as AGENTIC_REGEX,
+	PICO_MCP,
+	SETTINGS_KEYS
+} from '$lib/constants';
 import { IS_PICO_BUILD } from '$lib/constants/app.constants';
 import { AttachmentType, MessageRole, StreamConnectionState } from '$lib/enums';
 import { modelsStore } from '$lib/stores/models/index.svelte';
 import { serverStore } from '$lib/stores/server.svelte';
+import { settingsStore } from '$lib/stores/settings/index.svelte';
 import type {
 	ApiChatCompletionToolCall,
 	DatabaseMessageExtraMcpPrompt,
@@ -15,6 +21,7 @@ import type {
 } from '$lib/types';
 import { isAbortError } from '$lib/utils/abort';
 import { getJsonHeaders } from '$lib/utils/api-headers';
+import { capImageDataURLSize } from '$lib/utils/cap-img-size';
 import { isMcpItem, mcpItemRuns, picoMcpUrl, splitStoredToolCalls } from '$lib/utils/pico-tools';
 import { createReasoningTiming } from '$lib/utils/reasoning-timing';
 
@@ -290,7 +297,7 @@ export class OpenResponsesService {
 		} = options;
 		const shouldStream = stream ?? true;
 		const input = OpenResponsesService.convertMessagesToInput(
-			messages,
+			await OpenResponsesService.capImages(messages),
 			excludeReasoningFromContext
 		);
 		const headers = getJsonHeaders();
@@ -508,6 +515,45 @@ export class OpenResponsesService {
 		error.name = 'AbortError';
 
 		return error;
+	}
+
+	/**
+	 * Caps each attached image at the maximum resolution in Settings, as Chat Completions does in `ChatService.convertDbMessageToApiChatMessageData`.
+	 * Pico always uses Responses, so without this its images go out at full resolution.
+	 */
+	private static async capImages(
+		messages: ApiChatMessageData[] | (DatabaseMessage & { extra?: DatabaseMessageExtra[] })[]
+	): Promise<typeof messages> {
+		const maxImageResolution = settingsStore.getConfig(SETTINGS_KEYS.MAX_IMAGE_RESOLUTION);
+
+		return (await Promise.all(
+			(
+				messages as Array<
+					ApiChatMessageData | (DatabaseMessage & { extra?: DatabaseMessageExtra[] })
+				>
+			).map(async (msg) => {
+				// Only stored messages keep their attachments as extras
+				const extras = (msg as { extra?: DatabaseMessageExtra[] }).extra;
+
+				if (!extras?.some((extra) => extra.type === AttachmentType.IMAGE)) return msg;
+
+				const extra = await Promise.all(
+					extras.map(async (extra) =>
+						extra.type === AttachmentType.IMAGE
+							? {
+									...extra,
+									base64Url: await capImageDataURLSize(
+										(extra as DatabaseMessageExtraImageFile).base64Url,
+										maxImageResolution
+									)
+								}
+							: extra
+					)
+				);
+
+				return { ...msg, extra };
+			})
+		)) as typeof messages;
 	}
 
 	private static completionReason(response: Record<string, unknown>, toolCalls?: string): string {

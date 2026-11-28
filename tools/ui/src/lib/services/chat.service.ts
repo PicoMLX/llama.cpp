@@ -1104,8 +1104,9 @@ export class ChatService {
 		conversationId?: string,
 		signal?: AbortSignal
 	): Promise<string | void> {
-		// Pico's tool picker and approvals only exist in Responses, so Pico always uses it
+		// Pico's stored chats, tool picker and approvals only exist in Responses, so Pico always uses it, even before the server is recognized
 		if (
+			IS_PICO_BUILD ||
 			serverStore.isPicoServer ||
 			settingsStore.getConfig(SETTINGS_KEYS.API_ENDPOINT) === 'responses'
 		) {
