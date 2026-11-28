@@ -126,7 +126,7 @@ describe('capImageDataURLSize orientation and capping', () => {
 	});
 });
 
-// Pico always uses Responses, so its images take this path whatever API Compatibility says
+// Pico always uses Responses, so this is the path its images take
 describe('Responses requests', () => {
 	const previousConfig = { ...settingsStore.config };
 

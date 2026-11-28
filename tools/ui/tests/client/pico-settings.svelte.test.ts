@@ -7,10 +7,10 @@ import {
 	SETTINGS_REGISTRY,
 	SETTINGS_SECTION_SLUGS
 } from '$lib/constants';
-import { ServerRole } from '$lib/enums';
+import { MessageRole, ServerRole } from '$lib/enums';
+import { ChatService } from '$lib/services/chat.service';
 import { serverStore } from '$lib/stores/server.svelte';
 import { settingsStore } from '$lib/stores/settings/index.svelte';
-import type { ApiLlamaCppServerProps } from '$lib/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { page } from 'vitest/browser';
 import { render } from 'vitest-browser-svelte';
@@ -115,17 +115,50 @@ describe.runIf(IS_PICO_BUILD)('Pico preferences', () => {
 		expect(settingsStore.config.customJson).toBe('{"seed":2}');
 	});
 
-	it('offers API Compatibility only for servers other than Pico, which always uses Open Responses', async () => {
+	it('has no API Compatibility setting, even before the server is recognized as Pico', async () => {
 		const screen = render(SettingsChat, { initialSection: SETTINGS_SECTION_SLUGS.ADVANCED });
 
+		expect(serverStore.isPicoServer).toBe(false);
 		await screen.getByText('Developer', { exact: true }).click();
-		await expect.element(screen.getByText('API Compatibility', { exact: true })).toBeVisible();
-
-		serverStore.props = { server_name: 'Pico AI Server' } as ApiLlamaCppServerProps;
+		await expect.element(screen.getByLabelText('Custom JSON', { exact: true })).toBeVisible();
 		await expect
 			.element(screen.getByText('API Compatibility', { exact: true }))
 			.not.toBeInTheDocument();
-		await expect.element(screen.getByLabelText('Custom JSON', { exact: true })).toBeVisible();
+		await expect.element(screen.getByText('API Endpoint', { exact: true })).not.toBeInTheDocument();
+	});
+
+	it('sends through Open Responses whatever endpoint is stored, even before Pico is recognized', async () => {
+		settingsStore.config.apiEndpoint = 'chat_completions';
+		const paths: string[] = [];
+
+		vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+			const url = new URL(input instanceof Request ? input.url : String(input), location.href);
+
+			paths.push(url.pathname);
+
+			return url.pathname.endsWith('/v1/responses')
+				? Response.json({
+						id: 'resp_1',
+						model: 'test',
+						object: 'response',
+						output: [
+							{
+								content: [{ text: 'Hello.', type: 'output_text' }],
+								role: 'assistant',
+								type: 'message'
+							}
+						],
+						status: 'completed'
+					})
+				: new Response('Not found', { status: 404 });
+		});
+
+		expect(serverStore.isPicoServer).toBe(false);
+		await ChatService.sendMessage([{ content: 'Hello', role: MessageRole.USER }], {
+			stream: false
+		});
+
+		expect(paths).toEqual(['/v1/responses']);
 	});
 
 	it('resets General without clearing instructions, connections or access', async () => {

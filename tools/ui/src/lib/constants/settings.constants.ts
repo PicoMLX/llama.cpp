@@ -745,17 +745,10 @@ if (IS_PICO_BUILD) {
 		}
 	}
 
-	const endpoint = SETTINGS_REGISTRY.flatMap((section) => section.settings).find(
+	// Pico stores chats through Open Responses and always sends with it, so there is no choice
+	SETTINGS_REGISTRY.flatMap((section) => section.settings).find(
 		(setting) => setting.key === SETTINGS_KEYS.API_ENDPOINT
-	)!;
-
-	endpoint.label = 'API Compatibility';
-	endpoint.help =
-		'Pico always uses Open Responses. Choose Chat Completions only for other servers that require it.';
-	endpoint.options = [
-		{ label: 'Open Responses', value: 'responses' },
-		{ label: 'Chat Completions', value: 'chat_completions' }
-	];
+	)!.standaloneField = false;
 }
 
 function getAllSettings(): SettingsEntry[] {
@@ -828,8 +821,6 @@ const developerKeys = new Set(
 		(section) => section.slug === SETTINGS_SECTION_SLUGS.DEVELOPER
 	)!.settings.map((setting) => setting.key)
 );
-
-developerKeys.add(SETTINGS_KEYS.API_ENDPOINT);
 
 export const PICO_ADVANCED_SETTINGS_GROUPS: Array<{
 	title: string;
