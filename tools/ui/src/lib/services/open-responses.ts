@@ -518,9 +518,8 @@ export class OpenResponsesService {
 	}
 
 	/**
-	 * Caps each attached image at the maximum resolution in Settings, as Chat Completions does
-	 * in `ChatService.convertDbMessageToApiChatMessageData`. Pico always uses Responses, so
-	 * without this its images would go out at full resolution.
+	 * Caps each attached image at the maximum resolution in Settings, as Chat Completions does in `ChatService.convertDbMessageToApiChatMessageData`.
+	 * Pico always uses Responses, so without this its images go out at full resolution.
 	 */
 	private static async capImages(
 		messages: ApiChatMessageData[] | (DatabaseMessage & { extra?: DatabaseMessageExtra[] })[]
